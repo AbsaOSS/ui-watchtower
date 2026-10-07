@@ -31,12 +31,34 @@ describe('UwtDiagnosticsJsonComponent', () => {
     fixture.componentRef.setInput('maxChars', 1000);
     fixture.detectChanges();
 
+    expect(pre().textContent!.length).toBe(1000);
+    expect(fixture.nativeElement.textContent).toContain(
+      'showing the first 1,000 characters'
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'The download contains all of it.'
+    );
+  });
+
+  it('should show at most 65,536 characters when maxChars is larger', () => {
+    fixture.componentRef.setInput('value', { big: 'x'.repeat(200_000) });
+    fixture.componentRef.setInput('maxChars', 100_000);
+    fixture.detectChanges();
+
     expect(pre().textContent!.length).toBe(64 * 1024);
     expect(fixture.nativeElement.textContent).toContain(
       'showing the first 65,536 characters'
     );
+  });
+
+  it('should show nothing of a payload when maxChars is negative', () => {
+    fixture.componentRef.setInput('value', { big: 'x'.repeat(1000) });
+    fixture.componentRef.setInput('maxChars', -10);
+    fixture.detectChanges();
+
+    expect(pre().textContent).toBe('');
     expect(fixture.nativeElement.textContent).toContain(
-      'The download contains all of it.'
+      'showing the first 0 characters'
     );
   });
 
@@ -53,7 +75,7 @@ describe('UwtDiagnosticsJsonComponent', () => {
   it('should not cut a truncated view through the middle of a surrogate pair', () => {
     const before = '{\n  "big": "';
     // Lines the first emoji up so the cut would fall inside it.
-    const padding = 'x'.repeat(64 * 1024 - 1 - before.length);
+    const padding = 'x'.repeat(1000 - 1 - before.length);
     fixture.componentRef.setInput('value', {
       big: padding + '😀'.repeat(10)
     });
@@ -61,7 +83,7 @@ describe('UwtDiagnosticsJsonComponent', () => {
     fixture.detectChanges();
 
     const shown = pre().textContent!;
-    expect(shown.length).toBe(64 * 1024 - 1);
+    expect(shown.length).toBe(1000 - 1);
     expect(shown.endsWith('x')).toBe(true);
   });
 

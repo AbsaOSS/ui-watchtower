@@ -24,8 +24,8 @@
   </div>
   @if (truncated()) {
     <p class="uwt-diagnostics-json__notice">
-      Large payload: showing the first {{ shownChars }} characters. The download
-      contains all of it.
+      Large payload: showing the first {{ shownChars() }} characters. The
+      download contains all of it.
     </p>
   }
   <pre

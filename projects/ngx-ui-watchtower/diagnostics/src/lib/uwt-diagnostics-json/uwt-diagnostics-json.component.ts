@@ -9,7 +9,10 @@ import { CpsButtonComponent } from 'cps-ui-kit';
 import { uwtSafeStringify } from '../uwt-diagnostics-export/uwt-diagnostics-export';
 import { UWT_DEFAULT_DIAGNOSTICS_CONFIG } from '../uwt-diagnostics-store/uwt-diagnostics-store';
 
-/** Characters shown of a payload too large to show in full. */
+/**
+ * The most characters a truncated view shows, even when `maxChars` allows
+ * more.
+ */
 const TRUNCATED_VIEW_CHARS = 64 * 1024;
 
 /**
@@ -47,8 +50,19 @@ export class UwtDiagnosticsJsonComponent {
     UWT_DEFAULT_DIAGNOSTICS_CONFIG.maxPayloadCharsInView
   );
 
+  /**
+   * How many characters a truncated view shows: `maxChars`, capped at
+   * `TRUNCATED_VIEW_CHARS`. Never negative — `slice` would read a negative
+   * length as "all but the last few".
+   */
+  private readonly viewChars = computed(() =>
+    Math.max(0, Math.min(TRUNCATED_VIEW_CHARS, this.maxChars()))
+  );
+
   /** How much a truncated view shows, as the notice words it. */
-  protected readonly shownChars = TRUNCATED_VIEW_CHARS.toLocaleString('en-US');
+  protected readonly shownChars = computed(() =>
+    this.viewChars().toLocaleString('en-US')
+  );
 
   protected readonly copied = signal<'idle' | 'copied' | 'failed'>('idle');
 
@@ -67,7 +81,7 @@ export class UwtDiagnosticsJsonComponent {
   );
 
   protected readonly shown = computed(() =>
-    this.truncated() ? cutAt(this.full(), TRUNCATED_VIEW_CHARS) : this.full()
+    this.truncated() ? cutAt(this.full(), this.viewChars()) : this.full()
   );
 
   protected async copy(): Promise<void> {

@@ -1972,12 +1972,12 @@ each marked with `↪` and the fragment's name.
 
 #### Configuration
 
-| Option                  | Default                             | Meaning                                                                                                   |
-| ----------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `enabled`               | `true`                              | `false`, or a function read once at startup, turns the popup off — shortcut and `open()` alike            |
-| `shortcuts`             | `UWT_DEFAULT_DIAGNOSTICS_SHORTCUTS` | Replaces the defaults; `[]` disables the keyboard                                                         |
-| `maxEventsPerSection`   | `500`                               | Events kept per section; the oldest are dropped, and the count of dropped ones is shown                   |
-| `maxPayloadCharsInView` | `262144` (256 × 1024)               | A payload whose JSON is longer is shown truncated to its first 65,536 characters; downloads stay complete |
+| Option                  | Default                             | Meaning                                                                                                                                    |
+| ----------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`               | `true`                              | `false`, or a function read once at startup, turns the popup off — shortcut and `open()` alike                                             |
+| `shortcuts`             | `UWT_DEFAULT_DIAGNOSTICS_SHORTCUTS` | Replaces the defaults; `[]` disables the keyboard                                                                                          |
+| `maxEventsPerSection`   | `500`                               | Events kept per section; the oldest are dropped, and the count of dropped ones is shown                                                    |
+| `maxPayloadCharsInView` | `262144` (256 × 1024)               | A payload whose JSON is longer is shown truncated to its first `maxPayloadCharsInView` characters, at most 65,536; downloads stay complete |
 
 Characters here are UTF-16 code units (JavaScript's `length`), not bytes: the
 limit protects rendering, which costs by the length of the text. A cut never

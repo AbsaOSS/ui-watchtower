@@ -52,7 +52,8 @@ export interface UwtTelemetryDiagnosticsConfig {
 
   /**
    * Payloads whose JSON is longer than this many characters are shown
-   * truncated. The download always contains them in full.
+   * truncated to this many, at most 65,536. The download always contains
+   * them in full.
    *
    * Characters (UTF-16 code units, JavaScript's `length`), not bytes: the
    * limit protects rendering, which costs by the length of the text.
