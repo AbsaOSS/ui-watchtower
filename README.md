@@ -34,7 +34,7 @@ Requires Node.js 22 or later.
 
 ```bash
 npm install
-npm test
+npm run test
 npm run build
 ```
 
@@ -42,22 +42,23 @@ The package is built to `dist/ngx-ui-watchtower`.
 
 ## Scripts
 
-| Script                 | What it does                                         |
-| ---------------------- | ---------------------------------------------------- |
-| `npm run build`        | Builds the package (production, partial compilation) |
-| `npm run watch`        | Rebuilds on change (development)                     |
-| `npm test`             | Runs the unit tests (Jest)                           |
-| `npm run typecheck`    | Type-checks every library and spec tsconfig          |
-| `npm run lint`         | ESLint, no warnings allowed                          |
-| `npm run format`       | Formats with Prettier                                |
-| `npm run format:check` | Checks formatting without writing                    |
+| Script                  | What it does                                         |
+| ----------------------- | ---------------------------------------------------- |
+| `npm run build`         | Builds the package (production, partial compilation) |
+| `npm run watch`         | Rebuilds on change (development)                     |
+| `npm run test`          | Runs the unit tests (Jest)                           |
+| `npm run test:coverage` | Runs the unit tests with coverage, as CI does        |
+| `npm run typecheck`     | Type-checks every library and spec tsconfig          |
+| `npm run lint`          | ESLint, no warnings allowed                          |
+| `npm run format`        | Formats with Prettier                                |
+| `npm run format:check`  | Checks formatting without writing                    |
 
 ## Before you push
 
 Run all of them — each catches something the others don't:
 
 ```bash
-npm test
+npm run test
 npm run typecheck
 npm run lint
 npm run format:check
