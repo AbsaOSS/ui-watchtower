@@ -1,0 +1,47 @@
+/* To learn more about this file see: https://angular.io/config/tsconfig. */
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "resolveJsonModule": true,
+    "paths": {
+      "@absaoss-cps/ngx-ui-watchtower": [
+        "./projects/ngx-ui-watchtower/src/public-api.ts"
+      ],
+      "@absaoss-cps/ngx-ui-watchtower/rum": [
+        "./projects/ngx-ui-watchtower/rum/src/public-api.ts"
+      ]
+    },
+    "esModuleInterop": true,
+    "outDir": "./dist/out-tsc",
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "sourceMap": true,
+    "declaration": false,
+    "experimentalDecorators": true,
+    "moduleResolution": "bundler",
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "useDefineForClassFields": false
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  },
+  "files": [],
+  "references": [
+    { "path": "./projects/ngx-ui-watchtower/tsconfig.lib.json" },
+    { "path": "./projects/ngx-ui-watchtower/tsconfig.spec.json" },
+    { "path": "./projects/ngx-ui-watchtower/rum/tsconfig.lib.json" },
+    { "path": "./projects/ngx-ui-watchtower/rum/tsconfig.spec.json" }
+  ]
+}
