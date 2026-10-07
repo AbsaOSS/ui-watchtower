@@ -63,15 +63,31 @@ npm run format:check
 npm run build
 ```
 
-## Publishing
+CI runs the same checks on every pull request and every push to `main`.
 
-The package is public in the `@absaoss-cps` npm organization; publishing needs rights in it.
+## Pull requests
 
-```bash
-npm run build
-cd dist/ngx-ui-watchtower
-npm publish
-```
+PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/),
+for example `feat: add scenario timeout option` or `fix: flush logs on page hide`.
+Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`,
+`build`, `ci`, `chore`, `revert`. A check enforces it; the `ignore-cc-check`
+label skips it.
+
+Squash-merge pull requests: the title then becomes the commit message on
+`main`, and releases are built from those messages.
+
+## Releases
+
+Releases are automated with [release-please](https://github.com/googleapis/release-please)
+— don't publish by hand.
+
+1. Every push to `main` updates a release PR. `feat` bumps the minor version,
+   `fix`, `perf` and `revert` the patch; until 1.0, a breaking change bumps
+   the minor. Other types don't trigger a release.
+2. The release PR holds the version bump and the `CHANGELOG.md` entry.
+3. Merging it tags the release, creates the GitHub release and publishes the
+   package to npm from GitHub Actions through trusted publishing — no npm
+   token.
 
 ## License
 
