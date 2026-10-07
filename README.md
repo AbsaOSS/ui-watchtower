@@ -22,6 +22,7 @@ How it is designed: [projects/ngx-ui-watchtower/DESIGN.md](projects/ngx-ui-watch
 projects/ngx-ui-watchtower/
   src/          main entry point — @absaoss-cps/ngx-ui-watchtower
   rum/          secondary entry point — @absaoss-cps/ngx-ui-watchtower/rum
+  diagnostics/  secondary entry point — @absaoss-cps/ngx-ui-watchtower/diagnostics
   README.md     usage guide, published to npm
   DESIGN.md     full design
   package.json  the published package's manifest

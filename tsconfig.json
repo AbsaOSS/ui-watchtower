@@ -9,6 +9,9 @@
       ],
       "@absaoss-cps/ngx-ui-watchtower/rum": [
         "./projects/ngx-ui-watchtower/rum/src/public-api.ts"
+      ],
+      "@absaoss-cps/ngx-ui-watchtower/diagnostics": [
+        "./projects/ngx-ui-watchtower/diagnostics/src/public-api.ts"
       ]
     },
     "esModuleInterop": true,
@@ -42,6 +45,8 @@
     { "path": "./projects/ngx-ui-watchtower/tsconfig.lib.json" },
     { "path": "./projects/ngx-ui-watchtower/tsconfig.spec.json" },
     { "path": "./projects/ngx-ui-watchtower/rum/tsconfig.lib.json" },
-    { "path": "./projects/ngx-ui-watchtower/rum/tsconfig.spec.json" }
+    { "path": "./projects/ngx-ui-watchtower/rum/tsconfig.spec.json" },
+    { "path": "./projects/ngx-ui-watchtower/diagnostics/tsconfig.lib.json" },
+    { "path": "./projects/ngx-ui-watchtower/diagnostics/tsconfig.spec.json" }
   ]
 }

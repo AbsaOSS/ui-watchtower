@@ -20,6 +20,7 @@ import {
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import { uwtRedactConfigFor } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import { UwtScenario } from '../../scenario/uwt-scenario/uwt-scenario';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 
 /**
  * How many scenarios may be in flight before a development-mode warning
@@ -68,6 +69,7 @@ export class UwtScenarioTelemetryService implements OnDestroy {
   );
 
   private readonly sink = inject(UwtTelemetrySink);
+  private readonly monitor = inject(UwtTelemetryMonitor);
   private readonly document = inject(DOCUMENT);
   private readonly isBrowser = uwtIsBrowser();
   private readonly zone = inject(NgZone, { optional: true });
@@ -122,6 +124,7 @@ export class UwtScenarioTelemetryService implements OnDestroy {
       scenarioTelemetryConfig: this.scenarioTelemetryConfig,
       redact: this.redact,
       sink: this.sink,
+      monitor: this.monitor,
       runOutsideAngular: (callback) =>
         this.zone?.runOutsideAngular(callback) ?? callback(),
       onSettled: (scenarioId, record) => {

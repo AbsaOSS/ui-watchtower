@@ -13,6 +13,7 @@ import {
   uwtEventTypes,
   UwtTelemetryMetadata
 } from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { uwtDebugWrite } from '../../utils/uwt-debug-flag.util/uwt-debug-flag.util';
 import {
@@ -68,6 +69,7 @@ export class UwtBITelemetryService {
   );
 
   private readonly sink = inject(UwtTelemetrySink);
+  private readonly monitor = inject(UwtTelemetryMonitor);
   private readonly eventTypes = uwtEventTypes(this.identity.eventNamespace);
   private readonly lastEmittedAt = new Map<string, number>();
 
@@ -120,6 +122,13 @@ export class UwtBITelemetryService {
       );
 
       this.sink.record(eventType, event);
+      this.monitor.publish({
+        kind: 'bi',
+        eventType,
+        payload: event,
+        destination: 'sink',
+        origin: { forwarded: false }
+      });
     });
   }
 

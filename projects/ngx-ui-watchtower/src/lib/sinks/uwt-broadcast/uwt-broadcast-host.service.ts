@@ -11,9 +11,19 @@ import {
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
 import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+import { uwtClassifyTelemetryEvent } from '../../utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
 import { UwtBroadcastTelemetrySink } from './uwt-broadcast-telemetry.sink';
 import { UwtBroadcastLogApiProvider } from '../../providers/uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
+import { UwtTelemetryMonitor } from '../../services/uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
+import {
+  UwtJsonObject,
+  UwtTelemetryEventOrigin
+} from '../../models/uwt-telemetry-monitor.models/uwt-telemetry-monitor.models';
 import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
+import {
+  UwtTelemetryError,
+  UwtTelemetryMetadata
+} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
 import {
   UWT_LOG_API_PROVIDER,
   UwtLogQuery
@@ -24,6 +34,16 @@ import {
  * true duplicate provider from another tab sharing the same channel.
  */
 const hostsInThisRealm = new Map<string, number>();
+
+/**
+ * A forwarded error-level log record, kept for exactly one message in case
+ * the next is its `mirrorErrorsToRum` copy.
+ */
+interface UwtForwardedErrorLog {
+  application: string;
+  expected: UwtTelemetryError;
+  sequence: number;
+}
 
 /**
  * Receives telemetry forwarded by follower realms and records it through this
@@ -63,6 +83,7 @@ const hostsInThisRealm = new Map<string, number>();
 @Injectable()
 export class UwtTelemetryBroadcastHost implements OnDestroy {
   private readonly sink = inject(UwtTelemetrySink);
+  private readonly monitor = inject(UwtTelemetryMonitor);
   private readonly logApi = inject(UWT_LOG_API_PROVIDER);
   private readonly connection: UwtBroadcastConnection =
     uwtConnectBroadcastChannel('broadcastHost');
@@ -82,6 +103,9 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
   /** Whether this realm won the leader election; non-leaders stay passive. */
   private isLeader = false;
   private releaseLeadership: () => void = () => undefined;
+
+  /** The last message, when it was an error-level log record. */
+  private lastErrorLog?: UwtForwardedErrorLog;
 
   constructor() {
     this.warnIfDuplicateInThisRealm();
@@ -126,13 +150,35 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
         this._received++;
       }
 
+      // A mirror arrives straight after its log record, so the candidate
+      // lives for one message only.
+      const errorLog = this.lastErrorLog;
+      this.lastErrorLog = undefined;
+
       switch (data.kind) {
         case 'event':
           this.sink.record(data.eventType, data.payload, data.metadata);
+          this.monitor.publish({
+            kind: uwtClassifyTelemetryEvent(data.eventType, data.payload).kind,
+            eventType: data.eventType,
+            payload: data.payload as UwtJsonObject,
+            destination: 'sink',
+            origin: forwardedFrom(data.metadata?.application)
+          });
           this.reannounceIfIdentityChanged();
           break;
         case 'error':
           this.sink.recordError(data.error, data.metadata);
+          this.monitor.publish({
+            kind: 'error',
+            payload: data.error,
+            ...(errorLog &&
+              isMirrorOf(errorLog, data.error, data.metadata) && {
+                relatedSequence: errorLog.sequence
+              }),
+            destination: 'sink',
+            origin: forwardedFrom(data.metadata?.application)
+          });
           this.reannounceIfIdentityChanged();
           break;
         case 'user':
@@ -170,9 +216,29 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
     });
   }
 
-  /** Hands a follower's record to this realm's log API provider. */
+  /**
+   * Hands a follower's record to this realm's log API provider, and tells
+   * the monitor once it has — as {@link UwtLoggerService} does for its own.
+   */
   private deliverLog(record: UwtLogRecord): void {
-    uwtSafeVoidMaybeAsync('broadcastHost.log', () => this.logApi.send(record));
+    uwtSafeVoidMaybeAsync('broadcastHost.log', () => {
+      const pending = this.logApi.send(record);
+      const sequence = this.monitor.publish({
+        kind: 'log',
+        payload: record,
+        destination: 'log-provider',
+        origin: forwardedFrom(record.application)
+      });
+      if (record.level === 'error' && sequence !== undefined) {
+        this.lastErrorLog = {
+          application: record.application,
+          // What UwtLoggerService mirrors to RUM for this record.
+          expected: record.error ?? { name: 'Error', message: record.message },
+          sequence
+        };
+      }
+      return pending;
+    });
   }
 
   /**
@@ -291,4 +357,33 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
       undefined
     );
   }
+}
+
+/**
+ * Whether a forwarded error is the `mirrorErrorsToRum` copy of the error-level
+ * log record just before it: same realm, same name and message. A mirror
+ * the logger had to rewrite simply goes unlinked.
+ */
+function isMirrorOf(
+  errorLog: UwtForwardedErrorLog,
+  error: UwtTelemetryError,
+  metadata: UwtTelemetryMetadata | undefined
+): boolean {
+  return (
+    metadata?.application === errorLog.application &&
+    error.name === errorLog.expected.name &&
+    error.message === errorLog.expected.message
+  );
+}
+
+/**
+ * The forwarding realm: the `application` a follower sink stamps onto
+ * metadata, or a log record's own.
+ */
+function forwardedFrom(
+  application: UwtTelemetryMetadata[string] | undefined
+): UwtTelemetryEventOrigin {
+  return typeof application === 'string'
+    ? { forwarded: true, application }
+    : { forwarded: true };
 }

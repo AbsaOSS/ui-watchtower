@@ -300,13 +300,25 @@ Fragment code doesn't change. Give each fragment its own `application` name.
 
 ## Seeing what is sent
 
-Run in DevTools, no reload needed:
+**In the console** — run in DevTools, no reload needed:
 
 ```js
 localStorage.setItem('debugScenario', 'true');
 localStorage.setItem('debugBI', 'true');
 localStorage.setItem('debugLogger', 'true'); // or 'checkout,cart' for some loggers
 ```
+
+**In the app** — add the diagnostics popup (needs `cps-ui-kit`):
+
+```ts
+import { provideUwtTelemetryDiagnostics } from '@absaoss-cps/ngx-ui-watchtower/diagnostics';
+
+providers: [provideUwtTelemetryDiagnostics()];
+```
+
+Open it with **⇧⌥⌘8** on macOS or **Ctrl+Alt+Shift+8** on Windows and Linux.
+It lists everything the app sends from that moment on, with search, filters
+and JSON download.
 
 ## Testing
 
