@@ -41,8 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # The coverage report is posted as a PR comment.
       pull-requests: write
+      checks: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
