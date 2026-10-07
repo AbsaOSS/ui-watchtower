@@ -6,6 +6,7 @@
     "build": "ng build --configuration=production --project=ngx-ui-watchtower",
     "watch": "ng build ngx-ui-watchtower --watch --configuration development",
     "test": "ng test --project=ngx-ui-watchtower",
+    "test:coverage": "ng test --project=ngx-ui-watchtower --coverage --coverage-reporters text-summary --coverage-reporters lcov --json --output-file=./coverage/report.json",
     "lint": "eslint \"**/*.ts\" --max-warnings=0",
     "format": "prettier --write \"**/*.{ts,html}\"",
     "format:check": "prettier --check \"**/*.{ts,html}\"",
