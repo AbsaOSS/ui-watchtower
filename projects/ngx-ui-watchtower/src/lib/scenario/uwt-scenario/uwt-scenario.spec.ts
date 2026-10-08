@@ -4,6 +4,7 @@ import { UwtTelemetryMetadata } from '../../models/uwt-telemetry-common.models/u
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { UWT_DEFAULT_REDACT_CONFIG } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import { UwtScenario, UwtScenarioDeps } from './uwt-scenario';
+import { UwtTelemetryMonitor } from '../../services/uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 
 /** Captures what the scenario emitted, so a test can assert on it. */
 class RecordingSink extends UwtTelemetrySink {
@@ -54,6 +55,7 @@ function createDeps(overrides: Partial<UwtScenarioDeps> = {}): {
     redact: UWT_DEFAULT_REDACT_CONFIG,
     sink,
     onSettled: (_id, record) => settled.push(record),
+    monitor: new UwtTelemetryMonitor(),
     ...overrides
   };
   return { deps, sink, settled };

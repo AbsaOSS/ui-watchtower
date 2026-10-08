@@ -13,6 +13,7 @@ import {
   type UwtLogLevel,
   type UwtLogRecord
 } from '../../models/uwt-log.models/uwt-log.models';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import {
   UWT_LOG_API_PROVIDER,
@@ -81,6 +82,7 @@ export class UwtLoggerService implements OnDestroy {
   /** Enrichment only (`sessionId`/`userId`, optional RUM mirroring). */
   private readonly sink = inject(UwtTelemetrySink, { optional: true });
   private readonly apiProvider = inject(UWT_LOG_API_PROVIDER);
+  private readonly monitor = inject(UwtTelemetryMonitor);
   private readonly document = inject(DOCUMENT);
   private readonly isBrowser = uwtIsBrowser();
 
@@ -246,7 +248,7 @@ export class UwtLoggerService implements OnDestroy {
 
       uwtDebugWrite('debugLogger', () => writeToConsole(record), record.logger);
 
-      this.deliver(record);
+      const sequence = this.deliver(record);
 
       if (level === 'error' && this.logsConfig.mirrorErrorsToRum && this.sink) {
         const mirrored =
@@ -254,16 +256,39 @@ export class UwtLoggerService implements OnDestroy {
           uwtNormalizeError(new Error(record.message), this.redact);
         if (mirrored) {
           this.sink.recordError(mirrored);
+          this.monitor.publish({
+            kind: 'error',
+            payload: mirrored,
+            relatedSequence: sequence,
+            destination: 'sink',
+            origin: { forwarded: false }
+          });
         }
       }
     });
   }
 
-  /** Guards against a throwing or secretly-async, rejecting provider. */
-  private deliver(record: UwtLogRecord): void {
-    uwtSafeVoidMaybeAsync('logger.deliver', () =>
-      this.apiProvider.send(record)
-    );
+  /**
+   * Guards against a throwing or secretly-async, rejecting provider, and
+   * tells the monitor once the record has been handed over.
+   *
+   * @returns the monitor's sequence number for the record, when observed
+   */
+  private deliver(record: UwtLogRecord): number | undefined {
+    let sequence: number | undefined;
+    uwtSafeVoidMaybeAsync('logger.deliver', () => {
+      const pending = this.apiProvider.send(record);
+      // After send, so a provider that throws synchronously is not reported
+      // as handed over. An asynchronous rejection can't be seen here.
+      sequence = this.monitor.publish({
+        kind: 'log',
+        payload: record,
+        destination: 'log-provider',
+        origin: { forwarded: false }
+      });
+      return pending;
+    });
+    return sequence;
   }
 
   /** Gives the provider its chance to ship whatever it has queued itself. */

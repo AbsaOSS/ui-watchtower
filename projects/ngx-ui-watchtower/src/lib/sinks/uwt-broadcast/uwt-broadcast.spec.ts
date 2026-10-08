@@ -35,6 +35,8 @@ import {
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
 import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+import { UwtTelemetryMonitor } from '../../services/uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
+import { UwtTelemetryObservedEvent } from '../../models/uwt-telemetry-monitor.models/uwt-telemetry-monitor.models';
 
 /**
  * Each realm gets its own injector — the shell and every fragment run in a
@@ -43,6 +45,7 @@ import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/u
 function createRealm(providers: unknown[]): Injector {
   return Injector.create({
     providers: [
+      UwtTelemetryMonitor,
       { provide: PLATFORM_ID, useValue: 'browser' },
       { provide: DOCUMENT, useValue: document },
       {
@@ -374,6 +377,69 @@ describe('broadcast telemetry across realms', () => {
       expect(shellSink.events[0].metadata).toMatchObject({ feature: 'cart' });
     });
 
+    it('should show a forwarded event to the shell monitor, marked with its realm', async () => {
+      const observed: UwtTelemetryObservedEvent[] = [];
+      shell.get(UwtTelemetryMonitor).events$.subscribe((e) => observed.push(e));
+      const fragment = createFragment();
+
+      fragment
+        .get(UwtTelemetrySink)
+        .record('com.uwt.scenario.step', { scenarioName: 'load' });
+      fragment.get(UwtTelemetrySink).record('com.uwt.bi', { eventName: 'x' });
+      fragment.get(UwtTelemetrySink).record('custom.type', { a: 1 });
+      fragment
+        .get(UwtTelemetrySink)
+        .recordError({ name: 'TypeError', message: 'boom' });
+      await UwtBroadcastChannelStub.settle();
+
+      expect(observed.map((e) => e.kind)).toEqual([
+        'scenario-step',
+        'bi',
+        'unknown',
+        'error'
+      ]);
+      for (const e of observed) {
+        expect(e.origin).toEqual({ forwarded: true, application: 'realm' });
+        expect(e.destination).toBe('sink');
+      }
+      expect(shellSink.events).toHaveLength(3);
+      expect(shellSink.errors).toHaveLength(1);
+    });
+
+    it('should show a fragment scenario once per monitor — local in the fragment, forwarded in the shell', async () => {
+      const fragment = createFragment();
+      const inShell: UwtTelemetryObservedEvent[] = [];
+      const inFragment: UwtTelemetryObservedEvent[] = [];
+      shell.get(UwtTelemetryMonitor).events$.subscribe((e) => inShell.push(e));
+      fragment
+        .get(UwtTelemetryMonitor)
+        .events$.subscribe((e) => inFragment.push(e));
+
+      fragment
+        .get(UwtScenarioTelemetryService)
+        .start({ name: 'load' })
+        .complete();
+      await UwtBroadcastChannelStub.settle();
+
+      expect(fragment.get(UwtTelemetryMonitor)).not.toBe(
+        shell.get(UwtTelemetryMonitor)
+      );
+      expect(inFragment).toHaveLength(1);
+      expect(inFragment[0]).toMatchObject({
+        kind: 'scenario',
+        origin: { forwarded: false }
+      });
+      expect(inShell).toHaveLength(1);
+      expect(inShell[0]).toMatchObject({
+        kind: 'scenario',
+        origin: { forwarded: true, application: 'realm' }
+      });
+
+      expect(
+        shellSink.events.filter((e) => e.eventType === 'com.uwt.scenario')
+      ).toHaveLength(1);
+    });
+
     it('should forward handled errors', async () => {
       const fragment = createFragment();
       fragment
@@ -612,6 +678,35 @@ describe('broadcast telemetry across realms', () => {
       expect(fragment.get(RecordingLogApi).records).toHaveLength(0);
     });
 
+    it('should show a forwarded record once per monitor — local in the fragment, forwarded in the shell', async () => {
+      const fragment = createFragment();
+      const inShell: UwtTelemetryObservedEvent[] = [];
+      const inFragment: UwtTelemetryObservedEvent[] = [];
+      shell.get(UwtTelemetryMonitor).events$.subscribe((e) => inShell.push(e));
+      fragment
+        .get(UwtTelemetryMonitor)
+        .events$.subscribe((e) => inFragment.push(e));
+
+      fragment.get(UwtLoggerService).getLogger('cart').log('Hello');
+      await UwtBroadcastChannelStub.settle();
+
+      expect(inFragment).toEqual([
+        expect.objectContaining({
+          kind: 'log',
+          destination: 'log-provider',
+          origin: { forwarded: false }
+        })
+      ]);
+      expect(inShell).toEqual([
+        expect.objectContaining({
+          kind: 'log',
+          destination: 'log-provider',
+          origin: { forwarded: true, application: 'realm' },
+          payload: expect.objectContaining({ message: 'Hello' })
+        })
+      ]);
+    });
+
     it('should forward a flush to the shell log provider', async () => {
       const fragment = createFragment();
       fragment.get(UWT_LOG_API_PROVIDER).flush?.();
@@ -702,6 +797,7 @@ describe('broadcast telemetry across realms', () => {
     it('should fail at injection when the shell binds no log provider', () => {
       const bareShell = Injector.create({
         providers: [
+          UwtTelemetryMonitor,
           { provide: PLATFORM_ID, useValue: 'browser' },
           RecordingSink,
           { provide: UwtTelemetrySink, useExisting: RecordingSink },
@@ -712,6 +808,64 @@ describe('broadcast telemetry across realms', () => {
       expect(() => bareShell.get(UwtTelemetryBroadcastHost)).toThrow(
         /UWT_LOG_API_PROVIDER/
       );
+    });
+
+    it('should link a mirrored error to its forwarded log record in the shell monitor', async () => {
+      const fragment = createRealm([
+        UwtBroadcastTelemetrySink,
+        { provide: UwtTelemetrySink, useExisting: UwtBroadcastTelemetrySink },
+        UwtBroadcastLogApiProvider,
+        {
+          provide: UWT_LOG_API_PROVIDER,
+          useExisting: UwtBroadcastLogApiProvider
+        },
+        {
+          provide: UWT_LOG_CONFIG,
+          useValue: {
+            ...UWT_DEFAULT_TELEMETRY_CONFIG.logs,
+            mirrorErrorsToRum: true
+          }
+        }
+      ]);
+      const inShell: UwtTelemetryObservedEvent[] = [];
+      shell.get(UwtTelemetryMonitor).events$.subscribe((e) => inShell.push(e));
+
+      const logger = fragment.get(UwtLoggerService).getLogger('cart');
+      logger.error('Payment failed');
+      logger.error('Card declined', { error: new TypeError('declined') });
+      await UwtBroadcastChannelStub.settle();
+
+      expect(inShell.map((e) => e.kind)).toEqual([
+        'log',
+        'error',
+        'log',
+        'error'
+      ]);
+      const [firstLog, firstMirror, secondLog, secondMirror] = inShell;
+      expect(firstMirror).toMatchObject({
+        payload: { name: 'Error', message: 'Payment failed' },
+        relatedSequence: firstLog.sequence
+      });
+      expect(secondMirror).toMatchObject({
+        payload: { name: 'TypeError', message: 'declined' },
+        relatedSequence: secondLog.sequence
+      });
+    });
+
+    it('should not link an error that is not the mirror of the record before it', async () => {
+      const fragment = createFragment();
+      const inShell: UwtTelemetryObservedEvent[] = [];
+      shell.get(UwtTelemetryMonitor).events$.subscribe((e) => inShell.push(e));
+
+      fragment.get(UwtLoggerService).getLogger('cart').error('Payment failed');
+      fragment
+        .get(UwtTelemetrySink)
+        .recordError({ name: 'Error', message: 'Something else' });
+      await UwtBroadcastChannelStub.settle();
+
+      const error = inShell.find((e) => e.kind === 'error');
+      expect(error).toBeDefined();
+      expect(error).not.toHaveProperty('relatedSequence');
     });
   });
 

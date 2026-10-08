@@ -24,7 +24,7 @@ configuration, log backend and AWS credentials.
 - **Product signal.** Record feature adoption and interaction events without
   putting business vocabulary inside the telemetry infrastructure itself.
 - **Developer debugging.** Let any developer see exactly what telemetry is
-  produced, in any environment, with a LocalStorage flag —
+  produced, in any environment, with a LocalStorage flag or an in-app popup —
   no rebuild, no config change, no production switch.
 - **Reusability.** Ship as a library any Angular application can install and
   configure.
@@ -85,24 +85,28 @@ flowchart TD
 | `UwtNoopTelemetrySink`        | Explicit opt-out — everything runs, nothing ships                                   |
 | `UwtLogApiProvider`           | The seam where the application supplies its log store — send, query, optional flush |
 | `UwtRumCredentialsProvider`   | The seam where the application supplies its AWS details                             |
+| `UwtTelemetryMonitor`         | A read-only stream of everything handed to a destination                            |
 
 Everything is wired through Angular DI, so a destination can be swapped in
 production and stubbed in tests.
 
 ### Entry points
 
-Two, each pulling in only what it needs:
+Three, each pulling in only what it needs:
 
-| Entry point                          | Contains                             | Needs                           |
-| ------------------------------------ | ------------------------------------ | ------------------------------- |
-| `@absaoss-cps/ngx-ui-watchtower`     | Everything except the one below      | Angular                         |
-| `@absaoss-cps/ngx-ui-watchtower/rum` | `UwtRumTelemetrySink`, its providers | `aws-rum-web`, an optional peer |
+| Entry point                                  | Contains                                    | Needs                                                                       |
+| -------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------- |
+| `@absaoss-cps/ngx-ui-watchtower`             | Everything except the two below             | Angular                                                                     |
+| `@absaoss-cps/ngx-ui-watchtower/rum`         | `UwtRumTelemetrySink`, its providers        | `aws-rum-web`, an optional peer                                             |
+| `@absaoss-cps/ngx-ui-watchtower/diagnostics` | The [diagnostics popup](#diagnostics-popup) | `cps-ui-kit` (with `@angular/forms`, `@angular/animations`), optional peers |
 
 A bundler resolves every static import in a module graph, and a dynamic
 `import()`'s specifier, whether or not that code path ever runs. Keeping the
 RUM sink and its `await import('aws-rum-web')` out of the main entry is what
 lets an app using only `'broadcast'`/`'noop'` build without `aws-rum-web`
-installed.
+installed. The popup is split out the same way: it is the only UI in the
+package, and nothing in the main entry — bundle or `.d.ts` — references
+cps-ui-kit.
 
 ### Public API
 
@@ -120,6 +124,7 @@ Everything each entry point exports, by role.
 | Name registries             | `UwtScenarioNames` / `UwtScenarioName`, `UwtScenarioSteps` / `UwtStepName`, `UwtBIEventNames` / `UwtBIEventName`, `UwtLoggerNames` / `UwtLoggerName`                                                                                                                                                        |
 | Sinks                       | `UwtTelemetrySink` (abstract), `UwtNoopTelemetrySink`, `UwtBroadcastTelemetrySink`, `UwtTelemetryBroadcastHost`, `UWT_BROADCAST_CHANNEL`, `UWT_DEFAULT_BROADCAST_CHANNEL` (`'ngx-ui-watchtower'`); `uwtClassifyTelemetryEvent` + `UwtTelemetrySinkEvent`, for a sink to tell what it received               |
 | Shared models               | `UwtTelemetryMetadata`, `UwtTelemetryError`, `UwtTelemetryAttribution`; event types `UWT_DEFAULT_EVENT_NAMESPACE`, `UWT_TELEMETRY_EVENT_TYPE`, `uwtEventTypes()`, `UwtTelemetryEventTypes`                                                                                                                  |
+| Monitor                     | `UwtTelemetryMonitor`; `UwtTelemetryObservedEvent`, `UwtTelemetryPublishInput`, `UwtTelemetryEventKind`, `UwtTelemetryDestination`, `UwtTelemetryEventOrigin`, `UwtJsonValue`, `UwtJsonObject`                                                                                                              |
 | Redaction, for custom sinks | `uwtRedactMetadata`, `uwtNormalizeError`, `uwtScrubString`, `uwtRedactConfigFor`, `UwtRedactConfig`, `UWT_DEFAULT_REDACT_CONFIG`, `UwtPiiValuePattern`, `UWT_REDACTED` (`'[redacted]'`, the replacement value)                                                                                              |
 | Utilities                   | `uwtUuid()`, `uwtIsDebugEnabled(flag, name?)` + `UwtDebugFlag` (`'debugLogger' \| 'debugScenario' \| 'debugBI'`)                                                                                                                                                                                            |
 
@@ -128,6 +133,14 @@ Everything each entry point exports, by role.
 `UwtRumBootstrap` (`{ config, credentials? }`), `UwtRumAppMonitorConfig`,
 `UwtRumCredentials` (`accessKeyId`, `secretAccessKey`, `sessionToken`,
 `expiration`).
+
+**`@absaoss-cps/ngx-ui-watchtower/diagnostics`:** `provideUwtTelemetryDiagnostics`,
+`UwtTelemetryDiagnosticsService`, `UWT_TELEMETRY_DIAGNOSTICS_CONFIG`,
+`UwtTelemetryDiagnosticsConfig`, `UWT_DEFAULT_DIAGNOSTICS_CONFIG`,
+`UwtDiagnosticsShortcut`, `UWT_DEFAULT_DIAGNOSTICS_SHORTCUTS`,
+`UwtDiagnosticsExport`, `UwtDiagnosticsSectionId`, and the filter types
+`UwtDiagnosticsFilterState`, `UwtDiagnosticsFieldFilter`,
+`UwtDiagnosticsFilterOperator` — see §12, "Diagnostics popup".
 
 ### Destinations
 
@@ -176,7 +189,9 @@ redacted), deduplicate BI events, time anything, or guard the library's
 calls — every call the library makes into it, `init` included, is wrapped
 fail-open. The one exception is `setUserId`/`getUserId`, which the
 application calls on the sink directly; a destination should not throw
-there. Log lines are not part of it: they go to the application's
+there. The
+diagnostics monitor observes the hand-off, so the popup works with any
+destination. Log lines are not part of it: they go to the application's
 own log backend through `UWT_LOG_API_PROVIDER`, whatever the destination.
 
 ```ts
@@ -187,6 +202,16 @@ providers: [
 ];
 ```
 
+### The telemetry monitor
+
+Every place that hands something to a destination — the scenario's emit,
+`track()`, the logger's delivery and its RUM mirror, and the broadcast host
+forwarding a fragment's events and logs — then publishes the same object to
+`UwtTelemetryMonitor`, inside the same fail-open block. So nothing is sent
+twice, and a hand-off that throws is not shown. A fragment's event appears
+once in each popup: as its own in the fragment's, as forwarded in the
+shell's.
+
 ### Packaging and internals
 
 - **Every export is explicit.** The barrels list their exports one by one —
@@ -195,10 +220,14 @@ providers: [
   broadcast plumbing stay internal so they can change freely. Redaction is
   the exception: a custom sink needs `uwtRedactMetadata`,
   `uwtNormalizeError`, `uwtScrubString` and `uwtRedactConfigFor`.
-- **The secondary entry keeps private copies of a few utilities.** ng-packagr
+- **Secondary entries keep private copies of a few utilities.** ng-packagr
   fixes each entry point's `rootDir` to its own `src`, so
-  `@absaoss-cps/ngx-ui-watchtower/rum` can't import the main entry's
-  internals by relative path and carries small copies of what it needs.
+  `@absaoss-cps/ngx-ui-watchtower/rum` and `@absaoss-cps/ngx-ui-watchtower/diagnostics` can't import the main
+  entry's internals by relative path and carry small copies of what they
+  need.
+- **cps-ui-kit comes from npm.** It is an optional peer of the package and a
+  dev dependency of the workspace, so the build and the unit tests resolve it
+  from `node_modules` and it is never compiled into the package.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
@@ -1190,6 +1219,21 @@ Reading through AWS also answers the wrong question: by the time a record is
 in CloudWatch it is minutes old and mixed in with everyone else's, which is
 rarely what someone asking for "the logs" actually wants.
 
+### The diagnostics popup
+
+The popup shows exactly what is sent, after redaction — including session
+and user ids — and redacts nothing further, since a popup that hid fields
+would misreport what leaves the browser. That is acceptable in every
+environment because it exposes nothing new: the data is the current user's
+own, already in their browser and visible in the network panel. It stores
+nothing, sends nothing and grants no remote access.
+
+Avoid sharing your screen while it is open, and treat downloads as you would
+any file with ids in it; filenames carry only the application name, the
+section and a timestamp
+(`ngx-ui-watchtower-diagnostics-<application>-<section>-<yyyyMMdd-HHmmss>.json`). The shortcut prevents accidental opening; it is not access
+control — use `enabled` for that, or leave the provider out.
+
 ---
 
 ## 10. Configuration
@@ -1437,7 +1481,10 @@ convention, for an application that wants the pre-fallback behavior back.
   becoming stable.
 - **Bounded.** A 100-item buffer keeps events, page views and errors recorded
   before the RUM client is ready, then replays them; it never grows past
-  that if initialization never completes.
+  that if initialization never completes. The diagnostics monitor costs one
+  check per event while nobody watches; the popup keeps at most 500 events
+  per section, updates the screen at most every 250 ms, and releases
+  everything when it closes.
 
 The console report is itself wrapped in a try/catch — an application that has
 patched or otherwise broken `console.error` cannot turn a suppressed
@@ -1472,6 +1519,8 @@ How an application uses the library, end to end.
 npm install @absaoss-cps/ngx-ui-watchtower
 # optional, only if you use the AWS RUM sink
 npm install aws-rum-web
+# optional, only if you use the diagnostics popup
+npm install cps-ui-kit
 ```
 
 ### Setup
@@ -1816,6 +1865,173 @@ writes to the console, so starting a scenario, opening a step or calling a
 method after settlement — none of which sends anything — print nothing. To
 see each step, turn on `emitLifecycleEvents`, which makes steps real events.
 
+### Diagnostics popup
+
+An in-app window showing, live, every BI event, scenario event and log
+record your app hands to its telemetry destinations — no DevTools, no
+backend access:
+
+```ts
+import { provideUwtTelemetryDiagnostics } from '@absaoss-cps/ngx-ui-watchtower/diagnostics';
+
+providers: [
+  provideUwtTelemetry({ application: 'my-app', environment, version }),
+  provideUwtTelemetryDiagnostics()
+];
+```
+
+It is built from cps-ui-kit, so the app needs cps-ui-kit set up as for any
+cps-ui-kit dialog (styles, icons, animations). It supports the light theme
+only, for now: cps-dialog, which frames it, is light-only, and the kit's
+dark theme is not yet complete for the components inside it.
+
+#### Opening it
+
+| Platform          | Shortcut                   |
+| ----------------- | -------------------------- |
+| macOS             | **⇧ ⌥ ⌘ 8**                |
+| Windows and Linux | **Ctrl + Alt + Shift + 8** |
+
+Four keys, so it never opens by accident; both combinations work
+everywhere, which covers external keyboards and remote desktops. Keys are
+matched by physical position (`KeyboardEvent.code`), so they work on any
+layout — Option rewrites the typed character on macOS. Every modifier must
+match exactly, held-down repeats are ignored, and AltGr — which many
+European Windows layouts report as Ctrl+Alt — never triggers it. ⌥⌘8 alone
+is macOS Accessibility Zoom, which is why Shift is part of it.
+
+The popup is not modal: it docks on the right at half the screen and leaves
+the app usable, so you can watch events arrive. It is draggable, resizable
+and maximizable. With it open, the shortcut brings focus back to
+it from the app, and closes it when focus is already inside. Escape closes it
+too.
+
+It works in every environment. To change the keys, turn the shortcut off, or
+limit who can open it:
+
+```ts
+provideUwtTelemetryDiagnostics({
+  // Your own combination — replaces the defaults.
+  shortcuts: [
+    {
+      code: 'KeyD',
+      ctrl: true,
+      alt: true,
+      shift: true,
+      label: 'Ctrl+Alt+Shift+D'
+    }
+  ],
+
+  // Or no keyboard at all, opening it from your own UI instead:
+  // shortcuts: [],   then   inject(UwtTelemetryDiagnosticsService).open();
+
+  // Read once at startup.
+  enabled: () => inject(AuthService).isSupportStaff()
+});
+```
+
+#### What it shows
+
+Three sections — BI telemetry, scenario telemetry and logging — listing
+events newest first, from the moment the popup opens. Expand a row for the
+full payload as JSON.
+
+Each section has its own tools, which never affect the other two:
+
+- **Search** matches any field's value or name. **Add filter** compares one
+  field — `metadata.theme`, `status`, or `steps[].name` for any item of a
+  list. Field suggestions come from the events that section has seen.
+- **Download JSON** saves every event that section captured, oldest first,
+  whatever its filters, with those filters recorded in the file. Each event
+  keeps its `sequence` and `capturedAt`, so downloads from different
+  sections can be interleaved again. **Copy JSON** puts the same JSON on the
+  clipboard, for when a browser blocks downloads.
+
+Two controls at the top apply to all three sections, because they are about
+capturing rather than viewing:
+
+- **Pause live updates** freezes the view while you read; events are still
+  captured.
+- **Clear** empties the history; capturing continues.
+
+Each section keeps the latest 500 events (`maxEventsPerSection`). History is
+discarded when the popup closes.
+
+What it does **not** show:
+
+- Anything before the popup opened.
+- RUM's own automatic events — page views, web vitals, HTTP and JS errors —
+  which never pass through this library.
+- Whether the server accepted an event. It shows what was handed to the sink
+  or log provider; RUM can still drop events, for example when it samples a
+  session out or reaches its event limit.
+
+In a composed page, the shell's popup also shows what its fragments send — BI
+and scenario events and log records alike, since the shell delivers them —
+each marked with `↪` and the fragment's name.
+
+#### Configuration
+
+| Option                  | Default                             | Meaning                                                                                                                                    |
+| ----------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`               | `true`                              | `false`, or a function read once at startup, turns the popup off — shortcut and `open()` alike                                             |
+| `shortcuts`             | `UWT_DEFAULT_DIAGNOSTICS_SHORTCUTS` | Replaces the defaults; `[]` disables the keyboard                                                                                          |
+| `maxEventsPerSection`   | `500`                               | Events kept per section; the oldest are dropped, and the count of dropped ones is shown                                                    |
+| `maxPayloadCharsInView` | `262144` (256 × 1024)               | A payload whose JSON is longer is shown truncated to its first `maxPayloadCharsInView` characters, at most 65,536; downloads stay complete |
+
+Characters here are UTF-16 code units (JavaScript's `length`), not bytes: the
+limit protects rendering, which costs by the length of the text. A cut never
+splits a surrogate pair.
+
+A shortcut is a `UwtDiagnosticsShortcut` — `{ code, ctrl?, alt?, shift?,
+meta?, label? }`, where `code` is a `KeyboardEvent.code` such as `'Digit8'`
+or `'KeyD'`, and an omitted modifier must be up. Spread
+`UWT_DEFAULT_DIAGNOSTICS_SHORTCUTS` to add one rather than replace them.
+
+`UwtTelemetryDiagnosticsService` opens the popup from code: `open()`,
+`close()`, `toggle()`, and an `isOpen` signal.
+
+A download is a `UwtDiagnosticsExport`:
+
+```ts
+interface UwtDiagnosticsExport {
+  format: 'ngx-ui-watchtower-diagnostics';
+  formatVersion: 1;
+  section: 'bi' | 'scenario' | 'logging';
+  exportedAt: string;
+  capture: { startedAt: string; endedAt: string; paused: boolean };
+  app: {
+    application: string;
+    environment: string;
+    version: string;
+    eventNamespace: string;
+  };
+  session: { sessionId?: string; userId?: string };
+  userAgent: string;
+  activeFilters: UwtDiagnosticsFilterState; // recorded, not applied
+  count: { captured: number; droppedOldest: number };
+  events: UwtTelemetryObservedEvent[]; // oldest first
+}
+```
+
+Field filters use the operators `contains` (the default), `equals`,
+`not-contains`, `exists` and `missing`, all case-insensitive; several filters
+combine with AND. A path such as `steps[].name` matches any item of a list.
+
+#### Reading events from code
+
+The popup is built on `UwtTelemetryMonitor`, from the main entry point, which
+anyone can observe — a test, or your own overlay:
+
+```ts
+inject(UwtTelemetryMonitor)
+  .events$.pipe(filter((e) => e.kind === 'scenario'))
+  .subscribe((e) => console.table(e.payload));
+```
+
+Each event is a deep copy of what was sent, so observers can't change it.
+While nothing subscribes, it costs one check per event.
+
 ### Testing
 
 The library ships **no test helpers**. Everything a test needs is already in
@@ -2012,7 +2228,7 @@ error's name instead (`[cart] TypeError`).
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `provideUwtTelemetryRumSink()`       | Builds a second AWS client — one visitor becomes two sessions. Listed next to `'broadcast'`, it is a second destination, so bootstrap fails                                                 |
 | `UWT_RUM_CREDENTIALS_PROVIDER`       | Nothing in a fragment needs AWS credentials                                                                                                                                                 |
-| `UWT_LOG_API_PROVIDER`               | `'broadcast'` mode already binds it to the forwarding provider. One bound after it wins, and the fragment ships its own logs — the shell never sees them                                    |
+| `UWT_LOG_API_PROVIDER`               | `'broadcast'` mode already binds it to the forwarding provider. One bound after it wins, and the fragment ships its own logs — the shell, and its diagnostics popup, never see them         |
 | `provideUwtTelemetryBroadcastHost()` | A host receives its own realm's messages too, so beside the forwarding sink it would forward them again, forever. It detects this, warns (`... cannot also host it ...`) and stays inactive |
 
 #### A realm that both forwards and hosts
@@ -2084,7 +2300,13 @@ never injects `UwtLoggerService` sends none in the first place.
 With `mirrorErrorsToRum`, each error-level log line leaves a fragment as two
 messages — the record for the log provider, then its mirrored error for the
 sink — with no id in common. Each destination still receives it once: the
-log backend gets the record, RUM gets the error.
+log backend gets the record, RUM gets the error. The host links them for its
+monitor anyway, so the shell's diagnostics popup shows the mirror against
+its record as the fragment's own does: an `error` arriving straight after an
+error-level record from the same realm, with the name and message the logger
+mirrors for it, gets that record's sequence as `relatedSequence`. Both are
+posted in the same task, so nothing can arrive between them. A mirror that
+doesn't match exactly is shown unlinked, never linked wrongly.
 
 ### A fragment that also deploys standalone
 

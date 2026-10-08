@@ -83,11 +83,21 @@ export type {
   UwtTelemetryEventTypes,
   UwtTelemetryMetadata
 } from './lib/models/uwt-telemetry-common.models/uwt-telemetry-common.models';
+export {
+  UwtJsonObject,
+  UwtJsonValue,
+  UwtTelemetryDestination,
+  UwtTelemetryEventKind,
+  UwtTelemetryEventOrigin,
+  UwtTelemetryObservedEvent,
+  UwtTelemetryPublishInput
+} from './lib/models/uwt-telemetry-monitor.models/uwt-telemetry-monitor.models';
 
 // Services
 export { UwtBITelemetryService } from './lib/services/uwt-bi-telemetry.service/uwt-bi-telemetry.service';
 export { UwtLoggerService } from './lib/services/uwt-logger.service/uwt-logger.service';
 export { UwtScenario } from './lib/scenario/uwt-scenario/uwt-scenario';
+export { UwtTelemetryMonitor } from './lib/services/uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 export { UwtScenarioTelemetryService } from './lib/services/uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';
 
 // Sinks
