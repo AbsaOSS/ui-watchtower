@@ -159,7 +159,8 @@ download, no broadcast channel, no page listeners. Your code doesn't change —
 `start()` still returns a scenario (inert: it records nothing and never
 settles), lookups find nothing, `settled$` never emits, loggers do nothing and
 `query()` resolves `[]`. The switch is read once at startup. It doesn't
-shrink the bundle; to ship no telemetry code, leave the providers out.
+shrink the bundle, but the RUM SDK is loaded on demand, so it's never
+downloaded while telemetry is off.
 
 ## Declare your names
 
