@@ -107,7 +107,9 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * False on the server and while telemetry is off: the client never starts —
    * no credentials fetch, no SDK import — and every call is a no-op.
    */
-  private readonly canStart = uwtIsBrowser() && inject(UWT_TELEMETRY_ENABLED);
+  private readonly canStart =
+    uwtIsBrowser() &&
+    (inject(UWT_TELEMETRY_ENABLED, { optional: true }) ?? true);
 
   private awsRum: AwsRum | null = null;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;

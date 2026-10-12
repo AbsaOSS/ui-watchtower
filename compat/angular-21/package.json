@@ -1,0 +1,23 @@
+{
+  "name": "ngx-ui-watchtower-angular-21-consumer",
+  "private": true,
+  "description": "Builds a minimal Angular 21 app against the packed library, to verify the lowest supported Angular major.",
+  "scripts": {
+    "build": "ng build"
+  },
+  "dependencies": {
+    "@angular/common": "~21.0.0",
+    "@angular/compiler": "~21.0.0",
+    "@angular/core": "~21.0.0",
+    "@angular/platform-browser": "~21.0.0",
+    "aws-rum-web": "^3.2.1",
+    "rxjs": "~7.8.2",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@angular/build": "~21.0.0",
+    "@angular/cli": "~21.0.0",
+    "@angular/compiler-cli": "~21.0.0",
+    "typescript": "~5.9.2"
+  }
+}
