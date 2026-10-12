@@ -3,6 +3,7 @@ import { inject, Injectable, OnDestroy } from '@angular/core';
 import type { AwsRum, AwsRumConfig } from 'aws-rum-web';
 import {
   UWT_REDACT_CONFIG,
+  UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_IDENTITY,
   UwtTelemetryError,
   UwtTelemetryMetadata,
@@ -102,7 +103,11 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   private readonly redact = inject(UWT_REDACT_CONFIG);
   private readonly credentialsProvider = inject(UWT_RUM_CREDENTIALS_PROVIDER);
   private readonly document = inject(DOCUMENT);
-  private readonly isBrowser = uwtIsBrowser();
+  /**
+   * False on the server and while telemetry is off: the client never starts —
+   * no credentials fetch, no SDK import — and every call is a no-op.
+   */
+  private readonly canStart = uwtIsBrowser() && inject(UWT_TELEMETRY_ENABLED);
 
   private awsRum: AwsRum | null = null;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -134,7 +139,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * @returns a promise that resolves once initialization has been attempted
    */
   async init(): Promise<void> {
-    if (!this.isBrowser) {
+    if (!this.canStart) {
       return;
     }
     if (!this.initPromise) {
@@ -201,7 +206,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   ): void {
     this.ensureInitialized();
     uwtSafeVoid(operation, () => {
-      if (!this.isBrowser || this.disabled) {
+      if (!this.canStart || this.disabled) {
         return;
       }
 

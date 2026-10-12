@@ -11,6 +11,7 @@ import {
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
 import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+import { uwtTelemetryEnabled } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UwtBroadcastTelemetrySink } from './uwt-broadcast-telemetry.sink';
 import { UwtBroadcastLogApiProvider } from '../../providers/uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
 import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
@@ -84,6 +85,10 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
   private releaseLeadership: () => void = () => undefined;
 
   constructor() {
+    if (!uwtTelemetryEnabled()) {
+      // Telemetry is off: no listening, no leader election.
+      return;
+    }
     this.warnIfDuplicateInThisRealm();
     if (this.forwardsItsOwnRealm()) {
       this.connection.close();

@@ -18,6 +18,8 @@ import { UWT_LOG_API_PROVIDER } from '../uwt-log-api.provider/uwt-log-api.provid
 import { uwtSafeVoid } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import {
   UWT_REDACT_CONFIG,
+  UWT_TELEMETRY_ENABLED,
+  uwtTelemetryEnabled,
   UWT_TELEMETRY_IDENTITY,
   UWT_DEFAULT_TELEMETRY_CONFIG,
   UwtTelemetryIdentity
@@ -149,6 +151,40 @@ export function withRedaction(
 }
 
 /**
+ * Turns telemetry on or off for the whole app — scenarios, BI events and
+ * logs. Omit to keep it on.
+ *
+ * Decided once, when the app starts: pass a value, or a factory that runs in
+ * an injection context (e.g. to read the app's own config). Switched off,
+ * every service and destination is inert: nothing is recorded or sent, and no
+ * RUM client, broadcast channel or page listener is created. Destinations and
+ * a log provider are still required, so wiring stays the same in every
+ * environment.
+ *
+ * @example
+ * ```typescript
+ * provideUwtTelemetry(identity, withTelemetryEnabled(environment.name === 'dev'))
+ * provideUwtTelemetry(identity, withTelemetryEnabled(() => inject(APP_CONFIG).telemetry))
+ * ```
+ *
+ * @param enabled whether telemetry runs, or a factory returning it
+ * @returns a feature for {@link provideUwtTelemetry}
+ *
+ * @group Utils
+ */
+export function withTelemetryEnabled(
+  enabled: boolean | (() => boolean)
+): UwtTelemetryFeature {
+  return {
+    providers: [
+      typeof enabled === 'function'
+        ? { provide: UWT_TELEMETRY_ENABLED, useFactory: enabled }
+        : { provide: UWT_TELEMETRY_ENABLED, useValue: enabled }
+    ]
+  };
+}
+
+/**
  * Registers the telemetry layer's configuration.
  *
  * Identity — `application`/`environment`/`version` — is mandatory and stated
@@ -274,7 +310,7 @@ export function provideUwtTelemetryDestination<T extends UwtTelemetrySink>(
       assertOneDestination(inject(UWT_TELEMETRY_DESTINATIONS));
 
       const init = options?.init;
-      if (!init) {
+      if (!init || !uwtTelemetryEnabled()) {
         return;
       }
       const instance = inject(sink);
@@ -393,9 +429,12 @@ export function provideUwtTelemetryBroadcastHost(
     ...(channelName
       ? [{ provide: UWT_BROADCAST_CHANNEL, useValue: channelName }]
       : []),
-    // Constructed eagerly so it is listening before any fragment sends.
+    // Constructed eagerly so it is listening before any fragment sends —
+    // unless telemetry is off.
     provideAppInitializer(() => {
-      inject(UwtTelemetryBroadcastHost);
+      if (uwtTelemetryEnabled()) {
+        inject(UwtTelemetryBroadcastHost);
+      }
     })
   ]);
 }

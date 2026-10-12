@@ -3,6 +3,7 @@ import { inject, Injectable, NgZone, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import {
   UWT_REDACT_CONFIG,
+  uwtTelemetryEnabled,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_SCENARIO_TELEMETRY_CONFIG } from '../../config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
@@ -69,7 +70,10 @@ export class UwtScenarioTelemetryService implements OnDestroy {
 
   private readonly sink = inject(UwtTelemetrySink);
   private readonly document = inject(DOCUMENT);
-  private readonly isBrowser = uwtIsBrowser();
+  private readonly enabled = uwtTelemetryEnabled();
+
+  /** Page listeners: only in a browser, and only while telemetry is on. */
+  private readonly listensToPage = uwtIsBrowser() && this.enabled;
   private readonly zone = inject(NgZone, { optional: true });
 
   private readonly active = new Map<string, UwtScenario>();
@@ -99,7 +103,7 @@ export class UwtScenarioTelemetryService implements OnDestroy {
     this._settled$.asObservable();
 
   constructor() {
-    if (this.isBrowser) {
+    if (this.listensToPage) {
       this.document.defaultView?.addEventListener('pagehide', this.onPageHide);
 
       this.document.addEventListener(
@@ -117,6 +121,17 @@ export class UwtScenarioTelemetryService implements OnDestroy {
    * @returns an independent scenario instance
    */
   start(options: UwtScenarioOptions): UwtScenario {
+    if (!this.enabled) {
+      // Same return type, nothing recorded, timed, registered or sent.
+      return new UwtScenario(options, {
+        identity: this.identity,
+        scenarioTelemetryConfig: this.scenarioTelemetryConfig,
+        redact: this.redact,
+        sink: this.sink,
+        onSettled: () => undefined,
+        inert: true
+      });
+    }
     const scenario = new UwtScenario(options, {
       identity: this.identity,
       scenarioTelemetryConfig: this.scenarioTelemetryConfig,
@@ -206,7 +221,7 @@ export class UwtScenarioTelemetryService implements OnDestroy {
 
   /** @inheritdoc */
   ngOnDestroy(): void {
-    if (this.isBrowser) {
+    if (this.listensToPage) {
       this.document.defaultView?.removeEventListener(
         'pagehide',
         this.onPageHide
@@ -216,7 +231,9 @@ export class UwtScenarioTelemetryService implements OnDestroy {
         this.onVisibilityChange
       );
     }
-    this.flushActive();
+    if (this.enabled) {
+      this.flushActive();
+    }
     this._settled$.complete();
   }
 
