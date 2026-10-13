@@ -141,6 +141,27 @@ providers: [
 `uwtClassifyTelemetryEvent(eventType, payload)` tells a scenario from a BI
 event. Providing two destinations fails at startup.
 
+### Turning telemetry off
+
+To run telemetry in some environments only, keep the same providers and add
+one switch — a value, or a factory run at startup:
+
+```ts
+provideUwtTelemetry(identity, withTelemetryEnabled(environment.name === 'dev'));
+provideUwtTelemetry(
+  identity,
+  withTelemetryEnabled(() => inject(APP_CONFIG).telemetry)
+);
+```
+
+When off, nothing is sent and nothing runs: no credentials fetch, no RUM SDK
+download, no broadcast channel, no page listeners. Your code doesn't change —
+`start()` still returns a scenario (inert: it records nothing and never
+settles), lookups find nothing, `settled$` never emits, loggers do nothing and
+`query()` resolves `[]`. The switch is read once at startup. It doesn't
+shrink the bundle, but the RUM SDK is loaded on demand, so it's never
+downloaded while telemetry is off.
+
 ## Declare your names
 
 Scenario, step, event and logger names are typed, so a typo is a compile
