@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import {
   UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_REDACT_CONFIG,
+  UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_EVENT_TYPE,
   UWT_TELEMETRY_IDENTITY
 } from '@absaoss-cps/ngx-ui-watchtower';
@@ -75,6 +76,7 @@ describe('UwtRumTelemetrySink', () => {
 
   function configure(options?: {
     platformId?: object;
+    enabled?: boolean;
     loadImpl?: () => Promise<UwtRumBootstrap | null>;
   }): void {
     load = jest.fn(options?.loadImpl ?? (async () => bootstrap()));
@@ -96,6 +98,7 @@ describe('UwtRumTelemetrySink', () => {
         },
         { provide: PLATFORM_ID, useValue: options?.platformId ?? 'browser' },
         { provide: UWT_RUM_CREDENTIALS_PROVIDER, useValue: { load } },
+        { provide: UWT_TELEMETRY_ENABLED, useValue: options?.enabled ?? true },
         UwtRumTelemetrySink
       ]
     });
@@ -112,6 +115,17 @@ describe('UwtRumTelemetrySink', () => {
   });
 
   describe('initialization', () => {
+    it('should neither fetch credentials nor load the SDK when telemetry is off', async () => {
+      configure({ enabled: false });
+
+      await sink.init();
+      sink.record('scenario', {});
+      sink.recordPageView('/customers');
+
+      expect(load).not.toHaveBeenCalled();
+      expect(AwsRumCtor).not.toHaveBeenCalled();
+    });
+
     it('should construct the client with the broker-supplied identity', async () => {
       await sink.init();
 

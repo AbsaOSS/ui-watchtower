@@ -62,6 +62,8 @@ export interface UwtScenarioDeps {
   runOutsideAngular?: <T>(callback: () => T) => T;
   /** Called once with the scenario's id when it reaches a terminal state. */
   onSettled: (scenarioId: string, record: UwtScenarioRecord) => void;
+  /** Telemetry is switched off: the scenario records, times and sends nothing. */
+  inert?: boolean;
 }
 
 /** The two events a scenario sends: its settled record, and a closed step. */
@@ -149,11 +151,24 @@ export class UwtScenario {
    */
   private readonly userTimingsEnabled: boolean;
 
+  /** Telemetry is off — see {@link UwtScenarioDeps.inert}. */
+  private readonly inert: boolean;
+
   constructor(
     private readonly options: UwtScenarioOptions,
     private readonly deps: UwtScenarioDeps
   ) {
     this.eventTypes = uwtEventTypes(deps.identity.eventNamespace);
+    this.inert = deps.inert === true;
+    if (this.inert) {
+      // Telemetry is off: no redaction, timers, marks or steps.
+      this.userTimingsEnabled = false;
+      this.metadata = {};
+      this.startedAt = uwtNow();
+      this._startTime = Date.now();
+      this.lastTimingMark = '';
+      return;
+    }
     this.userTimingsEnabled =
       deps.scenarioTelemetryConfig.userTimings ||
       uwtIsDebugEnabled('debugScenario');
@@ -229,6 +244,9 @@ export class UwtScenario {
    * milliseconds since the page loaded, a different value.
    */
   get delta(): number {
+    if (this.inert) {
+      return 0;
+    }
     return this.isSettled ? this._elapsed : uwtNow() - this.startedAt;
   }
 
@@ -412,6 +430,19 @@ export class UwtScenario {
    *   written at settlement.
    */
   toRecord(): UwtScenarioRecord {
+    if (this.inert) {
+      return {
+        scenarioId: this._id,
+        parentScenarioId: this.options.parentScenarioId,
+        scenarioName: this.options.name,
+        startTime: new Date(this._startTime).toISOString(),
+        delta: 0,
+        elapsed: 0,
+        stepCount: 0,
+        steps: [],
+        application: this.deps.identity.application
+      };
+    }
     const { redact } = this.deps;
     const settled = this.isSettled;
 
@@ -480,6 +511,9 @@ export class UwtScenario {
     outcome?: UwtScenarioOutcome,
     error?: unknown
   ): void {
+    if (this.inert) {
+      return;
+    }
     uwtSafeVoid(`scenario.${status}`, () => {
       if (this.isSettled) {
         return;
@@ -818,6 +852,9 @@ export class UwtScenario {
    * @returns this scenario
    */
   private mutate(operation: string, apply: () => void): this {
+    if (this.inert) {
+      return this;
+    }
     uwtSafeVoid(`scenario.${operation}`, () => {
       if (this.isSettled) {
         return;

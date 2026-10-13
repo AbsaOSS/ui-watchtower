@@ -11,6 +11,7 @@ import { UwtLoggerService } from '../../services/uwt-logger.service/uwt-logger.s
 import {
   UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_REDACT_CONFIG,
+  UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_LOG_CONFIG } from '../../config/uwt-log.config/uwt-log.config';
@@ -786,6 +787,31 @@ describe('broadcast telemetry across realms', () => {
         expect.stringContaining('a second telemetry host is active')
       );
 
+      first.ngOnDestroy();
+    });
+
+    it('should still warn about a duplicate after a disabled host in this realm is destroyed', () => {
+      const channel = 'duplicate-detection-disabled-test';
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const providers = [
+        RecordingSink,
+        { provide: UwtTelemetrySink, useExisting: RecordingSink },
+        { provide: UWT_BROADCAST_CHANNEL, useValue: channel },
+        UwtTelemetryBroadcastHost
+      ];
+      const first = createRealm(providers).get(UwtTelemetryBroadcastHost);
+      createRealm([
+        ...providers,
+        { provide: UWT_TELEMETRY_ENABLED, useValue: false }
+      ])
+        .get(UwtTelemetryBroadcastHost)
+        .ngOnDestroy();
+
+      createRealm(providers).get(UwtTelemetryBroadcastHost);
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('a second telemetry host is active')
+      );
       first.ngOnDestroy();
     });
 

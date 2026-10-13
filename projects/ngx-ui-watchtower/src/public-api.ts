@@ -9,6 +9,7 @@
 export {
   UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_REDACT_CONFIG,
+  UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_IDENTITY
 } from './lib/config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 export type { UwtTelemetryIdentity } from './lib/config/uwt-telemetry-common.config/uwt-telemetry-common.config';
@@ -31,7 +32,8 @@ export {
   withBIEvents,
   withLogging,
   withRedaction,
-  withScenarios
+  withScenarios,
+  withTelemetryEnabled
 } from './lib/providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
 export {
   UWT_LOG_API_PROVIDER,

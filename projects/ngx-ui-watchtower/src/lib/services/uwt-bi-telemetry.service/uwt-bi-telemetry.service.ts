@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import {
   UWT_REDACT_CONFIG,
+  uwtTelemetryEnabled,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_BI_TELEMETRY_CONFIG } from '../../config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
@@ -68,6 +69,8 @@ export class UwtBITelemetryService {
   );
 
   private readonly sink = inject(UwtTelemetrySink);
+  private readonly enabled = uwtTelemetryEnabled();
+
   private readonly eventTypes = uwtEventTypes(this.identity.eventNamespace);
   private readonly lastEmittedAt = new Map<string, number>();
 
@@ -85,6 +88,9 @@ export class UwtBITelemetryService {
     metadata?: UwtTelemetryMetadata,
     detail?: UwtBIEventDetail
   ): void {
+    if (!this.enabled) {
+      return;
+    }
     uwtSafeVoid('biTelemetry.track', () => {
       if (!eventName) {
         return;

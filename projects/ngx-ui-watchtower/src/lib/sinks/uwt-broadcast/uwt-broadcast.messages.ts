@@ -8,6 +8,7 @@ import {
   UwtLogRecord
 } from '../../models/uwt-log.models/uwt-log.models';
 import { UwtLogQuery } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+import { uwtTelemetryEnabled } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import {
   uwtIsBrowser,
   uwtSafeVoid
@@ -212,9 +213,11 @@ export function uwtConnectBroadcastChannel(
   const channelName =
     inject(UWT_BROADCAST_CHANNEL, { optional: true }) ??
     UWT_DEFAULT_BROADCAST_CHANNEL;
-  let channel = uwtIsBrowser()
-    ? uwtOpenBroadcastChannel(channelName)
-    : undefined;
+  // No channel on the server or while telemetry is off: every call is a no-op.
+  let channel =
+    uwtIsBrowser() && uwtTelemetryEnabled()
+      ? uwtOpenBroadcastChannel(channelName)
+      : undefined;
 
   return {
     channelName,

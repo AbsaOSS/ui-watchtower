@@ -1299,6 +1299,19 @@ the sink entirely: the logger still works, without that correlation, and
 | `provideUwtTelemetrySink('noop')`      | Nowhere — everything runs, nothing ships                                                      |
 | `provideUwtTelemetryDestination(X)`    | Your own sink `X` — see §3, "Destinations"                                                    |
 
+### Turning telemetry off
+
+`withTelemetryEnabled(false)` (token `UWT_TELEMETRY_ENABLED`, default `true`)
+makes every service and destination inert, while the providers stay exactly
+as in other environments — so a missing destination or two destinations still
+fail at bootstrap everywhere. `'noop'` alone isn't enough: services would still
+redact, time and listen, and the RUM sink would still fetch credentials and
+load the SDK if anything injected it. The value is read once at bootstrap;
+switching at runtime (consent) is out of scope. `start()` returns a real
+`UwtScenario` in an internal inert state, because its private fields make the
+type nominal; each keeps its own id, since callers key maps and
+`parentScenarioId` by it.
+
 ### AWS credentials
 
 Supply AWS details by implementing `UwtRumCredentialsProvider`:

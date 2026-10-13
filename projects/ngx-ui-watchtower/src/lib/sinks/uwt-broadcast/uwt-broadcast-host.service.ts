@@ -11,6 +11,7 @@ import {
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
 import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+import { uwtTelemetryEnabled } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UwtBroadcastTelemetrySink } from './uwt-broadcast-telemetry.sink';
 import { UwtBroadcastLogApiProvider } from '../../providers/uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
 import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
@@ -82,8 +83,13 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
   /** Whether this realm won the leader election; non-leaders stay passive. */
   private isLeader = false;
   private releaseLeadership: () => void = () => undefined;
+  private readonly enabled = uwtTelemetryEnabled();
 
   constructor() {
+    if (!this.enabled) {
+      // Telemetry is off: no listening, no leader election.
+      return;
+    }
     this.warnIfDuplicateInThisRealm();
     if (this.forwardsItsOwnRealm()) {
       this.connection.close();
@@ -107,7 +113,9 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
 
   /** @inheritdoc */
   ngOnDestroy(): void {
-    this.forgetInThisRealm();
+    if (this.enabled) {
+      this.forgetInThisRealm();
+    }
     this.releaseLeadership();
     this.connection.close();
   }
