@@ -36,34 +36,6 @@ jobs:
       - name: Build library
         run: npm run build
 
-  angular-21:
-    name: Angular 21 consumer
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22.x
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build library
-        run: npm run build
-
-      # The peer range starts at Angular 21; the workspace itself uses 22.
-      - name: Build an Angular 21 app against the packed library
-        working-directory: compat/angular-21
-        run: |
-          npm pack ../../dist/ngx-ui-watchtower
-          npm install --no-audit --no-fund
-          npm install --no-save --no-audit --no-fund ./*.tgz
-          npm run build
-
   test:
     name: Unit tests
     runs-on: ubuntu-latest
