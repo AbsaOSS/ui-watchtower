@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/AbsaOSS/ui-watchtower/compare/v0.2.0...v0.3.0) (2026-10-14)
+
+
+### Features
+
+* support Angular 21 ([#10](https://github.com/AbsaOSS/ui-watchtower/issues/10)) ([6ba82de](https://github.com/AbsaOSS/ui-watchtower/commit/6ba82dec54894bb1a57da1fa3752a0c2182c94a7))
+
 ## [0.2.0](https://github.com/AbsaOSS/ui-watchtower/compare/v0.1.0...v0.2.0) (2026-10-13)
 
 
