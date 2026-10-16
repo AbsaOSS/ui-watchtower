@@ -8,8 +8,7 @@ import type {
  * What a sink was handed, told apart by kind — the result of
  * {@link uwtClassifyTelemetryEvent}.
  *
- * `unknown` is an event type this library doesn't emit itself, such as a
- * `UwtBIEventDetail.eventType` override.
+ * `unknown` is an event type this library doesn't emit itself.
  *
  * @group Types
  */
