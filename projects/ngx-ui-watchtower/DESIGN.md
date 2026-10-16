@@ -168,8 +168,7 @@ the helper and the check. No destination at all still fails with `NG0201`.
 as a discriminated union — `scenario` (a `UwtScenarioRecord`),
 `scenario-step` (a `UwtScenarioStepEvent`), `bi` (a `UwtBIEvent`) or
 `unknown` (any other event type). It matches on the event type's ending,
-so it works for any `eventNamespace` and for forwarded events; the broadcast
-host uses it too.
+so it works for any `eventNamespace` and for forwarded events.
 
 What a destination does **not** need to do: redact (payloads arrive already
 redacted), deduplicate BI events, time anything, or guard the library's
@@ -2323,11 +2322,13 @@ and `location`, but not `top`, `BroadcastChannel` or storage — which is why
 this works there.
 
 **Where the shell owns the fragment's URL** — a plain iframe — a query
-parameter does the same job:
+parameter does the same job. The iframe must be same-origin with the shell,
+like every fragment; a sourceless iframe (`about:blank`, `srcdoc`) qualifies
+but has no URL to carry the parameter, so it reads the `top` global instead.
 
 ```ts
 // shell
-iframe.src = `https://fragment.example.com/?channel=${channelId}`;
+iframe.src = `/fragment/?channel=${channelId}`;
 
 // fragment
 const channelId = new URLSearchParams(window.location.search).get('channel');
