@@ -81,7 +81,7 @@ export class UwtBITelemetryService {
    *   as declared in {@link UwtBIEventNames}. Treat it as a metric dimension:
    *   keep the cardinality low and never interpolate an identifier into it.
    * @param metadata flat attributes describing the interaction
-   * @param detail optional scenario correlation, feature and event-type override
+   * @param detail optional scenario correlation and feature
    */
   track(
     eventName: UwtBIEventName,
@@ -119,13 +119,11 @@ export class UwtBITelemetryService {
         application: this.identity.application
       };
 
-      const eventType = detail?.eventType || this.eventTypes.bi;
-
       uwtDebugWrite('debugBI', () =>
-        writeToConsole(eventName, eventType, event)
+        writeToConsole(eventName, this.eventTypes.bi, event)
       );
 
-      this.sink.record(eventType, event);
+      this.sink.record(this.eventTypes.bi, event);
     });
   }
 
@@ -137,7 +135,6 @@ export class UwtBITelemetryService {
     const key = JSON.stringify([
       eventName,
       detail?.scenarioId ?? '',
-      detail?.eventType ?? '',
       detail?.feature ?? '',
       this.metadataKey(metadata)
     ]);

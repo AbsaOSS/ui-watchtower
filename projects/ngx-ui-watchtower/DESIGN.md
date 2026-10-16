@@ -115,7 +115,7 @@ Everything each entry point exports, by role.
 | Setup                       | `provideUwtTelemetry`, `withLogging`, `withScenarios`, `withBIEvents`, `withRedaction`, `UwtTelemetryFeature`, `provideUwtTelemetrySink`, `UwtTelemetryLocalSinkMode` (`'broadcast' \| 'noop'`), `provideUwtTelemetryBroadcastHost`, `provideUwtTelemetryDestination` + `UwtTelemetryDestinationOptions`    |
 | Configuration               | `UWT_TELEMETRY_IDENTITY` + `UwtTelemetryIdentity`; `UWT_LOG_CONFIG` + `UwtLogConfig`; `UWT_SCENARIO_TELEMETRY_CONFIG` + `UwtScenarioTelemetryConfig`; `UWT_BI_TELEMETRY_CONFIG` + `UwtBITelemetryConfig`; `UWT_REDACT_CONFIG`; `UWT_DEFAULT_TELEMETRY_CONFIG` (every default)                               |
 | Scenarios                   | `UwtScenarioTelemetryService`, `UwtScenario`, `traceScenario` + `UwtTraceScenarioOptions`; models `UwtScenarioOptions`, `UwtScenarioOutcome`, `UwtScenarioStepDetail`, `UwtScenarioRecord`, `UwtScenarioStep`, `UwtScenarioStepEvent`, `UwtScenarioAggregate`, `UwtScenarioStatus`, `UwtScenarioStepStatus` |
-| BI events                   | `UwtBITelemetryService`; `UwtBIEvent`, `UwtBIEventDetail` (`eventType` override, `scenarioId`, `feature`)                                                                                                                                                                                                   |
+| BI events                   | `UwtBITelemetryService`; `UwtBIEvent`, `UwtBIEventDetail` (`scenarioId`, `feature`)                                                                                                                                                                                                                         |
 | Logging                     | `UwtLoggerService`, `UwtLogger`; `UwtLogDetail`, `UwtLogRecord`, `UwtLogLevel`, `UWT_LOG_LEVEL_ORDER`; `UWT_LOG_API_PROVIDER`, `UwtLogApiProvider`, `UwtLogQuery`; `UwtNoopLogApiProvider`, `UwtBroadcastLogApiProvider`                                                                                    |
 | Name registries             | `UwtScenarioNames` / `UwtScenarioName`, `UwtScenarioSteps` / `UwtStepName`, `UwtBIEventNames` / `UwtBIEventName`, `UwtLoggerNames` / `UwtLoggerName`                                                                                                                                                        |
 | Sinks                       | `UwtTelemetrySink` (abstract), `UwtNoopTelemetrySink`, `UwtBroadcastTelemetrySink`, `UwtTelemetryBroadcastHost`, `UWT_BROADCAST_CHANNEL`, `UWT_DEFAULT_BROADCAST_CHANNEL` (`'ngx-ui-watchtower'`); `uwtClassifyTelemetryEvent` + `UwtTelemetrySinkEvent`, for a sink to tell what it received               |
@@ -167,7 +167,7 @@ the helper and the check. No destination at all still fails with `NG0201`.
 `uwtClassifyTelemetryEvent(eventType, payload)` tells `record` what it got,
 as a discriminated union — `scenario` (a `UwtScenarioRecord`),
 `scenario-step` (a `UwtScenarioStepEvent`), `bi` (a `UwtBIEvent`) or
-`unknown` (an event-type override). It matches on the event type's ending,
+`unknown` (any other event type). It matches on the event type's ending,
 so it works for any `eventNamespace` and for forwarded events; the broadcast
 host uses it too.
 
@@ -475,20 +475,10 @@ and no `sessionId`/`userId`, which RUM attaches once per session.
 
 #### One event type
 
-All BI events share a single event type, with `eventName` carried as a field
-— one schema to query, one extended-metric definition. If an existing
-dashboard is keyed on a specific legacy type, a single event can override it:
-
-```ts
-biTelemetry.track(
-  'click',
-  { source: 'toolbar' },
-  { eventType: 'com.my-app.click' }
-);
-```
-
-Use that only for migration — giving every event its own type is exactly what
-the single-type design avoids.
+All BI events share a single event type, `{ns}.bi`, with `eventName` carried
+as a field — one schema to query, one extended-metric definition. There is no
+per-event override: giving events their own types is exactly what the
+single-type design avoids.
 
 ### Fields deliberately left out
 
@@ -1624,7 +1614,7 @@ biTelemetry.track(
 
 Identical events within 400ms are collapsed into one, absorbing double-fires
 from a handler bound to both `click` and `keydown`. "Identical" means the same
-name, scenario correlation, event type, feature and metadata content;
+name, scenario correlation, feature and metadata content;
 differing in any one is a distinct event.
 
 ### Logging
