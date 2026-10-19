@@ -665,6 +665,17 @@ describe('UwtBITelemetryService', () => {
       expect(sink.events[0].eventType).toBe('com.uwt.bi');
       expect(sink.events[0].payload.eventName).toBe('click');
     });
+
+    it('should collapse identical events that differ only in a legacy eventType', () => {
+      service.track('click', undefined, {
+        eventType: 'com.test-app.a'
+      } as never);
+      service.track('click', undefined, {
+        eventType: 'com.test-app.b'
+      } as never);
+
+      expect(sink.events).toHaveLength(1);
+    });
   });
 
   describe('failure isolation', () => {
