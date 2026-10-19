@@ -2401,7 +2401,7 @@ whatever the destination.
          this.logger.emit({
            eventName: eventType,
            body: event.payload.eventName,
-           attributes: { ...event.payload.metadata }
+           attributes: { ...event.payload.metadata, ...this.identity() }
          });
        }
      }
@@ -2412,7 +2412,8 @@ whatever the destination.
          startTime: new Date(start),
          attributes: {
            'uwt.scenario.id': record.scenarioId,
-           'uwt.scenario.status': record.status
+           'uwt.scenario.status': record.status,
+           ...this.identity()
          }
        });
        const parent = trace.setSpan(context.active(), root);
@@ -2435,8 +2436,18 @@ whatever the destination.
        this.logger.emit({
          eventName: 'exception',
          severityNumber: SeverityNumber.ERROR,
-         body: error.message
+         body: error.message,
+         attributes: this.identity()
        });
+     }
+
+     // Per record, not a resource attribute: resources are fixed at SDK startup,
+     // and the session changes on sign-out.
+     private identity(): Record<string, string> {
+       return {
+         'session.id': this.sessionId,
+         ...(this.userId ? { 'user.id': this.userId } : {})
+       };
      }
 
      getSessionId() {
@@ -2500,6 +2511,11 @@ whatever the destination.
   linked by `uwt.scenario.id` / `correlationId` — as it is with RUM today.
   Joining them by trace id would need scenarios to start spans in
   `start()`, which is a change to the core, not to the sink.
+- **A session is one page load.** The sink's `sessionId` lives in memory, so a
+  reload or a second tab starts a new session — unlike RUM's cookie session,
+  which tabs share and reloads keep. Expect more, shorter sessions than RUM
+  reports; to match it, keep the id in a cookie with an inactivity expiry. There
+  is no anonymous user id either: until sign-in, only `session.id` is set.
 - **The browser logs SDK is still experimental.** Pin exact versions and
   re-run the tests after every upgrade: a mis-configured processor exports
   nothing, without an error.
