@@ -1493,7 +1493,7 @@ call leaves application code unaffected.
   signal on `UwtRumCredentialsProvider.load()` — tears the client down and
   stops scheduling further refreshes, instead of retrying forever against
   an already-disabled sink still holding a stale, capped event buffer. The
-  very first load honors the identical contract: `loadBootstrapAndSdk()` sets
+  very first load honors the identical contract: `performInit()` sets
   the same `disabled` flag when the broker declines before the client is ever
   constructed, not only on a later refresh — otherwise every `record()`
   call would buffer into the capped pre-init queue forever instead of
