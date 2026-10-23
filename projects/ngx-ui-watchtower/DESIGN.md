@@ -467,11 +467,16 @@ interface UwtBIEvent {
   feature?: string;
   metadata?: UwtTelemetryMetadata;
   application: string;
+  sessionId?: string;
+  userId?: string;
 }
 ```
 
-There is no `route` — the RUM envelope's page id already carries the page —
-and no `sessionId`/`userId`, which RUM attaches once per session.
+There is no `route` — the RUM envelope's page id already carries the page.
+`application`, `sessionId` and `userId` are on the event for the same reason
+as on the scenario record: a payload answers "who, which session, which app"
+without the envelope. `sessionId` is absent until the RUM client initializes,
+`userId` until someone signs in.
 
 #### One event type
 

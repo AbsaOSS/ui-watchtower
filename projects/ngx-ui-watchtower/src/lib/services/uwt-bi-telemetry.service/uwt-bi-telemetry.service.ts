@@ -23,6 +23,7 @@ import {
 } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import {
   uwtNow,
+  uwtSafe,
   uwtSafeVoid
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 
@@ -116,7 +117,17 @@ export class UwtBITelemetryService {
         scenarioId: detail?.scenarioId,
         feature: redactedFeature,
         metadata: redactedMetadata,
-        application: this.identity.application
+        application: this.identity.application,
+        sessionId: uwtSafe(
+          'biTelemetry.getSessionId',
+          () => this.sink.getSessionId(),
+          undefined
+        ),
+        userId: uwtSafe(
+          'biTelemetry.getUserId',
+          () => this.sink.getUserId(),
+          undefined
+        )
       };
 
       const eventType = detail?.eventType || this.eventTypes.bi;
