@@ -1,4 +1,4 @@
-import { PLATFORM_ID } from '@angular/core';
+import { NgZone, PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   UWT_DEFAULT_TELEMETRY_CONFIG,
@@ -511,7 +511,7 @@ describe('UwtRumTelemetrySink', () => {
 
       await expect(sink.init()).resolves.toBeUndefined();
       expect(warn).toHaveBeenCalledWith(
-        '[ngx-ui-watchtower] RUM init failed, monitoring disabled',
+        '[ngx-ui-watchtower] RUM init failed, retrying',
         expect.objectContaining({
           name: 'Error',
           message: 'broker unreachable'
@@ -534,29 +534,131 @@ describe('UwtRumTelemetrySink', () => {
       expect(awsRumInstance.recordEvent).not.toHaveBeenCalled();
     });
 
-    it('should disable RUM and clear the pre-init buffer, not buffer forever, when init throws', async () => {
-      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-      let rejectLoad!: (error: Error) => void;
-      configure({
-        loadImpl: () =>
-          new Promise<UwtRumBootstrap | null>((_resolve, reject) => {
-            rejectLoad = reject;
-          })
+    describe('when the broker request fails', () => {
+      beforeEach(() => jest.useFakeTimers());
+      afterEach(() => jest.useRealTimers());
+
+      it('should keep buffering and start the client on a later attempt', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        let calls = 0;
+        configure({
+          loadImpl: async () => {
+            if (calls++ === 0) {
+              throw new Error('broker unreachable');
+            }
+            return bootstrap();
+          }
+        });
+
+        await sink.init();
+        sink.record('a', {});
+        expect(AwsRumCtor).not.toHaveBeenCalled();
+
+        await jest.advanceTimersByTimeAsync(30 * 1000);
+
+        expect(load).toHaveBeenCalledTimes(2);
+        expect(AwsRumCtor).toHaveBeenCalledTimes(1);
+        expect(awsRumInstance.recordEvent).toHaveBeenCalledWith(
+          'a',
+          {},
+          undefined
+        );
+        expect(sink.getSessionId()).toBe('rum-session-1');
       });
 
-      const initPromise = sink.init();
-      sink.record('a', {});
+      it('should retry every 30 s, warn once, and give up after ten attempts', async () => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        configure({
+          loadImpl: async () => {
+            throw new Error('broker unreachable');
+          }
+        });
 
-      rejectLoad(new Error('broker unreachable'));
-      await initPromise;
+        await sink.init();
+        sink.record('a', {});
+        expect(load).toHaveBeenCalledTimes(1);
 
-      sink.record('b', {});
-      sink.flush();
+        for (let calls = 2; calls <= 10; calls++) {
+          await jest.advanceTimersByTimeAsync(30 * 1000 - 1);
+          expect(load).toHaveBeenCalledTimes(calls - 1);
+          await jest.advanceTimersByTimeAsync(1);
+          expect(load).toHaveBeenCalledTimes(calls);
+        }
 
-      expect(awsRumInstance.recordEvent).not.toHaveBeenCalled();
-      expect(warn).not.toHaveBeenCalledWith(
-        expect.stringContaining('RUM event(s) lost')
-      );
+        await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+        expect(load).toHaveBeenCalledTimes(10);
+        expect(warn.mock.calls.map(([message]) => message)).toEqual([
+          '[ngx-ui-watchtower] RUM init failed, retrying',
+          '[ngx-ui-watchtower] RUM init failed, monitoring disabled'
+        ]);
+
+        sink.record('b', {});
+        sink.flush(true);
+        expect(warn).toHaveBeenCalledTimes(2);
+      });
+
+      it('should start the RUM client outside Angular, so its timers never keep the app from becoming stable', async () => {
+        const outside = jest.spyOn(TestBed.inject(NgZone), 'runOutsideAngular');
+
+        await sink.init();
+
+        expect(outside).toHaveBeenCalledTimes(1);
+        expect(AwsRumCtor).toHaveBeenCalledTimes(1);
+      });
+
+      it('should not retry when the client itself fails to start, since a retry would fail the same way', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        AwsRumCtor.mockImplementationOnce(() => {
+          throw new Error('constructor exploded');
+        });
+
+        await sink.init();
+        await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(AwsRumCtor).toHaveBeenCalledTimes(1);
+      });
+
+      it('should stop retrying once destroyed', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        configure({
+          loadImpl: async () => {
+            throw new Error('broker unreachable');
+          }
+        });
+
+        await sink.init();
+        sink.ngOnDestroy();
+        await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+        expect(load).toHaveBeenCalledTimes(1);
+      });
+
+      it('should not schedule another retry when destroyed while a retry is in flight', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        let rejectRetry!: (error: Error) => void;
+        let calls = 0;
+        configure({
+          loadImpl: () => {
+            if (calls++ === 0) {
+              return Promise.reject(new Error('broker unreachable'));
+            }
+            return new Promise<UwtRumBootstrap | null>((_resolve, reject) => {
+              rejectRetry = reject;
+            });
+          }
+        });
+
+        await sink.init();
+        await jest.advanceTimersByTimeAsync(30 * 1000);
+        expect(load).toHaveBeenCalledTimes(2);
+
+        sink.ngOnDestroy();
+        rejectRetry(new Error('broker unreachable'));
+        await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+        expect(load).toHaveBeenCalledTimes(2);
+      });
     });
 
     it("should not reject init()'s promise even if console.warn itself throws", async () => {
@@ -846,6 +948,29 @@ describe('UwtRumTelemetrySink', () => {
       await sink.init();
 
       expect(awsRumInstance.pinUserId).not.toHaveBeenCalled();
+    });
+
+    it('should start a fresh anonymous session once the client starts, for a sign-out made before', async () => {
+      sink.setUserId('user-42');
+      sink.setUserId(undefined);
+      expect(awsRumInstance.startSession).not.toHaveBeenCalled();
+
+      await sink.init();
+
+      expect(awsRumInstance.startSession).toHaveBeenCalledTimes(1);
+      expect(awsRumInstance.startSession).toHaveBeenCalledWith({
+        userId: expect.any(String)
+      });
+    });
+
+    it('should drop a sign-out made before init when someone signs in before the client starts', async () => {
+      sink.setUserId(undefined);
+      sink.setUserId('user-7');
+
+      await sink.init();
+
+      expect(awsRumInstance.startSession).not.toHaveBeenCalled();
+      expect(awsRumInstance.pinUserId).toHaveBeenCalledWith('user-7');
     });
 
     it("should treat '' as sign-out, not as a user id", async () => {

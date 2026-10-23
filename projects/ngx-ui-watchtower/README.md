@@ -87,7 +87,7 @@ Fetch them from your backend:
 export class MyRumCredentials implements UwtRumCredentialsProvider {
   async load(): Promise<UwtRumBootstrap | null> {
     const res = await fetch('/rum/init', { cache: 'no-store' });
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`); // retried
 
     const { enabled, config, credentials } = await res.json();
     return enabled ? { config, credentials } : null; // null = don't ship

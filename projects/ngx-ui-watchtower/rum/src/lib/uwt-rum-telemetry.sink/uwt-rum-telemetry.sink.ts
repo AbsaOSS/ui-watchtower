@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { inject, Injectable, OnDestroy } from '@angular/core';
+import { inject, Injectable, NgZone, OnDestroy } from '@angular/core';
 import type { AwsRum, AwsRumConfig } from 'aws-rum-web';
 import {
   UWT_REDACT_CONFIG,
@@ -33,10 +33,18 @@ const CREDENTIAL_REFRESH_SKEW_MS = 5 * 60 * 1000;
 const MAX_TIMEOUT_MS = 2_147_483_647;
 
 /**
- * Retry delay after a scheduled refresh fails or returns no credentials.
- * Shorter than the normal refresh-ahead-of-expiry interval.
+ * Retry delay after the broker request fails — at startup or on a scheduled
+ * refresh — or a refresh returns no credentials. Shorter than the normal
+ * refresh-ahead-of-expiry interval.
  */
 const CREDENTIAL_RETRY_DELAY_MS = 30 * 1000;
+
+/**
+ * Broker requests tried at startup before the sink gives up and runs the page
+ * without RUM — five minutes at {@link CREDENTIAL_RETRY_DELAY_MS}. Bounds the
+ * retries when the failure is permanent, such as a wrong URL or a 403.
+ */
+const MAX_INIT_ATTEMPTS = 10;
 
 /**
  * Events retained while the SDK loads. Bounded so a failed init cannot
@@ -111,17 +119,31 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     uwtIsBrowser() &&
     (inject(UWT_TELEMETRY_ENABLED, { optional: true }) ?? true);
 
+  private readonly zone = inject(NgZone, { optional: true });
+
   private awsRum: AwsRum | null = null;
+  /**
+   * The pending broker call: a startup retry before the client exists, the
+   * next credential refresh after.
+   */
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private buffer: BufferedItem[] = [];
   private userId?: string;
-  /** Set once a refresh returns null/undefined; distinct from `!awsRum` alone. */
-  private disabled = false;
+  /** A sign-out arrived before the client existed; applied once it starts. */
+  private signOutPending = false;
   /**
-   * Memoized so every caller — `provideUwtTelemetryRumSink()`'s
-   * `APP_INITIALIZER`, {@link ensureInitialized}, and a caller awaiting
-   * `init()` directly — awaits the same underlying work, regardless of who
-   * triggered it first.
+   * Set once RUM is off for the page — the broker declined, startup gave up,
+   * or a refresh returned null; distinct from `!awsRum` alone.
+   */
+  private disabled = false;
+  /** Broker requests that failed at startup so far. */
+  private initFailures = 0;
+  /**
+   * The current startup attempt, shared by every caller —
+   * `provideUwtTelemetryRumSink()`'s `APP_INITIALIZER`,
+   * {@link ensureInitialized}, and a caller awaiting `init()` directly. A
+   * retry replaces it, so awaiting `init()` waits for one attempt, not for
+   * RUM to be running.
    */
   private initPromise?: Promise<void>;
   /**
@@ -145,20 +167,34 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       return;
     }
     if (!this.initPromise) {
-      this.initPromise = this.performInit();
+      // Outside Angular's zone: the SDK's dispatch interval and this sink's
+      // retry and refresh timers would otherwise keep a zone-based app from
+      // ever becoming stable.
+      this.initPromise = this.zone
+        ? this.zone.runOutsideAngular(() => this.performInit())
+        : this.performInit();
     }
     return this.initPromise;
   }
 
   private async performInit(): Promise<void> {
+    let bootstrap: UwtRumBootstrap | null;
     try {
-      const bootstrap = await this.credentialsProvider.load();
+      bootstrap = await this.credentialsProvider.load();
+    } catch (error) {
+      this.retryInit(error);
+      return;
+    }
+
+    try {
       if (!bootstrap?.config) {
         this.disableAwsRum();
         this.buffer = [];
         return;
       }
 
+      // Not retried if this fails: with native ES modules (Angular's default
+      // build) the browser remembers a failed dynamic import for the page.
       const { AwsRum } = await import('aws-rum-web');
       if (this.destroyed) {
         return;
@@ -179,6 +215,33 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       this.buffer = [];
       this.reportFailure('RUM init failed, monitoring disabled', error);
     }
+  }
+
+  /**
+   * After a failed broker request at startup: tries again later, keeping
+   * events buffered — the failure is usually a passing network or broker
+   * problem. Gives up after {@link MAX_INIT_ATTEMPTS}.
+   */
+  private retryInit(error: unknown): void {
+    if (this.destroyed) {
+      return;
+    }
+
+    this.initFailures++;
+    if (this.initFailures >= MAX_INIT_ATTEMPTS) {
+      this.disableAwsRum();
+      this.buffer = [];
+      this.reportFailure('RUM init failed, monitoring disabled', error);
+      return;
+    }
+
+    if (this.initFailures === 1) {
+      this.reportFailure('RUM init failed, retrying', error);
+    }
+    this.scheduleRetry(() => {
+      this.initPromise = this.performInit();
+      return this.initPromise;
+    });
   }
 
   /**
@@ -260,7 +323,8 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * Signing in pins the id, and works even before `init()` resolves.
    * Signing out starts a fresh session with a new anonymous id (`pinUserId`
    * has no inverse), which emits a `session_start` event and re-rolls
-   * sampling.
+   * sampling. Before `init()` resolves, a sign-out is applied once the
+   * client starts.
    *
    * @param userId the application's own user identifier, or `undefined`
    * (or `''`) on sign-out
@@ -270,11 +334,16 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       this.userId = userId;
 
       if (userId) {
+        this.signOutPending = false;
         this.awsRum?.pinUserId(userId);
         return;
       }
 
-      this.awsRum?.startSession({ userId: uwtUuid() });
+      if (this.awsRum) {
+        this.awsRum.startSession({ userId: uwtUuid() });
+      } else {
+        this.signOutPending = true;
+      }
     });
   }
 
@@ -449,6 +518,9 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
 
     if (this.userId) {
       this.awsRum.pinUserId(this.userId);
+    } else if (this.signOutPending) {
+      this.signOutPending = false;
+      this.awsRum.startSession({ userId: uwtUuid() });
     }
   }
 
@@ -522,7 +594,10 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     }
   }
 
-  private scheduleRetry(): void {
+  /** Runs `attempt` (by default, a credential refresh) after the retry delay. */
+  private scheduleRetry(
+    attempt: () => Promise<void> = () => this.refreshCredentials()
+  ): void {
     if (this.destroyed) {
       return;
     }
@@ -532,7 +607,8 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     }
 
     this.refreshTimer = setTimeout(() => {
-      this.refreshCredentials().catch(() => undefined);
+      this.refreshTimer = null;
+      attempt().catch(() => undefined);
     }, CREDENTIAL_RETRY_DELAY_MS);
   }
 
