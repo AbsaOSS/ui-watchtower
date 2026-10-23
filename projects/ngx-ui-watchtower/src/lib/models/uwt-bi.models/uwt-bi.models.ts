@@ -58,13 +58,13 @@ export interface UwtBIEventDetail {
  *
  * Browser, device and page attributes come from the RUM envelope and aren't
  * repeated here — the client already stamps `pageId`/`pageUrl` on every
- * event, so a `route` field would just duplicate that. `application` is
- * carried anyway, for a self-describing record; see {@link UwtScenarioRecord}.
+ * event, so a `route` field would just duplicate that. `application`,
+ * `sessionId` and `userId` are carried anyway, for a self-describing record;
+ * see {@link UwtScenarioRecord}.
  *
  * @group Interfaces
  */
-export interface UwtBIEvent
-  extends UwtBIEventDetail, Pick<UwtTelemetryAttribution, 'application'> {
+export interface UwtBIEvent extends UwtBIEventDetail, UwtTelemetryAttribution {
   /**
    * Event name, e.g. `export_clicked`. Declared by the application in
    * {@link UwtBIEventNames} — this library never hardcodes business event
