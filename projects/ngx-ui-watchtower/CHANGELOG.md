@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/AbsaOSS/ui-watchtower/compare/v0.3.0...v0.4.0) (2026-10-23)
+
+
+### Features
+
+* add sessionId and userId to BI events ([#16](https://github.com/AbsaOSS/ui-watchtower/issues/16)) ([b4d6fc2](https://github.com/AbsaOSS/ui-watchtower/commit/b4d6fc210691b8ebb81d305fba25c6645e4b8a70))
+
 ## [0.3.0](https://github.com/AbsaOSS/ui-watchtower/compare/v0.2.0...v0.3.0) (2026-10-14)
 
 
