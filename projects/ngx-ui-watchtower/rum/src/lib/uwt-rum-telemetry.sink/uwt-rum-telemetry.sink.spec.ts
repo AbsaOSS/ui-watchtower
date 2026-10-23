@@ -969,6 +969,22 @@ describe('UwtRumTelemetrySink', () => {
         expect(localStorage.length).toBe(0);
       });
 
+      it('should record nothing when session-start events are suppressed, for a session started while the client was built either', async () => {
+        AwsRumCtor.mockImplementationOnce(() => {
+          document.cookie = 'cwr_s=new-session; path=/';
+          return awsRumInstance;
+        });
+        configure({
+          loadImpl: async () => bootstrap({ suppressSessionStartEvent: true })
+        });
+        await sink.init();
+
+        metadataHook()(SESSION_START);
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBeUndefined();
+        expect(localStorage.length).toBe(0);
+      });
+
       it('should not recurse when reading the id starts yet another session (a session length of 0)', async () => {
         await sink.init();
         awsRumInstance.getSessionId.mockImplementation(() => {

@@ -131,10 +131,12 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   private buffer: BufferedItem[] = [];
   private userId?: string;
   /**
-   * Whether the client keeps sessions in its cookie, so a session outlives the
-   * page and its start is worth recording. Set when the client starts.
+   * Whether a session's start is recorded (`uwtMarkSessionStart`): only when
+   * the client keeps sessions in its cookie, so a session outlives the page,
+   * and the app hasn't suppressed session-start events. Set when the client
+   * starts.
    */
-  private keepsSessions = false;
+  private marksSessionStarts = false;
   /** Set while {@link markSessionStart} runs, to stop it calling itself. */
   private markingSession = false;
   /** Set once a refresh returns null/undefined; distinct from `!awsRum` alone. */
@@ -196,16 +198,21 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         this.buildRumConfig(bootstrap)
       );
 
-      this.keepsSessions =
+      this.marksSessionStarts =
         bootstrap.config.allowCookies !== false &&
-        this.document.defaultView?.navigator.cookieEnabled !== false;
+        this.document.defaultView?.navigator.cookieEnabled !== false &&
+        bootstrap.config.suppressSessionStartEvent !== true;
       this.applyIdentity();
       // The client can start the first session inside its constructor — the
       // landing page view, the navigation timing — before the metadata hook
       // exists to see its session_start. It writes the session cookie then,
       // so a cookie that wasn't there a moment ago means a session that
       // started just now.
-      if (this.keepsSessions && !hadSession && this.hasCookie(sessionCookie)) {
+      if (
+        this.marksSessionStarts &&
+        !hadSession &&
+        this.hasCookie(sessionCookie)
+      ) {
         this.markSessionStart();
       }
       this.applyCredentials(bootstrap.credentials);
@@ -472,7 +479,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * The hook also sees the client's own `session_start` event, recorded
    * each time it starts a session, and records that moment as the
    * session's start (`uwtMarkSessionStart`) — the client keeps no start time
-   * itself. Only while cookies are on ({@link keepsSessions}).
+   * itself. Only while {@link marksSessionStarts}.
    */
   private applyIdentity(): void {
     if (!this.awsRum) {
@@ -487,7 +494,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
 
     this.awsRum.addSessionAttributes(attributes);
     this.awsRum.setEventMetadataHook((type) => {
-      if (this.keepsSessions && type === SESSION_START_EVENT_TYPE) {
+      if (this.marksSessionStarts && type === SESSION_START_EVENT_TYPE) {
         this.markSessionStart();
       }
       return attributes;
