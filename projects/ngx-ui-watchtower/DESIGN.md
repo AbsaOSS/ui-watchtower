@@ -399,9 +399,9 @@ interface UwtScenarioAggregate {
   up against each other. `endTime` is not a second duration — it is
   `startTime + delta`, there to place a journey on the wall clock. `elapsed`
   is inexact across a hard reload, since the RUM session cookie
-  (`allowCookies` on by default, 30-minute default session length) survives a
-  reload that resets `performance.timeOrigin`, so one `sessionId` can span an
-  `elapsed` reset.
+  (`allowCookies` on by default; the session ends after 30 minutes without a
+  recorded event) survives a reload that resets `performance.timeOrigin`, so
+  one `sessionId` can span an `elapsed` reset.
 - **Step offsets are relative** to the scenario's own start, so they stay
   small integers inside the payload.
 - **A settled record has at least two steps.** Two zero-duration markers
@@ -956,6 +956,18 @@ cost of one `session_start` event and a re-rolled sampling decision.
 The SDK's `startSession` is documented for exactly this case ("sign-in,
 sign-out, kiosk handoff").
 
+Call it on a real sign-out only: every call starts a new session, so calling
+it at startup when nobody is signed in would start one on every page load.
+
+The RUM client keeps a signed-in user's id in its `cwr_u` cookie, for
+`userIdRetentionDays` (default 30). That cookie is shared by every app on the
+hostname — `cookieAttributes.unique` renames only the session cookie. On a
+shared device, a user who closes the tab without signing out leaves their id
+there, and the next visitor starts with it until someone signs in or out. An
+app where that matters can set `userIdRetentionDays: 0`: no user cookie at
+all, and anonymous visitors get the nil id (or, after a sign-out, a random
+one for that page).
+
 In a fragment, this call is forwarded to the shell, so the whole composed
 page agrees on who is signed in.
 
@@ -1327,7 +1339,8 @@ export class AppRumCredentialsProvider implements UwtRumCredentialsProvider {
   async load(): Promise<UwtRumBootstrap | null> {
     // no-store: this response carries live, temporary AWS credentials.
     const res = await fetch('/rum/init', { cache: 'no-store' });
-    if (!res.ok) return null;
+    // Throw on failure, so the sink retries; null means "don't ship".
+    if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`);
 
     const { enabled, config, credentials } = await res.json();
     return enabled ? { config, credentials } : null;
@@ -1339,6 +1352,17 @@ Returning `null` turns off shipping without disabling the library —
 including from a later refresh, not just the initial load, so a provider can
 revoke telemetry mid-session and the running client is torn down rather than
 left collecting with stale credentials.
+
+Throwing means the request failed, not that telemetry is unwanted. The sink
+tries again every 30 seconds — at startup, keeping events buffered meanwhile,
+and on a refresh. A passing broker or network outage therefore doesn't leave
+the rest of the page without RUM or a `sessionId`. At startup it gives up
+after ten attempts (about five minutes), so a permanent failure — a wrong
+URL, a 403 — doesn't poll for the life of the page. Buffered events reach RUM
+stamped with the time they are sent, not the time they happened; the
+scenario and BI payloads keep their own times. A bootstrap that succeeds but
+whose SDK download or client start fails is not retried: browsers remember a
+failed module import, and a configuration error would fail the same way.
 
 Returning a bootstrap with `credentials` omitted is a different, valid state:
 an app monitor configured for unauthenticated access — as long as the session
@@ -1360,7 +1384,7 @@ list. A representative sample:
 ```ts
 async load(): Promise<UwtRumBootstrap | null> {
   const res = await fetch('/rum/init');
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`);
   const { enabled, config, credentials } = await res.json();
   if (!enabled) return null;
 
@@ -1441,16 +1465,18 @@ convention, for an application that wants the pre-fallback behavior back.
   silent. Even a broken `console.error` cannot turn a suppressed failure into
   a throw.
 - **Fail-open.** A broker outage, expired credentials or an SDK throw all
-  leave the application behaving exactly as with healthy telemetry. A broker
-  declining a session (`null`) makes the RUM sink a clean no-op rather than a
-  queue that fills forever.
+  leave the application behaving exactly as with healthy telemetry. A failed
+  broker request at startup is retried every 30 seconds, up to ten times. A
+  broker declining a session (`null`) makes the RUM sink a clean no-op rather
+  than a queue that fills forever.
 - **SSR-safe.** Every browser-touching path is a no-op on the server.
 - **Cheap.** One RUM event per scenario, not per step. Redaction is a single
   shallow pass over a flat object. Durations use `performance.now()`, which
   wall-clock adjustments and sleeping devices can't skew. Batching, retries
   and dispatch of recorded events are left to the RUM SDK.
 - **Zone-neutral.** Long-lived timers — a scenario's timeout, the
-  mark-cleanup fallback, a fragment's log-query timeout — are scheduled
+  mark-cleanup fallback, a fragment's log-query timeout, the RUM client's
+  dispatch interval and the sink's retry and refresh timers — are scheduled
   outside Angular's zone, so telemetry never keeps the application from
   becoming stable.
 - **Bounded.** A 100-item buffer keeps events, page views and errors recorded
@@ -1472,8 +1498,8 @@ call leaves application code unaffected.
   signal on `UwtRumCredentialsProvider.load()` — tears the client down and
   stops scheduling further refreshes, instead of retrying forever against
   an already-disabled sink still holding a stale, capped event buffer. The
-  very first load honors the identical contract: `performInit()` sets the
-  same `disabled` flag when the broker declines before the client is ever
+  very first load honors the identical contract: `performInit()` sets
+  the same `disabled` flag when the broker declines before the client is ever
   constructed, not only on a later refresh — otherwise every `record()`
   call would buffer into the capped pre-init queue forever instead of
   becoming the clean no-op a deliberately-disabled session should be.
@@ -2357,8 +2383,11 @@ With a channel per tab, each tab's election trivially picks itself, and a
 tab's fragments never hear another tab. A duplicated tab loads a fresh
 document, so it gets a fresh id — unlike `sessionStorage`, which Chrome
 copies into the duplicate. A per-tab channel does **not** give each tab its
-own `sessionId`: the RUM session is a cookie shared across the origin's
-tabs, deliberately, since RUM models a session as a user's, not a tab's.
+own `sessionId`: tabs start from the same RUM session cookie, deliberately,
+since RUM models a session as a user's, not a tab's. Each tab reads that
+cookie only when it loads and then keeps its own copy, so tabs drift apart
+once one of them starts a new session — after 30 minutes without an event,
+or on sign-out.
 
 ### Known limits
 
