@@ -190,6 +190,20 @@ describe('UwtBITelemetryService', () => {
       );
     });
 
+    it('should carry the sink session and user, once there are any', () => {
+      sink.userId = undefined;
+      sink.sessionId = undefined;
+      service.track('tab_selected');
+      sink.userId = 'user-1';
+      sink.sessionId = 'session-1';
+      service.track('filter_changed');
+
+      const [before, after] = sink.events.map((e) => e.payload);
+      expect(before.sessionId).toBeUndefined();
+      expect(before.userId).toBeUndefined();
+      expect(after).toMatchObject({ sessionId: 'session-1', userId: 'user-1' });
+    });
+
     it('should not carry a route — the RUM envelope already stamps the page', () => {
       service.track('filter_changed');
 
