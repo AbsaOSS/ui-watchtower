@@ -80,7 +80,10 @@ provideUwtTelemetry(
 
 ### AWS credentials
 
-Fetch them from your backend:
+The RUM sink gets its AWS details from a credentials provider: a class you
+write that fetches them from your backend, registered as
+`UWT_RUM_CREDENTIALS_PROVIDER`. The sink calls its `load()` at startup and
+again shortly before the credentials expire.
 
 ```ts
 @Injectable({ providedIn: 'root' })
