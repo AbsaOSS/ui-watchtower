@@ -40,32 +40,17 @@ export interface UwtBIEventNames {}
 export type UwtBIEventName = UwtRegistered<UwtBIEventNames>;
 
 /**
- * Correlation fields carried through unchanged onto the emitted
- * {@link UwtBIEvent} — shared by {@link UwtBIEventDetail} and
- * {@link UwtBIEvent} so neither declares its own copy.
+ * Optional correlation detail for a business/UX event, carried through
+ * unchanged onto the emitted {@link UwtBIEvent}.
  *
  * @group Interfaces
  */
-export interface UwtBIEventCorrelation {
+export interface UwtBIEventDetail {
   /** Scenario this event happened inside. Pass {@link UwtScenario.id}. */
   scenarioId?: string;
 
   /** Product area, e.g. `customers`. Scrubbed the same as any other string value. */
   feature?: string;
-}
-
-/**
- * Optional correlation detail for a business/UX event.
- *
- * @group Interfaces
- */
-export interface UwtBIEventDetail extends UwtBIEventCorrelation {
-  /**
-   * Overrides the RUM event type for this one event. BI events normally
-   * share one type, with `eventName` as a field. Use this only when an
-   * existing dashboard or metric filter needs a specific event type.
-   */
-  eventType?: string;
 }
 
 /**
@@ -79,8 +64,7 @@ export interface UwtBIEventDetail extends UwtBIEventCorrelation {
  *
  * @group Interfaces
  */
-export interface UwtBIEvent
-  extends UwtBIEventCorrelation, UwtTelemetryAttribution {
+export interface UwtBIEvent extends UwtBIEventDetail, UwtTelemetryAttribution {
   /**
    * Event name, e.g. `export_clicked`. Declared by the application in
    * {@link UwtBIEventNames} — this library never hardcodes business event
