@@ -85,6 +85,59 @@ function omitUndefined<T extends object>(obj: T): Partial<T> {
   return result;
 }
 
+/** Whether `value` is an array of `RegExp`s only. */
+function isRegExpList(value: unknown): boolean {
+  return (
+    Array.isArray(value) && value.every((entry) => entry instanceof RegExp)
+  );
+}
+
+/**
+ * Telemetry options the SDK calls as a function or matches with
+ * `RegExp.test`. JSON can carry neither, and anything else in their place
+ * throws inside the SDK — for the URL filters, inside its patched `fetch` and
+ * XHR, so on every application request.
+ */
+const TELEMETRY_OPTION_CHECKS = new Map<string, (value: unknown) => boolean>([
+  ['urlsToInclude', isRegExpList],
+  ['urlsToExclude', isRegExpList],
+  [
+    'addXRayTraceIdHeader',
+    (value) => typeof value === 'boolean' || isRegExpList(value)
+  ],
+  ['ignore', (value) => typeof value === 'function'],
+  ['interactionId', (value) => typeof value === 'function']
+]);
+
+/**
+ * Copies `telemetries` without the tuple options that fail their
+ * {@link TELEMETRY_OPTION_CHECKS} check, noting each as `name.option` in
+ * `dropped`. A dropped option falls back to the SDK's own default.
+ */
+function sanitizeTelemetries(
+  telemetries: NonNullable<UwtRumBootstrap['config']['telemetries']>,
+  dropped: string[]
+): NonNullable<UwtRumBootstrap['config']['telemetries']> {
+  return telemetries.map((telemetry) => {
+    if (!Array.isArray(telemetry)) {
+      return telemetry;
+    }
+    const [name, options, ...rest] = telemetry;
+    if (typeof options !== 'object' || options === null) {
+      return telemetry;
+    }
+    const kept: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(options)) {
+      if (TELEMETRY_OPTION_CHECKS.get(key)?.(value) === false) {
+        dropped.push(`${String(name)}.${key}`);
+      } else {
+        kept[key] = value;
+      }
+    }
+    return [name, kept, ...rest];
+  });
+}
+
 /**
  * Telemetry sink backed by the AWS CloudWatch RUM web client.
  *
@@ -359,10 +412,27 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * own override; every other field goes through {@link omitUndefined} (or,
    * for `client`, a conditional spread) so an unset field is absent and the
    * SDK's own default applies.
+   *
+   * Fields the SDK matches with `RegExp.test` or calls as a function —
+   * `pagesToInclude`/`pagesToExclude` and the telemetry options in
+   * {@link TELEMETRY_OPTION_CHECKS} — are dropped when they hold anything
+   * else, typically a string from a broker's JSON: the SDK would throw on
+   * every page view or request instead.
    */
   private buildRumConfig(bootstrap: UwtRumBootstrap): AwsRumConfig {
     const { config } = bootstrap;
     const origin = this.document.defaultView?.location?.origin ?? '';
+    const dropped: string[] = [];
+    const pageFilter = (
+      key: 'pagesToInclude' | 'pagesToExclude'
+    ): RegExp[] | undefined => {
+      const value = config[key];
+      if (value === undefined || isRegExpList(value)) {
+        return value;
+      }
+      dropped.push(key);
+      return undefined;
+    };
 
     // X-Ray trace header only on same-origin requests; a cross-origin
     // request with an unexpected header fails CORS preflight. Anchored at
@@ -373,17 +443,19 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       '^' + origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:[/?#]|$)'
     );
 
-    return {
+    const rumConfig = {
       allowCookies: config.allowCookies ?? true,
       enableXRay: config.enableXRay ?? true,
       endpoint:
         config.endpoint ??
         `https://dataplane.rum.${config.region}.amazonaws.com`,
-      telemetries: config.telemetries ?? [
-        'errors',
-        'performance',
-        ['http', { addXRayTraceIdHeader: [sameOrigin] }]
-      ],
+      telemetries: Array.isArray(config.telemetries)
+        ? sanitizeTelemetries(config.telemetries, dropped)
+        : (config.telemetries ?? [
+            'errors',
+            'performance',
+            ['http', { addXRayTraceIdHeader: [sameOrigin] }]
+          ]),
 
       ...(config.client !== undefined ? { client: config.client } : {}),
 
@@ -413,8 +485,8 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         compressionStrategy: config.compressionStrategy,
         fetchFunction: config.fetchFunction,
         pageIdFormat: config.pageIdFormat,
-        pagesToInclude: config.pagesToInclude,
-        pagesToExclude: config.pagesToExclude,
+        pagesToInclude: pageFilter('pagesToInclude'),
+        pagesToExclude: pageFilter('pagesToExclude'),
         routeChangeComplete: config.routeChangeComplete,
         routeChangeTimeout: config.routeChangeTimeout,
         disableAutoPageView: config.disableAutoPageView,
@@ -422,6 +494,14 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         enableRumClient: config.enableRumClient
       })
     } as unknown as AwsRumConfig;
+
+    if (dropped.length) {
+      this.reportFailure(
+        'RUM config: dropped options that need a RegExp or a function',
+        new Error(dropped.join(', '))
+      );
+    }
+    return rumConfig;
   }
 
   /**

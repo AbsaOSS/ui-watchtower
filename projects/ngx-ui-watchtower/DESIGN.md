@@ -1378,6 +1378,12 @@ async load(): Promise<UwtRumBootstrap | null> {
 }
 ```
 
+Settings that need a `RegExp` or a function — `pagesToExclude` above, or
+`urlsToExclude`, `addXRayTraceIdHeader` and `ignore` inside `telemetries` —
+belong in code like this. JSON can't carry them, and a string in their place
+would make the SDK throw on every page view or request, so the sink drops any
+that arrive that way (with a dev-mode warning) and the SDK's default applies.
+
 ### Per-logger levels
 
 `minLevel` is the floor for everything; `levels` overrides it by name, either
@@ -1688,7 +1694,10 @@ export class MyLogBackend implements UwtLogApiProvider {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(record),
-      keepalive: true // survives page unload
+      // Survives page unload. Only while the page is going away: browsers
+      // reject keepalive requests once all in flight exceed 64 KiB, so a
+      // burst of records would be lost.
+      keepalive: document.visibilityState === 'hidden'
     }).catch(() => undefined);
   }
 
@@ -1716,22 +1725,28 @@ export class MyLogBackend implements UwtLogApiProvider {
   send(record: UwtLogRecord): void {
     this.buffer.push(record);
     if (this.buffer.length >= 25) {
-      this.deliver();
+      this.deliver(false);
     }
   }
 
   /** Called on `pagehide`, on visibilitychange going hidden, and on teardown. Must be synchronous. */
   flush(): void {
-    this.deliver();
+    this.deliver(true);
   }
 
-  private deliver(): void {
+  private deliver(pageHiding: boolean): void {
     if (!this.buffer.length) {
       return;
     }
-    const records = this.buffer;
+    const body = JSON.stringify({ records: this.buffer });
     this.buffer = [];
-    navigator.sendBeacon('/api/logs', JSON.stringify({ records }));
+    // A beacon outlives the page, but the browser refuses it (returns false)
+    // once all in-flight beacons and keepalive requests pass 64 KiB. A plain
+    // request has no such cap: use it while the page is visible, and when
+    // the beacon is refused.
+    if (!pageHiding || !navigator.sendBeacon('/api/logs', body)) {
+      void fetch('/api/logs', { method: 'POST', body }).catch(() => undefined);
+    }
   }
 
   query(filter: UwtLogQuery): Promise<UwtLogRecord[]> {
@@ -1761,7 +1776,7 @@ export class MyLogBackend implements UwtLogApiProvider {
     void fetch(endpoint, {
       method: 'POST',
       body: JSON.stringify(record),
-      keepalive: true
+      keepalive: document.visibilityState === 'hidden' // see above
     }).catch(() => undefined);
   }
 }
@@ -2286,10 +2301,11 @@ providers: [
 ];
 ```
 
-Publish it as a global on the top-level window. Every fragment is same-origin
-with its shell — `BroadcastChannel` would not work otherwise — so
-`window.top` is reachable from inside any of them, plain iframe and Web
-Fragment alike:
+Publish it as a global on the shell's window. Every fragment is same-origin
+with its shell — `BroadcastChannel` would not work otherwise — so it can read
+the global from inside any of them, plain iframe and Web Fragment alike, by
+looking up through its ancestor windows. Look up rather than read
+`window.top`: the shell may itself be framed by another app.
 
 ```ts
 declare global {
@@ -2310,16 +2326,23 @@ a global from Node 19, and nothing on the server needs an id:
 `provideUwtTelemetryBroadcastHost(undefined)` just keeps the default channel.
 
 ```ts
-// fragment
+// fragment — the nearest ancestor window that published a channel
 function shellChannelName(): string | undefined {
   if (typeof window === 'undefined') {
     return undefined; // server render
   }
-  try {
-    return window.top?.__uwtTelemetryChannel;
-  } catch {
-    return undefined; // cross-origin `top`
+  for (let w: Window = window; w !== w.parent; ) {
+    w = w.parent;
+    try {
+      const channel = w.__uwtTelemetryChannel;
+      if (channel) {
+        return channel;
+      }
+    } catch {
+      // a cross-origin ancestor: its `parent` is still readable, so keep climbing
+    }
   }
+  return undefined;
 }
 
 providers: [
@@ -2332,10 +2355,14 @@ providers: [
 Use `UWT_BROADCAST_CHANNEL` with `useFactory` rather than the `channelName`
 option: the factory runs when the sink is first constructed, late enough
 that a fragment booting before the shell publishes the id still picks it up.
-`undefined` falls back to the default channel, so a fragment with no shell
-behaves as before. Web Fragments' reframing virtualizes the DOM, `history`
-and `location`, but not `top`, `BroadcastChannel` or storage — which is why
-this works there.
+`undefined` falls back to the default channel, so a fragment whose shell
+publishes no id behaves as before. Where every shell publishes one, return a
+private channel nobody hosts instead (for example
+`` `ngx-ui-watchtower-unhosted-${Date.now()}` ``): a fragment without its
+shell then ships nothing, rather than reaching whichever same-origin shell
+listens on the default channel. Web Fragments' reframing virtualizes the DOM,
+`history` and `location`, but not `parent`, `top`, `BroadcastChannel` or
+storage — which is why this works there.
 
 **Where the shell owns the fragment's URL** — a plain iframe — a query
 parameter does the same job:

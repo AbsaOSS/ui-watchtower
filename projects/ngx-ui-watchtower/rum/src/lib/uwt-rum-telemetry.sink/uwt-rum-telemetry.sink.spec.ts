@@ -169,6 +169,84 @@ describe('UwtRumTelemetrySink', () => {
       expect(sameOrigin.test(`${origin}.attacker.example/api`)).toBe(false);
     });
 
+    it('should drop telemetry options that need a RegExp or a function but hold a string', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      configure({
+        loadImpl: async () =>
+          bootstrap({
+            telemetries: [
+              'errors',
+              [
+                'http',
+                {
+                  urlsToExclude: ['/health'],
+                  addXRayTraceIdHeader: ['/api'],
+                  recordAllRequests: true
+                }
+              ],
+              ['performance', { ignore: 'resource', eventLimit: 5 }],
+              [
+                'interaction',
+                { interactionId: 'id', events: [{ event: 'click' }] }
+              ]
+            ]
+          })
+      });
+      await sink.init();
+
+      const config = AwsRumCtor.mock.calls[0][3] as { telemetries: unknown[] };
+      expect(config.telemetries).toEqual([
+        'errors',
+        ['http', { recordAllRequests: true }],
+        ['performance', { eventLimit: 5 }],
+        ['interaction', { events: [{ event: 'click' }] }]
+      ]);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('dropped options'),
+        expect.objectContaining({
+          message:
+            'http.urlsToExclude, http.addXRayTraceIdHeader, performance.ignore, interaction.interactionId'
+        })
+      );
+    });
+
+    it('should keep telemetry options that are RegExps, functions or booleans', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const ignore = () => false;
+      const telemetries = [
+        ['http', { urlsToExclude: [/\/health/], addXRayTraceIdHeader: true }],
+        ['errors', { ignore }]
+      ];
+      configure({ loadImpl: async () => bootstrap({ telemetries }) });
+      await sink.init();
+
+      const config = AwsRumCtor.mock.calls[0][3] as { telemetries: unknown[] };
+      expect(config.telemetries).toEqual(telemetries);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('should drop page filters that are not RegExp lists', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      configure({
+        loadImpl: async () =>
+          bootstrap({
+            pagesToInclude: [/^\/app/],
+            pagesToExclude: ['/admin'] as unknown as RegExp[]
+          })
+      });
+      await sink.init();
+
+      const config = AwsRumCtor.mock.calls[0][3] as {
+        pagesToInclude?: unknown;
+      };
+      expect(config.pagesToInclude).toEqual([/^\/app/]);
+      expect(config).not.toHaveProperty('pagesToExclude');
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('dropped options'),
+        expect.objectContaining({ message: 'pagesToExclude' })
+      );
+    });
+
     it('should honour explicitly supplied app monitor settings', async () => {
       configure({
         loadImpl: async () =>

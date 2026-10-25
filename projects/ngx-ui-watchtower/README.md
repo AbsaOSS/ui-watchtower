@@ -95,6 +95,10 @@ export class MyRumCredentials implements UwtRumCredentialsProvider {
 }
 ```
 
+Settings that need a `RegExp` or a function — `pagesToExclude`, or
+`urlsToExclude` and `ignore` inside `telemetries` — can't come from JSON; the
+sink drops them rather than let the SDK throw. Set those in code.
+
 ### Log backend
 
 ```ts
@@ -104,7 +108,9 @@ export class MyLogBackend implements UwtLogApiProvider {
     void fetch('/api/logs', {
       method: 'POST',
       body: JSON.stringify(record),
-      keepalive: true
+      // Only while the page is going away: browsers reject keepalive requests
+      // once all in flight exceed 64 KiB, so a burst would be lost.
+      keepalive: document.visibilityState === 'hidden'
     }).catch(() => undefined);
   }
 

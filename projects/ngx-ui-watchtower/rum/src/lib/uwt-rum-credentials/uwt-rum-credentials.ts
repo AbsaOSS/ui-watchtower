@@ -101,6 +101,13 @@ export interface UwtRumAppMonitorConfig {
    * and same-origin HTTP. The SDK's own default also includes `'replay'`
    * (session replay via `rrweb`); this library does not enable it by
    * default.
+   *
+   * Options the SDK matches with `RegExp.test` or calls as a function —
+   * `urlsToInclude`, `urlsToExclude`, `addXRayTraceIdHeader` (also a
+   * boolean), `ignore`, `interactionId` — are dropped when they hold anything
+   * else: JSON can't carry them, and a string there would make the SDK throw
+   * (for the URL filters, on every request). Set them in code, not in a
+   * broker's answer.
    */
   telemetries?: (string | (string | object)[])[];
 
@@ -213,10 +220,16 @@ export interface UwtRumAppMonitorConfig {
   /** How the page id is derived from the URL. Default `'PATH'`. */
   pageIdFormat?: 'PATH' | 'HASH' | 'PATH_AND_HASH';
 
-  /** Pages recorded, matched against the page id. Default matches every page. */
+  /**
+   * Pages recorded, matched against the page id. Default matches every page.
+   * Anything but an array of `RegExp`s (a string list from JSON) is dropped.
+   */
   pagesToInclude?: RegExp[];
 
-  /** Pages excluded from recording, matched against the page id. Default `[]`. */
+  /**
+   * Pages excluded from recording, matched against the page id. Default `[]`.
+   * Anything but an array of `RegExp`s (a string list from JSON) is dropped.
+   */
   pagesToExclude?: RegExp[];
 
   /** How long, in milliseconds, a route change waits before being considered complete. Default `100`. */
