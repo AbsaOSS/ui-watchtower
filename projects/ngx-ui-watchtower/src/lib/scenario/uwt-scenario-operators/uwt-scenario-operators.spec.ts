@@ -468,6 +468,16 @@ describe('traceScenario operator', () => {
       });
     });
 
+    it("should abandon a stream torn down after a value with valueThenTeardown: 'cancel'", () => {
+      const real = createScenario('poll-status');
+
+      of(['a'], ['b'])
+        .pipe(traceScenario(real, { valueThenTeardown: 'cancel' }), take(1))
+        .subscribe();
+
+      expect(real.status).toBe('abandoned');
+    });
+
     describe('retry placement', () => {
       function failOnce(): Observable<string[]> {
         let attempts = 0;
