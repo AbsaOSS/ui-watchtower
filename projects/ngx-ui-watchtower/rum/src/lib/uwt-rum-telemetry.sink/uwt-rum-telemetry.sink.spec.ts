@@ -240,6 +240,27 @@ describe('UwtRumTelemetrySink', () => {
       );
     });
 
+    it.each([
+      ['a string', 'errors'],
+      ['an object', { http: true }]
+    ])(
+      'should not start RUM when telemetries is %s, not an array',
+      async (_label, telemetries) => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        configure({
+          loadImpl: async () =>
+            bootstrap({ telemetries: telemetries as unknown as string[] })
+        });
+        await sink.init();
+
+        expect(AwsRumCtor).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(
+          '[ngx-ui-watchtower] RUM not started, settings of the wrong type: ' +
+            'telemetries (expected an array)'
+        );
+      }
+    );
+
     it('should treat settings set to undefined or null as unset', async () => {
       const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
       configure({

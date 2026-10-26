@@ -223,15 +223,16 @@ export interface UwtRumAppMonitorConfig {
 
   /**
    * Pages recorded, matched against the page id. Default matches every page.
-   * Anything but an array of `RegExp`s (a string list from JSON) keeps RUM
-   * from starting for the page.
+   * `undefined` or `null` means unset; anything else that isn't an array of
+   * `RegExp`s (a string list from JSON) keeps RUM from starting for the page.
    */
   pagesToInclude?: RegExp[];
 
   /**
    * Pages excluded from recording, matched against the page id. Default `[]`.
-   * Anything but an array of `RegExp`s (a string list from JSON) keeps RUM
-   * from starting for the page, rather than record what it should exclude.
+   * `undefined` or `null` means unset; anything else that isn't an array of
+   * `RegExp`s (a string list from JSON) keeps RUM from starting for the page,
+   * rather than record what it should exclude.
    */
   pagesToExclude?: RegExp[];
 

@@ -131,9 +131,9 @@ const TELEMETRY_OPTION_CHECKS = new Map<string, UwtSettingCheck>([
 /**
  * Lists the settings in `config` the SDK can't use, each with the type it
  * expects: `pagesToInclude` or `pagesToExclude` that isn't an array of
- * `RegExp`s, and each telemetry option failing its
- * {@link TELEMETRY_OPTION_CHECKS} check, as `name.option`. `undefined` and
- * `null` count as unset, not as invalid.
+ * `RegExp`s, `telemetries` that isn't an array, and each telemetry option
+ * failing its {@link TELEMETRY_OPTION_CHECKS} check, as `name.option`.
+ * `undefined` and `null` count as unset, not as invalid.
  */
 function invalidRumSettings(config: UwtRumBootstrap['config']): string[] {
   const invalid: string[] = [];
@@ -143,7 +143,16 @@ function invalidRumSettings(config: UwtRumBootstrap['config']): string[] {
       invalid.push(`${key} (expected ${REGEXP_LIST.expected})`);
     }
   }
-  for (const telemetry of config.telemetries ?? []) {
+  const telemetries: unknown = config.telemetries;
+  if (telemetries == null) {
+    return invalid;
+  }
+  if (!Array.isArray(telemetries)) {
+    // A string would be read as one telemetry per character.
+    invalid.push('telemetries (expected an array)');
+    return invalid;
+  }
+  for (const telemetry of telemetries) {
     if (!Array.isArray(telemetry)) {
       continue;
     }

@@ -1394,8 +1394,10 @@ would then record pages and URLs the app meant to keep out — personal data in
 a URL among them.
 
 Any optional setting that is `undefined` or `null` — a broker's JSON often
-spells an unset field as `null` — counts as unset: it isn't checked, and it is
-left out of the SDK config so the SDK's default applies.
+spells an unset field as `null` — counts as unset: it isn't checked, and the
+default applies. For `allowCookies`, `enableXRay`, `endpoint` and `telemetries`
+that is this library's own default; every other unset field is left out of the
+SDK config, so the SDK's default applies.
 
 ### Per-logger levels
 
