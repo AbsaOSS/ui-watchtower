@@ -660,13 +660,15 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
 
   /**
    * Reports settings that kept RUM from starting, in every environment: a
-   * silent production page would hide that RUM is off. Only the setting names
-   * are printed, never their values.
+   * silent production page would hide that RUM is off. Each setting's name and
+   * expected type are printed, never its value.
+   *
+   * @param problems one `name (expected type)` entry per setting
    */
-  private reportInvalidSettings(names: string[]): void {
+  private reportInvalidSettings(problems: string[]): void {
     uwtSafeVoid('rum.reportInvalidSettings', () => {
       console.warn(
-        `[ngx-ui-watchtower] RUM not started, settings of the wrong type: ${names.join(', ')}`
+        `[ngx-ui-watchtower] RUM not started, settings of the wrong type: ${problems.join(', ')}`
       );
     });
   }

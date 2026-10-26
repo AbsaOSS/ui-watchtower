@@ -2342,13 +2342,13 @@ a global from Node 19, and nothing on the server needs an id:
 `provideUwtTelemetryBroadcastHost(undefined)` just keeps the default channel.
 
 ```ts
-// fragment — the nearest ancestor window that published a channel
+// fragment — the nearest window that published a channel: its own (a fragment
+// bootstrapped in the shell's window), else the closest ancestor
 function shellChannelName(): string | undefined {
   if (typeof window === 'undefined') {
     return undefined; // server render
   }
-  for (let w: Window = window; w !== w.parent;) {
-    w = w.parent;
+  for (let w: Window = window; ; w = w.parent) {
     try {
       const channel = w.__uwtTelemetryChannel;
       if (channel) {
@@ -2357,8 +2357,10 @@ function shellChannelName(): string | undefined {
     } catch {
       // a cross-origin ancestor: its `parent` is still readable, so keep climbing
     }
+    if (w === w.parent) {
+      return undefined; // reached the top window
+    }
   }
-  return undefined;
 }
 
 providers: [
