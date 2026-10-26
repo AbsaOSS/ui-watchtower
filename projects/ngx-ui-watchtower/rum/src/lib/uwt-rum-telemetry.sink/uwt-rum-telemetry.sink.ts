@@ -477,8 +477,10 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * this library's own override; every other field goes through
    * {@link omitUnset} (or, for `client`, a conditional spread) so an unset
    * field is absent and the SDK's own default applies. Unset telemetry options
-   * are left out for the same reason. Values the SDK can't use never get here:
-   * `performInit()` checks them first ({@link invalidRumSettings}).
+   * are left out for the same reason. `performInit()` has already checked the
+   * types of `pagesToInclude`/`pagesToExclude`, `telemetries` and the telemetry
+   * options in {@link TELEMETRY_OPTION_CHECKS} ({@link invalidRumSettings});
+   * every other field is passed on as given.
    */
   private buildRumConfig(bootstrap: UwtRumBootstrap): AwsRumConfig {
     const { config } = bootstrap;
