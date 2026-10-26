@@ -1,4 +1,21 @@
-import { defer, EMPTY, of, Subject, switchMap, throwError } from 'rxjs';
+import {
+  defer,
+  EMPTY,
+  first,
+  type Observable,
+  firstValueFrom,
+  lastValueFrom,
+  of,
+  retry,
+  Subject,
+  switchMap,
+  take,
+  throwError
+} from 'rxjs';
+import { UWT_DEFAULT_TELEMETRY_CONFIG } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
+import { UwtScenarioRecord } from '../../models/uwt-scenario.models/uwt-scenario.models';
+import { UwtNoopTelemetrySink } from '../../sinks/uwt-telemetry/uwt-noop-telemetry.sink/uwt-noop-telemetry.sink';
+import { UWT_DEFAULT_REDACT_CONFIG } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import { UwtScenario } from '../uwt-scenario/uwt-scenario';
 import { traceScenario } from './uwt-scenario-operators';
 
@@ -290,6 +307,194 @@ describe('traceScenario operator', () => {
             done();
           }
         });
+    });
+  });
+
+  describe('with a real scenario', () => {
+    let settled: UwtScenarioRecord[];
+
+    const countRows = (rows: string[]) => ({
+      metadata: { count: rows.length }
+    });
+
+    function createScenario(name = 'load-customers'): UwtScenario {
+      return new UwtScenario(
+        { name },
+        {
+          identity: {
+            application: 'test-app',
+            environment: 'test',
+            version: '1.0.0'
+          },
+          scenarioTelemetryConfig: {
+            ...UWT_DEFAULT_TELEMETRY_CONFIG.scenario
+          },
+          redact: UWT_DEFAULT_REDACT_CONFIG,
+          sink: new UwtNoopTelemetrySink(),
+          onSettled: (_id, record) => settled.push(record)
+        }
+      );
+    }
+
+    beforeEach(() => {
+      settled = [];
+    });
+
+    describe('single-value sources', () => {
+      it('should settle as success with subscribe()', () => {
+        const real = createScenario();
+
+        of(['a', 'b']).pipe(traceScenario(real, countRows)).subscribe();
+
+        expect(real.status).toBe('success');
+        expect(settled[0].metadata).toEqual({ count: 2 });
+      });
+
+      it('should settle as success with lastValueFrom', async () => {
+        const real = createScenario();
+
+        await lastValueFrom(
+          of(['a', 'b']).pipe(traceScenario(real, countRows))
+        );
+
+        expect(real.status).toBe('success');
+        expect(settled[0].metadata).toEqual({ count: 2 });
+      });
+
+      it('should settle as success with firstValueFrom', async () => {
+        const real = createScenario();
+
+        const rows = await firstValueFrom(
+          of(['a', 'b']).pipe(traceScenario(real, countRows))
+        );
+
+        expect(rows).toEqual(['a', 'b']);
+        expect(real.status).toBe('success');
+        expect(settled[0].metadata).toEqual({ count: 2 });
+      });
+
+      it('should settle as success with take(1) after the operator', () => {
+        const real = createScenario();
+
+        of(['a', 'b'])
+          .pipe(traceScenario(real, countRows), take(1))
+          .subscribe();
+
+        expect(real.status).toBe('success');
+        expect(settled[0].metadata).toEqual({ count: 2 });
+      });
+
+      it('should settle as success with first() after the operator', () => {
+        const real = createScenario();
+
+        of(['a', 'b'])
+          .pipe(traceScenario(real, countRows), first())
+          .subscribe();
+
+        expect(real.status).toBe('success');
+        expect(settled[0].metadata).toEqual({ count: 2 });
+      });
+
+      it('should settle as success with take(1) before the operator', () => {
+        const real = createScenario();
+
+        of(['a', 'b'])
+          .pipe(take(1), traceScenario(real, countRows))
+          .subscribe();
+
+        expect(real.status).toBe('success');
+        expect(settled[0].metadata).toEqual({ count: 2 });
+      });
+
+      it('should settle as success with take(1) before the operator under firstValueFrom', async () => {
+        const real = createScenario();
+
+        await firstValueFrom(
+          of(['a', 'b']).pipe(take(1), traceScenario(real, countRows))
+        );
+
+        expect(real.status).toBe('success');
+        expect(settled[0].metadata).toEqual({ count: 2 });
+      });
+    });
+
+    describe('switchMap superseding an inner stream', () => {
+      it('should abandon a stream superseded before it emitted', () => {
+        const superseded = createScenario('superseded');
+        const latest = createScenario('latest');
+        const pendingFirstRequest = new Subject<string[]>();
+        const trigger = new Subject<number>();
+
+        trigger
+          .pipe(
+            switchMap((n) =>
+              n === 1
+                ? pendingFirstRequest.pipe(traceScenario(superseded))
+                : of(['b']).pipe(traceScenario(latest))
+            )
+          )
+          .subscribe();
+
+        trigger.next(1);
+        trigger.next(2);
+
+        expect(superseded.status).toBe('abandoned');
+        expect(latest.status).toBe('success');
+      });
+
+      it('should settle as success a stream superseded after it emitted', () => {
+        const superseded = createScenario('superseded');
+        const latest = createScenario('latest');
+        const firstRequest = new Subject<string[]>();
+        const trigger = new Subject<number>();
+
+        trigger
+          .pipe(
+            switchMap((n) =>
+              n === 1
+                ? firstRequest.pipe(traceScenario(superseded, countRows))
+                : of(['b']).pipe(traceScenario(latest))
+            )
+          )
+          .subscribe();
+
+        trigger.next(1);
+        firstRequest.next(['a']); // emitted, but never completed
+        trigger.next(2);
+
+        expect(superseded.status).toBe('success');
+        expect(superseded.toRecord().metadata).toEqual({ count: 1 });
+        expect(latest.status).toBe('success');
+      });
+    });
+
+    describe('retry placement', () => {
+      function failOnce(): Observable<string[]> {
+        let attempts = 0;
+        return defer(() =>
+          attempts++ === 0
+            ? throwError(() => new Error('transient'))
+            : of(['a'])
+        );
+      }
+
+      it('should settle as success when retry() comes before the operator', () => {
+        const real = createScenario();
+
+        failOnce().pipe(retry(1), traceScenario(real)).subscribe();
+
+        expect(real.status).toBe('success');
+      });
+
+      it('should settle as failure when retry() comes after the operator, even if the retry succeeds', () => {
+        const real = createScenario();
+
+        failOnce().pipe(traceScenario(real), retry(1)).subscribe();
+
+        // Documented limitation: the first error settles the scenario and
+        // the operator cannot see the downstream retry.
+        expect(real.status).toBe('failure');
+      });
     });
   });
 });
