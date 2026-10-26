@@ -197,9 +197,13 @@ describe('UwtRumTelemetrySink', () => {
 
       expect(AwsRumCtor).not.toHaveBeenCalled();
       expect(awsRumInstance.recordEvent).not.toHaveBeenCalled();
-      // Names only, never the values.
+      // Names and expected types only, never the values.
       expect(warn).toHaveBeenCalledWith(
-        '[ngx-ui-watchtower] RUM not started: these settings need a RegExp or a function: http.urlsToExclude, http.addXRayTraceIdHeader, performance.ignore, interaction.interactionId'
+        '[ngx-ui-watchtower] RUM not started, settings of the wrong type: ' +
+          'http.urlsToExclude (expected an array of RegExp), ' +
+          'http.addXRayTraceIdHeader (expected a boolean or an array of RegExp), ' +
+          'performance.ignore (expected a function), ' +
+          'interaction.interactionId (expected a function)'
       );
     });
 
@@ -231,7 +235,8 @@ describe('UwtRumTelemetrySink', () => {
 
       expect(AwsRumCtor).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith(
-        expect.stringMatching(/RUM not started: .*: pagesToExclude$/)
+        '[ngx-ui-watchtower] RUM not started, settings of the wrong type: ' +
+          'pagesToExclude (expected an array of RegExp)'
       );
     });
 

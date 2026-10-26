@@ -92,35 +92,54 @@ function isRegExpList(value: unknown): boolean {
   );
 }
 
+/** A setting's type check, and the type it expects, for the warning. */
+interface UwtSettingCheck {
+  valid: (value: unknown) => boolean;
+  expected: string;
+}
+
+const REGEXP_LIST: UwtSettingCheck = {
+  valid: isRegExpList,
+  expected: 'an array of RegExp'
+};
+const FUNCTION: UwtSettingCheck = {
+  valid: (value) => typeof value === 'function',
+  expected: 'a function'
+};
+
 /**
  * Telemetry options the SDK calls as a function or matches with
  * `RegExp.test`. JSON can carry neither, and anything else in their place
  * makes the SDK throw each time it applies the option — for the URL filters,
  * inside its patched `fetch` and XHR, so on every application request.
  */
-const TELEMETRY_OPTION_CHECKS = new Map<string, (value: unknown) => boolean>([
-  ['urlsToInclude', isRegExpList],
-  ['urlsToExclude', isRegExpList],
+const TELEMETRY_OPTION_CHECKS = new Map<string, UwtSettingCheck>([
+  ['urlsToInclude', REGEXP_LIST],
+  ['urlsToExclude', REGEXP_LIST],
   [
     'addXRayTraceIdHeader',
-    (value) => typeof value === 'boolean' || isRegExpList(value)
+    {
+      valid: (value) => typeof value === 'boolean' || isRegExpList(value),
+      expected: 'a boolean or an array of RegExp'
+    }
   ],
-  ['ignore', (value) => typeof value === 'function'],
-  ['interactionId', (value) => typeof value === 'function']
+  ['ignore', FUNCTION],
+  ['interactionId', FUNCTION]
 ]);
 
 /**
- * Names the settings in `config` the SDK can't use: `pagesToInclude` or
- * `pagesToExclude` that isn't an array of `RegExp`s, and each telemetry
- * option failing its {@link TELEMETRY_OPTION_CHECKS} check, as `name.option`.
- * An `undefined` value counts as unset, not as invalid.
+ * Lists the settings in `config` the SDK can't use, each with the type it
+ * expects: `pagesToInclude` or `pagesToExclude` that isn't an array of
+ * `RegExp`s, and each telemetry option failing its
+ * {@link TELEMETRY_OPTION_CHECKS} check, as `name.option`. An `undefined`
+ * value counts as unset, not as invalid.
  */
 function invalidRumSettings(config: UwtRumBootstrap['config']): string[] {
   const invalid: string[] = [];
   for (const key of ['pagesToInclude', 'pagesToExclude'] as const) {
     const value = config[key];
-    if (value !== undefined && !isRegExpList(value)) {
-      invalid.push(key);
+    if (value !== undefined && !REGEXP_LIST.valid(value)) {
+      invalid.push(`${key} (expected ${REGEXP_LIST.expected})`);
     }
   }
   for (const telemetry of config.telemetries ?? []) {
@@ -132,11 +151,9 @@ function invalidRumSettings(config: UwtRumBootstrap['config']): string[] {
       continue;
     }
     for (const [key, value] of Object.entries(options)) {
-      if (
-        value !== undefined &&
-        TELEMETRY_OPTION_CHECKS.get(key)?.(value) === false
-      ) {
-        invalid.push(`${String(name)}.${key}`);
+      const check = TELEMETRY_OPTION_CHECKS.get(key);
+      if (value !== undefined && check && !check.valid(value)) {
+        invalid.push(`${String(name)}.${key} (expected ${check.expected})`);
       }
     }
   }
@@ -639,7 +656,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   private reportInvalidSettings(names: string[]): void {
     uwtSafeVoid('rum.reportInvalidSettings', () => {
       console.warn(
-        `[ngx-ui-watchtower] RUM not started: these settings need a RegExp or a function: ${names.join(', ')}`
+        `[ngx-ui-watchtower] RUM not started, settings of the wrong type: ${names.join(', ')}`
       );
     });
   }

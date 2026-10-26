@@ -1379,15 +1379,16 @@ async load(): Promise<UwtRumBootstrap | null> {
 ```
 
 Settings that need a `RegExp` or a function — `pagesToExclude` above, or
-`urlsToExclude`, `addXRayTraceIdHeader` and `ignore` inside `telemetries` —
-belong in code like this. JSON can't carry them, and a string in their place
+`urlsToExclude` and `ignore` inside `telemetries` — belong in code like this
+(`addXRayTraceIdHeader` too, unless it is a plain boolean). JSON can't carry
+them, and a string in their place
 would make the SDK throw each time it applies the option — for the page and
 URL filters, on every page view or request.
 
 The sink checks them before loading the SDK and **fails closed**: if any holds
 something else, RUM doesn't start for the page, as with a broker returning
-`null`, and a console warning names the settings (never their values) in every
-environment. Dropping just the bad value would fail open instead: the filters
+`null`, and a console warning names each setting and the type it expects (never
+its value) in every environment. Dropping just the bad value would fail open instead: the filters
 and `ignore` decide what is _not_ recorded, so RUM would then record pages and
 URLs the app meant to keep out — personal data in a URL among them. A setting
 explicitly `undefined` counts as unset.
