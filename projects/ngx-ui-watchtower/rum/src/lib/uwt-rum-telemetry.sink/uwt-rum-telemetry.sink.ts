@@ -95,8 +95,8 @@ function isRegExpList(value: unknown): boolean {
 /**
  * Telemetry options the SDK calls as a function or matches with
  * `RegExp.test`. JSON can carry neither, and anything else in their place
- * throws inside the SDK — for the URL filters, inside its patched `fetch` and
- * XHR, so on every application request.
+ * makes the SDK throw each time it applies the option — for the URL filters,
+ * inside its patched `fetch` and XHR, so on every application request.
  */
 const TELEMETRY_OPTION_CHECKS = new Map<string, (value: unknown) => boolean>([
   ['urlsToInclude', isRegExpList],
@@ -110,13 +110,47 @@ const TELEMETRY_OPTION_CHECKS = new Map<string, (value: unknown) => boolean>([
 ]);
 
 /**
- * Copies `telemetries` without the tuple options that fail their
- * {@link TELEMETRY_OPTION_CHECKS} check, noting each as `name.option` in
- * `dropped`. A dropped option falls back to the SDK's own default.
+ * Names the settings in `config` the SDK can't use: `pagesToInclude` or
+ * `pagesToExclude` that isn't an array of `RegExp`s, and each telemetry
+ * option failing its {@link TELEMETRY_OPTION_CHECKS} check, as `name.option`.
+ * An `undefined` value counts as unset, not as invalid.
  */
-function sanitizeTelemetries(
-  telemetries: NonNullable<UwtRumBootstrap['config']['telemetries']>,
-  dropped: string[]
+function invalidRumSettings(config: UwtRumBootstrap['config']): string[] {
+  const invalid: string[] = [];
+  for (const key of ['pagesToInclude', 'pagesToExclude'] as const) {
+    const value = config[key];
+    if (value !== undefined && !isRegExpList(value)) {
+      invalid.push(key);
+    }
+  }
+  for (const telemetry of config.telemetries ?? []) {
+    if (!Array.isArray(telemetry)) {
+      continue;
+    }
+    const [name, options] = telemetry;
+    if (typeof options !== 'object' || options === null) {
+      continue;
+    }
+    for (const [key, value] of Object.entries(options)) {
+      if (
+        value !== undefined &&
+        TELEMETRY_OPTION_CHECKS.get(key)?.(value) === false
+      ) {
+        invalid.push(`${String(name)}.${key}`);
+      }
+    }
+  }
+  return invalid;
+}
+
+/**
+ * Copies `telemetries` without tuple options set to `undefined`. The SDK
+ * merges a telemetry's options over its defaults with `Object.assign`, so an
+ * explicit `undefined` would replace a default it relies on —
+ * `urlsToExclude: undefined` would throw on every request.
+ */
+function withoutUndefinedOptions(
+  telemetries: NonNullable<UwtRumBootstrap['config']['telemetries']>
 ): NonNullable<UwtRumBootstrap['config']['telemetries']> {
   return telemetries.map((telemetry) => {
     if (!Array.isArray(telemetry)) {
@@ -126,15 +160,7 @@ function sanitizeTelemetries(
     if (typeof options !== 'object' || options === null) {
       return telemetry;
     }
-    const kept: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(options)) {
-      if (TELEMETRY_OPTION_CHECKS.get(key)?.(value) === false) {
-        dropped.push(`${String(name)}.${key}`);
-      } else {
-        kept[key] = value;
-      }
-    }
-    return [name, kept, ...rest];
+    return [name, omitUndefined(options), ...rest];
   });
 }
 
@@ -209,6 +235,18 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       if (!bootstrap?.config) {
         this.disableAwsRum();
         this.buffer = [];
+        return;
+      }
+
+      // Fails closed: the page and URL filters and `ignore` decide what is
+      // *not* recorded, so dropping one would record what the app meant to
+      // keep out, and passing it on would make the SDK throw. RUM stays off
+      // for the page instead, as with a broker that returns `null`.
+      const invalid = invalidRumSettings(bootstrap.config);
+      if (invalid.length) {
+        this.disableAwsRum();
+        this.buffer = [];
+        this.reportInvalidSettings(invalid);
         return;
       }
 
@@ -411,28 +449,13 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * `enableXRay`, `endpoint` and `telemetries` always carry this library's
    * own override; every other field goes through {@link omitUndefined} (or,
    * for `client`, a conditional spread) so an unset field is absent and the
-   * SDK's own default applies.
-   *
-   * Fields the SDK matches with `RegExp.test` or calls as a function —
-   * `pagesToInclude`/`pagesToExclude` and the telemetry options in
-   * {@link TELEMETRY_OPTION_CHECKS} — are dropped when they hold anything
-   * else, typically a string from a broker's JSON: the SDK would throw on
-   * every page view or request instead.
+   * SDK's own default applies. Telemetry options set to `undefined` are left
+   * out for the same reason. Values the SDK can't use never get here:
+   * `performInit()` checks them first ({@link invalidRumSettings}).
    */
   private buildRumConfig(bootstrap: UwtRumBootstrap): AwsRumConfig {
     const { config } = bootstrap;
     const origin = this.document.defaultView?.location?.origin ?? '';
-    const dropped: string[] = [];
-    const pageFilter = (
-      key: 'pagesToInclude' | 'pagesToExclude'
-    ): RegExp[] | undefined => {
-      const value = config[key];
-      if (value === undefined || isRegExpList(value)) {
-        return value;
-      }
-      dropped.push(key);
-      return undefined;
-    };
 
     // X-Ray trace header only on same-origin requests; a cross-origin
     // request with an unexpected header fails CORS preflight. Anchored at
@@ -443,14 +466,14 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       '^' + origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:[/?#]|$)'
     );
 
-    const rumConfig = {
+    return {
       allowCookies: config.allowCookies ?? true,
       enableXRay: config.enableXRay ?? true,
       endpoint:
         config.endpoint ??
         `https://dataplane.rum.${config.region}.amazonaws.com`,
       telemetries: Array.isArray(config.telemetries)
-        ? sanitizeTelemetries(config.telemetries, dropped)
+        ? withoutUndefinedOptions(config.telemetries)
         : (config.telemetries ?? [
             'errors',
             'performance',
@@ -485,8 +508,8 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         compressionStrategy: config.compressionStrategy,
         fetchFunction: config.fetchFunction,
         pageIdFormat: config.pageIdFormat,
-        pagesToInclude: pageFilter('pagesToInclude'),
-        pagesToExclude: pageFilter('pagesToExclude'),
+        pagesToInclude: config.pagesToInclude,
+        pagesToExclude: config.pagesToExclude,
         routeChangeComplete: config.routeChangeComplete,
         routeChangeTimeout: config.routeChangeTimeout,
         disableAutoPageView: config.disableAutoPageView,
@@ -494,14 +517,6 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         enableRumClient: config.enableRumClient
       })
     } as unknown as AwsRumConfig;
-
-    if (dropped.length) {
-      this.reportFailure(
-        'RUM config: dropped options that need a RegExp or a function',
-        new Error(dropped.join(', '))
-      );
-    }
-    return rumConfig;
   }
 
   /**
@@ -614,6 +629,19 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     this.refreshTimer = setTimeout(() => {
       this.refreshCredentials().catch(() => undefined);
     }, CREDENTIAL_RETRY_DELAY_MS);
+  }
+
+  /**
+   * Reports settings that kept RUM from starting, in every environment: a
+   * silent production page would hide that RUM is off. Only the setting names
+   * are printed, never their values.
+   */
+  private reportInvalidSettings(names: string[]): void {
+    uwtSafeVoid('rum.reportInvalidSettings', () => {
+      console.warn(
+        `[ngx-ui-watchtower] RUM not started: these settings need a RegExp or a function: ${names.join(', ')}`
+      );
+    });
   }
 
   /**

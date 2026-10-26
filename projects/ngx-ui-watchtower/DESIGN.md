@@ -1381,8 +1381,16 @@ async load(): Promise<UwtRumBootstrap | null> {
 Settings that need a `RegExp` or a function — `pagesToExclude` above, or
 `urlsToExclude`, `addXRayTraceIdHeader` and `ignore` inside `telemetries` —
 belong in code like this. JSON can't carry them, and a string in their place
-would make the SDK throw on every page view or request, so the sink drops any
-that arrive that way (with a dev-mode warning) and the SDK's default applies.
+would make the SDK throw each time it applies the option — for the page and
+URL filters, on every page view or request.
+
+The sink checks them before loading the SDK and **fails closed**: if any holds
+something else, RUM doesn't start for the page, as with a broker returning
+`null`, and a console warning names the settings (never their values) in every
+environment. Dropping just the bad value would fail open instead: the filters
+and `ignore` decide what is _not_ recorded, so RUM would then record pages and
+URLs the app meant to keep out — personal data in a URL among them. A setting
+explicitly `undefined` counts as unset.
 
 ### Per-logger levels
 
@@ -1742,8 +1750,9 @@ export class MyLogBackend implements UwtLogApiProvider {
     this.buffer = [];
     // A beacon outlives the page, but the browser refuses it (returns false)
     // once all in-flight beacons and keepalive requests pass 64 KiB. A plain
-    // request has no such cap: use it while the page is visible, and when
-    // the beacon is refused.
+    // request has no such cap: use it while the page is visible. When the
+    // beacon is refused on the way out, the plain request is best effort —
+    // the browser may cancel it as the page unloads.
     if (!pageHiding || !navigator.sendBeacon('/api/logs', body)) {
       void fetch('/api/logs', { method: 'POST', body }).catch(() => undefined);
     }
@@ -2331,7 +2340,7 @@ function shellChannelName(): string | undefined {
   if (typeof window === 'undefined') {
     return undefined; // server render
   }
-  for (let w: Window = window; w !== w.parent; ) {
+  for (let w: Window = window; w !== w.parent;) {
     w = w.parent;
     try {
       const channel = w.__uwtTelemetryChannel;
