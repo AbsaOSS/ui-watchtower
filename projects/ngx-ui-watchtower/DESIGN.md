@@ -1387,11 +1387,15 @@ URL filters, on every page view or request.
 
 The sink checks them before loading the SDK and **fails closed**: if any holds
 something else, RUM doesn't start for the page, as with a broker returning
-`null`, and a console warning names each setting and the type it expects (never
-its value) in every environment. Dropping just the bad value would fail open instead: the filters
-and `ignore` decide what is _not_ recorded, so RUM would then record pages and
-URLs the app meant to keep out — personal data in a URL among them. A setting
-explicitly `undefined` counts as unset.
+`null`, and a console warning names each setting and the type it expects
+(never its value) in every environment. Dropping just the bad value would fail
+open instead: the filters and `ignore` decide what is _not_ recorded, so RUM
+would then record pages and URLs the app meant to keep out — personal data in
+a URL among them.
+
+Any optional setting that is `undefined` or `null` — a broker's JSON often
+spells an unset field as `null` — counts as unset: it isn't checked, and it is
+left out of the SDK config so the SDK's default applies.
 
 ### Per-logger levels
 
@@ -1703,9 +1707,9 @@ export class MyLogBackend implements UwtLogApiProvider {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(record),
-      // Survives page unload. Only while the page is going away: browsers
-      // reject keepalive requests once all in flight exceed 64 KiB, so a
-      // burst of records would be lost.
+      // Survives page unload. Only while the page is hidden (it may be
+      // closing): browsers reject keepalive requests once all in flight
+      // exceed 64 KiB, so a burst of records would be lost.
       keepalive: document.visibilityState === 'hidden'
     }).catch(() => undefined);
   }

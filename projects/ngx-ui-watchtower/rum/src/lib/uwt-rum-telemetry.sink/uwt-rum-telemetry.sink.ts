@@ -69,16 +69,17 @@ interface BufferedError {
 type BufferedItem = BufferedEvent | BufferedPageView | BufferedError;
 
 /**
- * Drops every key whose value is `undefined`.
+ * Drops every key whose value is unset: `undefined`, or `null` as a broker's
+ * JSON spells it.
  *
  * Used to build the SDK config object from optional consumer fields: a key
- * present with value `undefined` would overwrite the SDK's own default for
- * that key, so unset fields must be absent rather than `undefined`.
+ * present with value `undefined` or `null` would overwrite the SDK's own
+ * default for that key, so unset fields must be absent.
  */
-function omitUndefined<T extends object>(obj: T): Partial<T> {
+function omitUnset<T extends object>(obj: T): Partial<T> {
   const result: Partial<T> = {};
   for (const key of Object.keys(obj) as (keyof T)[]) {
-    if (obj[key] !== undefined) {
+    if (obj[key] !== undefined && obj[key] !== null) {
       result[key] = obj[key];
     }
   }
@@ -131,14 +132,14 @@ const TELEMETRY_OPTION_CHECKS = new Map<string, UwtSettingCheck>([
  * Lists the settings in `config` the SDK can't use, each with the type it
  * expects: `pagesToInclude` or `pagesToExclude` that isn't an array of
  * `RegExp`s, and each telemetry option failing its
- * {@link TELEMETRY_OPTION_CHECKS} check, as `name.option`. An `undefined`
- * value counts as unset, not as invalid.
+ * {@link TELEMETRY_OPTION_CHECKS} check, as `name.option`. `undefined` and
+ * `null` count as unset, not as invalid.
  */
 function invalidRumSettings(config: UwtRumBootstrap['config']): string[] {
   const invalid: string[] = [];
   for (const key of ['pagesToInclude', 'pagesToExclude'] as const) {
     const value = config[key];
-    if (value !== undefined && !REGEXP_LIST.valid(value)) {
+    if (value != null && !REGEXP_LIST.valid(value)) {
       invalid.push(`${key} (expected ${REGEXP_LIST.expected})`);
     }
   }
@@ -152,7 +153,7 @@ function invalidRumSettings(config: UwtRumBootstrap['config']): string[] {
     }
     for (const [key, value] of Object.entries(options)) {
       const check = TELEMETRY_OPTION_CHECKS.get(key);
-      if (value !== undefined && check && !check.valid(value)) {
+      if (value != null && check && !check.valid(value)) {
         invalid.push(`${String(name)}.${key} (expected ${check.expected})`);
       }
     }
@@ -161,12 +162,12 @@ function invalidRumSettings(config: UwtRumBootstrap['config']): string[] {
 }
 
 /**
- * Copies `telemetries` without tuple options set to `undefined`. The SDK
- * merges a telemetry's options over its defaults with `Object.assign`, so an
- * explicit `undefined` would replace a default it relies on —
- * `urlsToExclude: undefined` would throw on every request.
+ * Copies `telemetries` without tuple options that are unset (`undefined` or
+ * `null`). The SDK merges a telemetry's options over its defaults with
+ * `Object.assign`, so an explicit unset value would replace a default it
+ * relies on — `urlsToExclude: null` would throw on every request.
  */
-function withoutUndefinedOptions(
+function withoutUnsetOptions(
   telemetries: NonNullable<UwtRumBootstrap['config']['telemetries']>
 ): NonNullable<UwtRumBootstrap['config']['telemetries']> {
   return telemetries.map((telemetry) => {
@@ -177,7 +178,7 @@ function withoutUndefinedOptions(
     if (typeof options !== 'object' || options === null) {
       return telemetry;
     }
-    return [name, omitUndefined(options), ...rest];
+    return [name, omitUnset(options), ...rest];
   });
 }
 
@@ -461,13 +462,13 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * Maps {@link UwtRumAppMonitorConfig} onto the SDK's own `PartialConfig`.
    *
    * The SDK merges this object over its own defaults with a shallow
-   * `Object.assign`, so a key present with value `undefined` overwrites the
-   * SDK's default instead of falling through to it. `allowCookies`,
-   * `enableXRay`, `endpoint` and `telemetries` always carry this library's
-   * own override; every other field goes through {@link omitUndefined} (or,
-   * for `client`, a conditional spread) so an unset field is absent and the
-   * SDK's own default applies. Telemetry options set to `undefined` are left
-   * out for the same reason. Values the SDK can't use never get here:
+   * `Object.assign`, so a key present with value `undefined` or `null`
+   * overwrites the SDK's default instead of falling through to it.
+   * `allowCookies`, `enableXRay`, `endpoint` and `telemetries` always carry
+   * this library's own override; every other field goes through
+   * {@link omitUnset} (or, for `client`, a conditional spread) so an unset
+   * field is absent and the SDK's own default applies. Unset telemetry options
+   * are left out for the same reason. Values the SDK can't use never get here:
    * `performInit()` checks them first ({@link invalidRumSettings}).
    */
   private buildRumConfig(bootstrap: UwtRumBootstrap): AwsRumConfig {
@@ -490,16 +491,16 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         config.endpoint ??
         `https://dataplane.rum.${config.region}.amazonaws.com`,
       telemetries: Array.isArray(config.telemetries)
-        ? withoutUndefinedOptions(config.telemetries)
+        ? withoutUnsetOptions(config.telemetries)
         : (config.telemetries ?? [
             'errors',
             'performance',
             ['http', { addXRayTraceIdHeader: [sameOrigin] }]
           ]),
 
-      ...(config.client !== undefined ? { client: config.client } : {}),
+      ...(config.client != null ? { client: config.client } : {}),
 
-      ...omitUndefined({
+      ...omitUnset({
         releaseId: config.releaseId,
         clientBuilder: config.clientBuilder,
         applicationAttributes: config.applicationAttributes,

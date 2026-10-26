@@ -240,25 +240,37 @@ describe('UwtRumTelemetrySink', () => {
       );
     });
 
-    it('should treat a telemetry option or page filter set to undefined as unset', async () => {
+    it('should treat settings set to undefined or null as unset', async () => {
       const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
       configure({
         loadImpl: async () =>
           bootstrap({
+            // As a broker's JSON may spell unset fields.
+            pagesToInclude: null as unknown as RegExp[],
             pagesToExclude: undefined,
+            sessionSampleRate: null as unknown as number,
             telemetries: [
-              ['http', { urlsToExclude: undefined, recordAllRequests: true }]
+              [
+                'http',
+                {
+                  urlsToExclude: undefined,
+                  urlsToInclude: null,
+                  recordAllRequests: true
+                }
+              ]
             ]
           })
       });
       await sink.init();
 
       const config = AwsRumCtor.mock.calls[0][3] as { telemetries: unknown[] };
-      // Strict: an explicit `undefined` would replace the SDK's default.
+      // Strict: an explicit `undefined` or `null` would replace the SDK's default.
       expect(config.telemetries).toStrictEqual([
         ['http', { recordAllRequests: true }]
       ]);
+      expect(config).not.toHaveProperty('pagesToInclude');
       expect(config).not.toHaveProperty('pagesToExclude');
+      expect(config).not.toHaveProperty('sessionSampleRate');
       expect(warn).not.toHaveBeenCalled();
     });
 
