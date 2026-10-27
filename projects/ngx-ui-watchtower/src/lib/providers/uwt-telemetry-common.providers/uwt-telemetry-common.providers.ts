@@ -393,6 +393,14 @@ export function provideUwtTelemetrySink(
     case 'broadcast':
       return makeEnvironmentProviders([
         provideUwtTelemetryDestination(UwtBroadcastTelemetrySink),
+        // Constructed eagerly, so this realm hands its HTTP requests to the
+        // host's RUM client before making the first one — unless telemetry
+        // is off.
+        provideAppInitializer(() => {
+          if (uwtTelemetryEnabled()) {
+            inject(UwtBroadcastTelemetrySink);
+          }
+        }),
         UwtBroadcastLogApiProvider,
         {
           provide: UWT_LOG_API_PROVIDER,

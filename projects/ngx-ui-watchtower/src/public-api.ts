@@ -107,6 +107,12 @@ export { traceScenario } from './lib/scenario/uwt-scenario-operators/uwt-scenari
 export { uwtClassifyTelemetryEvent } from './lib/utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
 export type { UwtTelemetrySinkEvent } from './lib/utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
 export type { UwtTraceScenarioOptions } from './lib/scenario/uwt-scenario-operators/uwt-scenario-operators';
+export {
+  UWT_DEFAULT_SCENARIO_HEADER,
+  uwtScenarioContext,
+  uwtScenarioHeaderInterceptor
+} from './lib/scenario/uwt-scenario-http/uwt-scenario-http';
+export type { UwtScenarioHeaderOptions } from './lib/scenario/uwt-scenario-http/uwt-scenario-http';
 export { uwtIsDebugEnabled } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
 export type { UwtDebugFlag } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
 export { uwtUuid } from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';

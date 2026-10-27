@@ -5,7 +5,12 @@ import {
 } from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
 import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
 import { DOCUMENT } from '@angular/common';
-import { Injectable, Injector, PLATFORM_ID } from '@angular/core';
+import {
+  ApplicationInitStatus,
+  Injectable,
+  Injector,
+  PLATFORM_ID
+} from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { UwtLoggerService } from '../../services/uwt-logger.service/uwt-logger.service';
 import {
@@ -36,6 +41,10 @@ import {
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
 import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+import {
+  provideUwtTelemetry,
+  provideUwtTelemetrySink
+} from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
 
 /**
  * Each realm gets its own injector — the shell and every fragment run in a
@@ -1304,6 +1313,211 @@ describe('broadcast telemetry across realms', () => {
         );
       }
     );
+  });
+
+  describe('tracing a fragment’s HTTP through the RUM realm', () => {
+    const KEY = Symbol.for('ngx-ui-watchtower.host');
+
+    /** The window running the RUM client, as its sink registers itself. */
+    function rumWindow() {
+      const leave = jest.fn();
+      const join = jest.fn(() => leave);
+      const window: { parent?: object; [KEY]: object } = {
+        [KEY]: { traceHttp: join }
+      };
+      window.parent = window;
+      return { window, join, leave };
+    }
+
+    function fragmentIn(parent: object, enabled = true) {
+      const view = { parent };
+      const realm = createRealm([
+        UwtBroadcastTelemetrySink,
+        { provide: DOCUMENT, useValue: { defaultView: view } },
+        { provide: UWT_TELEMETRY_ENABLED, useValue: enabled }
+      ]);
+      return { view, sink: realm.get(UwtBroadcastTelemetrySink) };
+    }
+
+    it('should hand its window to the RUM realm, and take it back on destroy', () => {
+      const rum = rumWindow();
+      const fragment = fragmentIn(rum.window);
+      expect(rum.join).toHaveBeenCalledWith(fragment.view);
+
+      fragment.sink.ngOnDestroy();
+      expect(rum.leave).toHaveBeenCalledTimes(1);
+    });
+
+    it('should hand nothing over while telemetry is off', () => {
+      const rum = rumWindow();
+      fragmentIn(rum.window, false);
+
+      expect(rum.join).not.toHaveBeenCalled();
+    });
+
+    it('should hand it over once the host announces itself, if it started too early', async () => {
+      const shellWindow: { parent?: object; [KEY]?: object } = {};
+      shellWindow.parent = shellWindow;
+      fragmentIn(shellWindow);
+
+      const join = jest.fn(() => jest.fn());
+      shellWindow[KEY] = { traceHttp: join };
+      const peer = new UwtBroadcastChannelStub(UWT_DEFAULT_BROADCAST_CHANNEL);
+      peer.postMessage({ kind: 'identity', sessionId: 'session-1' });
+      peer.postMessage({ kind: 'identity', sessionId: 'session-1' });
+      await UwtBroadcastChannelStub.settle();
+
+      expect(join).toHaveBeenCalledTimes(1);
+    });
+
+    it('should hand it over even without BroadcastChannel', () => {
+      UwtBroadcastChannelStub.uninstall();
+      const rum = rumWindow();
+      fragmentIn(rum.window);
+
+      expect(rum.join).toHaveBeenCalledTimes(1);
+    });
+
+    it('should hand it over at startup, before any telemetry is used', () => {
+      const rum = rumWindow();
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: PLATFORM_ID, useValue: 'browser' },
+          {
+            provide: DOCUMENT,
+            useValue: { defaultView: { parent: rum.window } }
+          },
+          provideUwtTelemetry({
+            application: 'cart',
+            environment: 'test',
+            version: '1.0.0'
+          }),
+          provideUwtTelemetrySink('broadcast')
+        ]
+      });
+      TestBed.inject(ApplicationInitStatus);
+
+      expect(rum.join).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('following the shell’s channel', () => {
+    const KEY = Symbol.for('ngx-ui-watchtower.host');
+
+    /** A top-level window, with the handle a shell would leave on it. */
+    function shellWindow(handle?: { channelName?: string }) {
+      const window: { parent?: object; [KEY]?: { channelName?: string } } =
+        handle ? { [KEY]: handle } : {};
+      window.parent = window;
+      return window;
+    }
+
+    /** Collects what arrives on `name`, as another realm would. */
+    function listen(name: string): unknown[] {
+      const received: unknown[] = [];
+      new UwtBroadcastChannelStub(name).onmessage = (event) =>
+        received.push(event.data);
+      return received;
+    }
+
+    function fragmentIn(parent: object, channel?: string) {
+      const realm = createRealm([
+        UwtBroadcastTelemetrySink,
+        UwtBroadcastLogApiProvider,
+        { provide: DOCUMENT, useValue: { defaultView: { parent } } },
+        ...(channel
+          ? [{ provide: UWT_BROADCAST_CHANNEL, useValue: channel }]
+          : [])
+      ]);
+      realm.get(UwtBroadcastTelemetrySink);
+      return realm;
+    }
+
+    function hostIn(window: object, channel?: string) {
+      return createRealm([
+        RecordingSink,
+        { provide: UwtTelemetrySink, useExisting: RecordingSink },
+        UwtTelemetryBroadcastHost,
+        { provide: DOCUMENT, useValue: { defaultView: window } },
+        ...(channel
+          ? [{ provide: UWT_BROADCAST_CHANNEL, useValue: channel }]
+          : [])
+      ]).get(UwtTelemetryBroadcastHost);
+    }
+
+    it('should use the channel of the shell it is nested in, for events and logs', async () => {
+      const onShellChannel = listen('shell-tab-1');
+      const fragment = fragmentIn(shellWindow({ channelName: 'shell-tab-1' }));
+      fragment.get(UwtBroadcastLogApiProvider).send(storedRecord());
+      await UwtBroadcastChannelStub.settle();
+
+      expect(onShellChannel).toEqual([
+        { kind: 'identity-request' },
+        expect.objectContaining({ kind: 'log' })
+      ]);
+    });
+
+    it('should not look for the shell while telemetry is off', () => {
+      const shell = shellWindow({ channelName: 'shell-tab-1' });
+      const readParent = jest.fn(() => shell);
+      const view = {
+        get parent() {
+          return readParent();
+        }
+      };
+      createRealm([
+        UwtBroadcastTelemetrySink,
+        UwtBroadcastLogApiProvider,
+        { provide: DOCUMENT, useValue: { defaultView: view } },
+        { provide: UWT_TELEMETRY_ENABLED, useValue: false }
+      ]).get(UwtBroadcastTelemetrySink);
+
+      expect(readParent).not.toHaveBeenCalled();
+    });
+
+    it('should keep a channel the fragment sets itself', async () => {
+      const onShellChannel = listen('shell-tab-1');
+      const onOwnChannel = listen('own-channel');
+      fragmentIn(shellWindow({ channelName: 'shell-tab-1' }), 'own-channel');
+      await UwtBroadcastChannelStub.settle();
+
+      expect(onShellChannel).toEqual([]);
+      expect(onOwnChannel).toEqual([{ kind: 'identity-request' }]);
+    });
+
+    it('should publish the host’s channel on its window, and withdraw it on destroy', () => {
+      const window = shellWindow();
+      const tabHost = hostIn(window, 'shell-tab-1');
+      expect(window[KEY]?.channelName).toBe('shell-tab-1');
+
+      tabHost.ngOnDestroy();
+      expect(window[KEY]?.channelName).toBeUndefined();
+    });
+
+    it('should never take a channel from a shell above a host', () => {
+      jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const window = { parent: shellWindow({ channelName: 'outer-channel' }) };
+      const innerHost = hostIn(window);
+
+      expect((window as { [KEY]?: { channelName?: string } })[KEY]).toEqual({
+        channelName: UWT_DEFAULT_BROADCAST_CHANNEL
+      });
+      innerHost.ngOnDestroy();
+    });
+
+    it('should publish nothing while telemetry is off', () => {
+      const window = shellWindow();
+      const offHost = createRealm([
+        RecordingSink,
+        { provide: UwtTelemetrySink, useExisting: RecordingSink },
+        UwtTelemetryBroadcastHost,
+        { provide: DOCUMENT, useValue: { defaultView: window } },
+        { provide: UWT_TELEMETRY_ENABLED, useValue: false }
+      ]).get(UwtTelemetryBroadcastHost);
+
+      expect(window[KEY]).toBeUndefined();
+      offHost.ngOnDestroy();
+    });
   });
 
   describe('uwtConnectBroadcastChannel', () => {

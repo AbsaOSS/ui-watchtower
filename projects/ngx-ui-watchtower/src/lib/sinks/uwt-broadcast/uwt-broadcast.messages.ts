@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { inject, InjectionToken } from '@angular/core';
 import {
   UwtTelemetryError,
@@ -13,6 +14,7 @@ import {
   uwtIsBrowser,
   uwtSafeVoid
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+import { uwtFindOnHost } from './uwt-host-handle.util';
 
 /**
  * Default `BroadcastChannel` name used between telemetry realms.
@@ -24,8 +26,13 @@ export const UWT_DEFAULT_BROADCAST_CHANNEL = 'ngx-ui-watchtower';
 /**
  * Overrides the channel name shared by the host and its followers.
  *
- * Both sides must agree. Change it only to run two independent telemetry
- * networks on one origin.
+ * Both sides must agree. A fragment nested in the shell's page (an iframe,
+ * a Web Fragment) follows the shell's channel by itself, so set this in the
+ * shell (`provideUwtTelemetryBroadcastHost(channelName)`); a realm that
+ * forwards from outside the shell's page, such as a popup window, needs it
+ * too. Change it to run
+ * two independent telemetry networks on one origin, or to give each tab its
+ * own channel.
  *
  * @group Tokens
  */
@@ -204,20 +211,27 @@ export interface UwtBroadcastConnection {
  * channel name, feature-detects `BroadcastChannel`, and wraps every operation
  * in the library's fail-open guard.
  *
+ * The name is {@link UWT_BROADCAST_CHANNEL} when set. Otherwise, with
+ * `followShellChannel`, it is the channel of the shell this realm is nested
+ * in, so fragments follow a shell with its own channel without any setup.
+ * The fragment-side sink and log provider pass it; a host never does, since
+ * a shell embedded in another must keep its own channel. Last comes {@link UWT_DEFAULT_BROADCAST_CHANNEL}.
+ *
  * Must be called from an injection context (a field initializer or a
  * constructor).
  */
 export function uwtConnectBroadcastChannel(
-  operation: string
+  operation: string,
+  options?: { followShellChannel?: boolean }
 ): UwtBroadcastConnection {
+  // No lookup and no channel on the server or while telemetry is off: every
+  // call is a no-op.
+  const active = uwtIsBrowser() && uwtTelemetryEnabled();
   const channelName =
     inject(UWT_BROADCAST_CHANNEL, { optional: true }) ??
+    (active && options?.followShellChannel ? shellChannelName() : undefined) ??
     UWT_DEFAULT_BROADCAST_CHANNEL;
-  // No channel on the server or while telemetry is off: every call is a no-op.
-  let channel =
-    uwtIsBrowser() && uwtTelemetryEnabled()
-      ? uwtOpenBroadcastChannel(channelName)
-      : undefined;
+  let channel = active ? uwtOpenBroadcastChannel(channelName) : undefined;
 
   return {
     channelName,
@@ -239,6 +253,12 @@ export function uwtConnectBroadcastChannel(
       });
     }
   };
+}
+
+/** The channel of the shell this realm is nested in, if any. */
+function shellChannelName(): string | undefined {
+  const realm = inject(DOCUMENT).defaultView;
+  return realm ? uwtFindOnHost(realm, 'channelName') : undefined;
 }
 
 /**

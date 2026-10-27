@@ -10,6 +10,10 @@ import {
   UwtRumBootstrap,
   UwtRumCredentialsProvider
 } from '../uwt-rum-credentials/uwt-rum-credentials';
+import {
+  UWT_RUM_SINK_OPTIONS,
+  UwtRumSinkOptions
+} from '../uwt-rum-sink-options/uwt-rum-sink-options';
 import { UwtRumTelemetrySink } from '../uwt-rum-telemetry.sink/uwt-rum-telemetry.sink';
 import { provideUwtTelemetryRumSink } from './uwt-rum.providers';
 
@@ -24,7 +28,7 @@ class StubCredentialsProvider implements UwtRumCredentialsProvider {
 }
 
 describe('provideUwtTelemetryRumSink', () => {
-  function configure(): void {
+  function configure(options?: UwtRumSinkOptions): void {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -33,7 +37,7 @@ describe('provideUwtTelemetryRumSink', () => {
           environment: 'prod',
           version: '1.0.0'
         }),
-        provideUwtTelemetryRumSink(),
+        provideUwtTelemetryRumSink(options),
         {
           provide: UWT_RUM_CREDENTIALS_PROVIDER,
           useClass: StubCredentialsProvider
@@ -43,6 +47,13 @@ describe('provideUwtTelemetryRumSink', () => {
   }
 
   beforeEach(() => configure());
+
+  it('should hand its options to the sink', () => {
+    const options = { xRayExcludeUrls: [/\/files\//] };
+    configure(options);
+
+    expect(TestBed.inject(UWT_RUM_SINK_OPTIONS)).toBe(options);
+  });
 
   it('should replace the default sink with the RUM sink', () => {
     expect(TestBed.inject(UwtTelemetrySink)).toBeInstanceOf(
