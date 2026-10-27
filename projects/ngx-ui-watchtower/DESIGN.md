@@ -115,7 +115,7 @@ Everything each entry point exports, by role.
 | Setup                       | `provideUwtTelemetry`, `withLogging`, `withScenarios`, `withBIEvents`, `withRedaction`, `UwtTelemetryFeature`, `provideUwtTelemetrySink`, `UwtTelemetryLocalSinkMode` (`'broadcast' \| 'noop'`), `provideUwtTelemetryBroadcastHost`, `provideUwtTelemetryDestination` + `UwtTelemetryDestinationOptions`    |
 | Configuration               | `UWT_TELEMETRY_IDENTITY` + `UwtTelemetryIdentity`; `UWT_LOG_CONFIG` + `UwtLogConfig`; `UWT_SCENARIO_TELEMETRY_CONFIG` + `UwtScenarioTelemetryConfig`; `UWT_BI_TELEMETRY_CONFIG` + `UwtBITelemetryConfig`; `UWT_REDACT_CONFIG`; `UWT_DEFAULT_TELEMETRY_CONFIG` (every default)                               |
 | Scenarios                   | `UwtScenarioTelemetryService`, `UwtScenario`, `traceScenario` + `UwtTraceScenarioOptions`; models `UwtScenarioOptions`, `UwtScenarioOutcome`, `UwtScenarioStepDetail`, `UwtScenarioRecord`, `UwtScenarioStep`, `UwtScenarioStepEvent`, `UwtScenarioAggregate`, `UwtScenarioStatus`, `UwtScenarioStepStatus` |
-| BI events                   | `UwtBITelemetryService`; `UwtBIEvent`, `UwtBIEventDetail` (`eventType` override, `scenarioId`, `feature`)                                                                                                                                                                                                   |
+| BI events                   | `UwtBITelemetryService`; `UwtBIEvent`, `UwtBIEventDetail` (`scenarioId`, `feature`)                                                                                                                                                                                                                         |
 | Logging                     | `UwtLoggerService`, `UwtLogger`; `UwtLogDetail`, `UwtLogRecord`, `UwtLogLevel`, `UWT_LOG_LEVEL_ORDER`; `UWT_LOG_API_PROVIDER`, `UwtLogApiProvider`, `UwtLogQuery`; `UwtNoopLogApiProvider`, `UwtBroadcastLogApiProvider`                                                                                    |
 | Name registries             | `UwtScenarioNames` / `UwtScenarioName`, `UwtScenarioSteps` / `UwtStepName`, `UwtBIEventNames` / `UwtBIEventName`, `UwtLoggerNames` / `UwtLoggerName`                                                                                                                                                        |
 | Sinks                       | `UwtTelemetrySink` (abstract), `UwtNoopTelemetrySink`, `UwtBroadcastTelemetrySink`, `UwtTelemetryBroadcastHost`, `UWT_BROADCAST_CHANNEL`, `UWT_DEFAULT_BROADCAST_CHANNEL` (`'ngx-ui-watchtower'`); `uwtClassifyTelemetryEvent` + `UwtTelemetrySinkEvent`, for a sink to tell what it received               |
@@ -171,9 +171,8 @@ does; a destination that doesn't simply leaves the field out.
 `uwtClassifyTelemetryEvent(eventType, payload)` tells `record` what it got,
 as a discriminated union — `scenario` (a `UwtScenarioRecord`),
 `scenario-step` (a `UwtScenarioStepEvent`), `bi` (a `UwtBIEvent`) or
-`unknown` (an event-type override). It matches on the event type's ending,
-so it works for any `eventNamespace` and for forwarded events; the broadcast
-host uses it too.
+`unknown` (any other event type). It matches on the event type's ending,
+so it works for any `eventNamespace` and for forwarded events.
 
 What a destination does **not** need to do: redact (payloads arrive already
 redacted), deduplicate BI events, time anything, or guard the library's
@@ -502,20 +501,10 @@ without the envelope. `sessionId` is absent until the RUM client initializes,
 
 #### One event type
 
-All BI events share a single event type, with `eventName` carried as a field
-— one schema to query, one extended-metric definition. If an existing
-dashboard is keyed on a specific legacy type, a single event can override it:
-
-```ts
-biTelemetry.track(
-  'click',
-  { source: 'toolbar' },
-  { eventType: 'com.my-app.click' }
-);
-```
-
-Use that only for migration — giving every event its own type is exactly what
-the single-type design avoids.
+All BI events share a single event type, `{ns}.bi`, with `eventName` carried
+as a field — one schema to query, one extended-metric definition. There is no
+per-event override: giving events their own types is exactly what the
+single-type design avoids.
 
 ### Fields deliberately left out
 
@@ -1659,7 +1648,7 @@ biTelemetry.track(
 
 Identical events within 400ms are collapsed into one, absorbing double-fires
 from a handler bound to both `click` and `keydown`. "Identical" means the same
-name, scenario correlation, event type, feature and metadata content;
+name, scenario correlation, feature and metadata content;
 differing in any one is a distinct event.
 
 ### Logging
@@ -2371,11 +2360,13 @@ and `location`, but not `top`, `BroadcastChannel` or storage — which is why
 this works there.
 
 **Where the shell owns the fragment's URL** — a plain iframe — a query
-parameter does the same job:
+parameter does the same job. The iframe must be same-origin with the shell,
+like every fragment; a sourceless iframe (`about:blank`, `srcdoc`) qualifies
+but has no URL to carry the parameter, so it reads the `top` global instead.
 
 ```ts
 // shell
-iframe.src = `https://fragment.example.com/?channel=${channelId}`;
+iframe.src = `/fragment/?channel=${channelId}`;
 
 // fragment
 const channelId = new URLSearchParams(window.location.search).get('channel');
@@ -2448,7 +2439,7 @@ whatever the destination.
          this.logger.emit({
            eventName: eventType,
            body: event.payload.eventName,
-           attributes: { ...event.payload.metadata }
+           attributes: { ...event.payload.metadata, ...this.identity() }
          });
        }
      }
@@ -2459,7 +2450,8 @@ whatever the destination.
          startTime: new Date(start),
          attributes: {
            'uwt.scenario.id': record.scenarioId,
-           'uwt.scenario.status': record.status
+           'uwt.scenario.status': record.status,
+           ...this.identity()
          }
        });
        const parent = trace.setSpan(context.active(), root);
@@ -2482,8 +2474,18 @@ whatever the destination.
        this.logger.emit({
          eventName: 'exception',
          severityNumber: SeverityNumber.ERROR,
-         body: error.message
+         body: error.message,
+         attributes: this.identity()
        });
+     }
+
+     // Per record, not a resource attribute: resources are fixed at SDK startup,
+     // and the session changes on sign-out.
+     private identity(): Record<string, string> {
+       return {
+         'session.id': this.sessionId,
+         ...(this.userId ? { 'user.id': this.userId } : {})
+       };
      }
 
      getSessionId() {
@@ -2547,6 +2549,11 @@ whatever the destination.
   linked by `uwt.scenario.id` / `correlationId` — as it is with RUM today.
   Joining them by trace id would need scenarios to start spans in
   `start()`, which is a change to the core, not to the sink.
+- **A session is one page load.** The sink's `sessionId` lives in memory, so a
+  reload or a second tab starts a new session — unlike RUM's cookie session,
+  which tabs share and reloads keep. Expect more, shorter sessions than RUM
+  reports; to match it, keep the id in a cookie with an inactivity expiry. There
+  is no anonymous user id either: until sign-in, only `session.id` is set.
 - **The browser logs SDK is still experimental.** Pin exact versions and
   re-run the tests after every upgrade: a mis-configured processor exports
   nothing, without an error.
