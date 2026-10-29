@@ -420,7 +420,9 @@ interface UwtScenarioAggregate {
   with cookies off (the session then ends with the page) or `localStorage`
   blocked, for a session that began on a page in `pagesToExclude` or before
   this version was running, and — rarely — when two tabs start sessions at
-  the same instant and one overwrites the other's entry. Steps carry no copy
+  the same instant and one overwrites the other's entry, or when the system
+  clock was set back past the session's start: the start is a wall-clock
+  time, so a negative result is left out rather than sent. Steps carry no copy
   of their own; a step's position in the session is
   `sessionElapsed - (elapsed - step.elapsed)`.
 - **Step offsets are relative** to the scenario's own start, so they stay

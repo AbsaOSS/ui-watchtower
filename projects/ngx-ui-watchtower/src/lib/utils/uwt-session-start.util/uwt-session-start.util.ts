@@ -86,7 +86,8 @@ export function uwtMarkSessionStart(sessionId: string, now = Date.now()): void {
  * @param sessionId the session to measure
  * @param now the moment to measure at, in epoch milliseconds
  * @returns the time since the session started, or `undefined` when the
- *   session or its start is unknown
+ *   session or its start is unknown, or the start is after `now` — the
+ *   system clock was set back since
  *
  * @group Utils
  */
@@ -98,5 +99,8 @@ export function uwtSessionElapsed(
     return undefined;
   }
   const startedAt = readStored()?.find(([id]) => id === sessionId)?.[1];
-  return startedAt === undefined ? undefined : now - startedAt;
+  if (startedAt === undefined || startedAt > now) {
+    return undefined;
+  }
+  return now - startedAt;
 }

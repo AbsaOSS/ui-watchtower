@@ -30,6 +30,13 @@ describe('uwt-session-start.util', () => {
     expect(uwtSessionElapsed(undefined, 2_000)).toBeUndefined();
   });
 
+  it('should report nothing, not a negative time, once the clock is set back past the start', () => {
+    uwtMarkSessionStart('s1', 5_000);
+
+    expect(uwtSessionElapsed('s1', 4_999)).toBeUndefined();
+    expect(uwtSessionElapsed('s1', 5_000)).toBe(0);
+  });
+
   it('should keep the five most recent sessions', () => {
     for (let i = 1; i <= 6; i++) {
       uwtMarkSessionStart(`s${i}`, i * 1_000);

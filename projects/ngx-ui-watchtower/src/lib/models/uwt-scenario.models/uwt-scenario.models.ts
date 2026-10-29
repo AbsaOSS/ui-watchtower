@@ -317,8 +317,9 @@ export interface UwtScenarioRecord
    * it (`uwtMarkSessionStart`); the RUM sink does so on the client's own
    * `session_start` event. Absent while the start isn't known: before the
    * session starts, with `suppressSessionStartEvent`, cookies off or
-   * `localStorage` blocked, and for a session that began on a page in
-   * `pagesToExclude` or before this version was running.
+   * `localStorage` blocked, for a session that began on a page in
+   * `pagesToExclude` or before this version was running, and when the
+   * system clock was set back past the session's start.
    *
    * Steps carry no copy of their own; place one on the same timeline with
    * `sessionElapsed - (elapsed - step.elapsed)`.
