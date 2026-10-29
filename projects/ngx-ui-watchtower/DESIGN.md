@@ -1002,10 +1002,12 @@ The RUM client keeps a signed-in user's id in its `cwr_u` cookie, for
 `userIdRetentionDays` (default 30). That cookie is shared by every app on the
 hostname — `cookieAttributes.unique` renames only the session cookie. On a
 shared device, a user who closes the tab without signing out leaves their id
-there, and the next visitor starts with it until someone signs in or out. An
-app where that matters can set `userIdRetentionDays: 0`: no user cookie at
-all, and anonymous visitors get the nil id (or, after a sign-out, a random
-one for that page).
+there, and the next visitor starts with it until someone signs in or out.
+Once the app says nobody is signed in, those events carry `signedIn: false`,
+so they never count as that user's signed-in activity. An app where that
+matters can set
+`userIdRetentionDays: 0`: no user cookie at all, and anonymous visitors get
+the nil id (or, after a sign-out, a random one for that page).
 
 In a fragment, this call is forwarded to the shell, so the whole composed
 page agrees on who is signed in.
@@ -1415,10 +1417,14 @@ the page without RUM or a `sessionId`:
   credentials meanwhile.
 
 Buffered events reach RUM stamped with the time they are sent, not the time
-they happened; the scenario and BI payloads keep their own times. A
-bootstrap that succeeds but whose SDK download or client start fails is not
-retried: browsers remember a failed module import, and a configuration error
-would fail the same way.
+they happened; the scenario and BI payloads keep their own times. They also
+take the sign-in state in force when the client starts: their batch's user
+id and their `signedIn` reflect it, not the state when each happened — so an
+event from just before a sign-in goes out as that user, and one from just
+before a sign-out as anonymous. With start-up retries that window can last
+up to five minutes. A bootstrap that succeeds but whose SDK download or
+client start fails is not retried: browsers remember a failed module import,
+and a configuration error would fail the same way.
 
 Returning a bootstrap with `credentials` omitted is a different, valid state:
 an app monitor configured for unauthenticated access — as long as the session
