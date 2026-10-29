@@ -77,7 +77,8 @@ export interface UwtRumAppMonitorConfig {
 
   /**
    * Suppresses the `session_start` event the SDK would otherwise emit at the
-   * start of a session. Default `false`.
+   * start of a session. Default `false`. The library then doesn't record the
+   * session's start either, so scenario records carry no `sessionElapsed`.
    */
   suppressSessionStartEvent?: boolean;
 

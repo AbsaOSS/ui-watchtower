@@ -3,6 +3,7 @@ import { UwtScenarioRecord } from '../../models/uwt-scenario.models/uwt-scenario
 import { UwtTelemetryMetadata } from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { UWT_DEFAULT_REDACT_CONFIG } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
+import { uwtMarkSessionStart } from '../../utils/uwt-session-start.util/uwt-session-start.util';
 import { UwtScenario, UwtScenarioDeps } from './uwt-scenario';
 
 /** Captures what the scenario emitted, so a test can assert on it. */
@@ -347,6 +348,47 @@ describe('UwtScenario (direct construction)', () => {
       expect(Object.keys(scenario.toRecord().metadata ?? {})).toHaveLength(1);
 
       consoleWarn.mockRestore();
+    });
+  });
+
+  describe('sessionElapsed', () => {
+    beforeEach(() => {
+      localStorage.clear();
+      jest.spyOn(Date, 'now').mockReturnValue(100_000);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('should say how far into the session the record was built', () => {
+      const { deps, sink, settled } = createDeps();
+      sink.sessionId = 's-1';
+      uwtMarkSessionStart('s-1', 40_000);
+
+      const scenario = new UwtScenario({ name: 'checkout' }, deps);
+      scenario.step('fetch');
+      scenario.complete();
+
+      const [record] = settled;
+      expect(record.sessionElapsed).toBe(60_000);
+      for (const step of record.steps) {
+        expect(step).not.toHaveProperty('sessionElapsed');
+      }
+    });
+
+    it('should leave the field out while the session or its start is unknown', () => {
+      const { deps, sink, settled } = createDeps();
+
+      sink.sessionId = 'never-marked';
+      const unknownStart = new UwtScenario({ name: 'checkout' }, deps);
+      unknownStart.step('fetch');
+      unknownStart.complete();
+
+      sink.sessionId = undefined;
+      new UwtScenario({ name: 'checkout' }, deps).complete();
+
+      for (const record of settled) {
+        expect(record).not.toHaveProperty('sessionElapsed');
+      }
     });
   });
 });

@@ -303,11 +303,28 @@ export interface UwtScenarioRecord
   /**
    * Milliseconds since the host page loaded (`performance.timeOrigin`), at
    * the moment this record was built — a timeline position, not a duration.
-   * Consistent across a composed page's realms; see `uwtElapsedNow`. Not
-   * exact for the RUM session itself, since the session cookie can survive a
-   * reload that resets `performance.timeOrigin`.
+   * Consistent across a composed page's realms; see `uwtElapsedNow`. It
+   * restarts on every reload, while the RUM session doesn't — for a position
+   * in the session, use `sessionElapsed`.
    */
   elapsed: number;
+
+  /**
+   * Milliseconds since the RUM session started, at the moment this record was
+   * built — a position on the session's timeline, which survives a reload.
+   *
+   * The RUM client keeps no start time, so the session's destination records
+   * it (`uwtMarkSessionStart`); the RUM sink does so on the client's own
+   * `session_start` event. Absent while the start isn't known: before the
+   * session starts, with `suppressSessionStartEvent`, cookies off or
+   * `localStorage` blocked, for a session that began on a page in
+   * `pagesToExclude` or before this version was running, and when the
+   * system clock was set back past the session's start.
+   *
+   * Steps carry no copy of their own; place one on the same timeline with
+   * `sessionElapsed - (elapsed - step.elapsed)`.
+   */
+  sessionElapsed?: number;
 
   /** Number of steps the caller declared, including any dropped past `maxSteps`. */
   stepCount: number;
