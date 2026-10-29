@@ -221,15 +221,11 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
     if (record.sessionId === sessionId && record.userId === userId) {
       return record;
     }
+    // An id this realm doesn't have stays `undefined`,
+    // as in the library's own records.
     const stamped: T = { ...record, sessionId, userId };
-    // Absent rather than `undefined`, as the follower's own records have it.
-    if (sessionId === undefined) {
-      delete stamped.sessionId;
-    }
-    if (userId === undefined) {
-      delete stamped.userId;
-    }
     if (measuresSession && record.sessionId !== sessionId) {
+      // The old session's value no longer applies; absent when unknown.
       delete stamped.sessionElapsed;
       const elapsed = uwtSessionElapsed(sessionId);
       if (elapsed !== undefined) {

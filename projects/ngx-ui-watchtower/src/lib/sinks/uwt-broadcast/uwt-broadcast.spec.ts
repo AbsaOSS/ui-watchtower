@@ -538,8 +538,8 @@ describe('broadcast telemetry across realms', () => {
         eventName: 'x',
         sessionId: 'test-session'
       });
-      // Nobody is signed in on the shell: absent, not an `undefined` key.
-      expect(event.payload).not.toHaveProperty('userId');
+      // Nobody is signed in on the shell.
+      expect(event.payload.userId).toBeUndefined();
     });
 
     it("should leave a custom event's payload as it is", async () => {
@@ -581,11 +581,9 @@ describe('broadcast telemetry across realms', () => {
       await UwtBroadcastChannelStub.settle();
 
       expect(
-        shellSink.ofType(UWT_TELEMETRY_EVENT_TYPE.bi)[0].payload
-      ).not.toHaveProperty('userId');
-      expect(shell.get(RecordingLogApi).records[0]).not.toHaveProperty(
-        'userId'
-      );
+        shellSink.ofType(UWT_TELEMETRY_EVENT_TYPE.bi)[0].payload.userId
+      ).toBeUndefined();
+      expect(shell.get(RecordingLogApi).records[0].userId).toBeUndefined();
     });
 
     it('should propagate a user id set in one fragment to a sibling fragment', async () => {
