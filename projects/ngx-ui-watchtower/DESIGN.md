@@ -1709,7 +1709,10 @@ export class MyLogBackend implements UwtLogApiProvider {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(record),
-      keepalive: true // survives page unload
+      // Survives page unload. Only while the page is hidden (it may be
+      // closing): browsers reject keepalive requests once all in flight
+      // exceed 64 KiB, so a burst of records would be lost.
+      keepalive: document.visibilityState === 'hidden'
     }).catch(() => undefined);
   }
 
@@ -1737,22 +1740,29 @@ export class MyLogBackend implements UwtLogApiProvider {
   send(record: UwtLogRecord): void {
     this.buffer.push(record);
     if (this.buffer.length >= 25) {
-      this.deliver();
+      this.deliver(false);
     }
   }
 
   /** Called on `pagehide`, on visibilitychange going hidden, and on teardown. Must be synchronous. */
   flush(): void {
-    this.deliver();
+    this.deliver(true);
   }
 
-  private deliver(): void {
+  private deliver(pageHiding: boolean): void {
     if (!this.buffer.length) {
       return;
     }
-    const records = this.buffer;
+    const body = JSON.stringify({ records: this.buffer });
     this.buffer = [];
-    navigator.sendBeacon('/api/logs', JSON.stringify({ records }));
+    // A beacon outlives the page, but the browser refuses it (returns false)
+    // once all in-flight beacons and keepalive requests pass 64 KiB. A plain
+    // request has no such cap: use it while the page is visible. When the
+    // beacon is refused on the way out, the plain request is best effort —
+    // the browser may cancel it as the page unloads.
+    if (!pageHiding || !navigator.sendBeacon('/api/logs', body)) {
+      void fetch('/api/logs', { method: 'POST', body }).catch(() => undefined);
+    }
   }
 
   query(filter: UwtLogQuery): Promise<UwtLogRecord[]> {
@@ -1782,7 +1792,7 @@ export class MyLogBackend implements UwtLogApiProvider {
     void fetch(endpoint, {
       method: 'POST',
       body: JSON.stringify(record),
-      keepalive: true
+      keepalive: document.visibilityState === 'hidden' // see above
     }).catch(() => undefined);
   }
 }
