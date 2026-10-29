@@ -164,6 +164,10 @@ the helper and the check. No destination at all still fails with `NG0201`.
 | `setUserId(userId)` / `getUserId()`     | Sign-in and sign-out (`undefined` or `''`) — the destination owns attribution                                     |
 | `flush(beacon?)`                        | `pagehide` (with `beacon`), `visibilitychange` to hidden, and teardown                                            |
 
+A destination that owns its sessions also calls `uwtMarkSessionStart(id)`
+when it starts one, so records can carry `sessionElapsed`. The RUM sink
+does; a destination that doesn't simply leaves the field out.
+
 `uwtClassifyTelemetryEvent(eventType, payload)` tells `record` what it got,
 as a discriminated union — `scenario` (a `UwtScenarioRecord`),
 `scenario-step` (a `UwtScenarioStepEvent`), `bi` (a `UwtBIEvent`) or
@@ -361,6 +365,7 @@ interface UwtScenarioRecord {
   endTime?: string; // ISO-8601
   delta: number; // ms — total duration, the headline latency measure
   elapsed: number; // ms since the host page loaded — a timeline position
+  sessionElapsed?: number; // ms since the RUM session started — survives a reload
   stepCount: number;
   steps: UwtScenarioStep[];
   exceededStepsLimit?: boolean; // steps[] truncated at maxSteps
@@ -393,14 +398,33 @@ interface UwtScenarioAggregate {
 ```
 
 - **Durations and positions have different names.** `delta` (and a step's
-  `stepDelta`) is how long something took; `elapsed` is _when_ it happened,
-  in ms since the host page loaded, so events from one session can be lined
-  up against each other. `endTime` is not a second duration — it is
-  `startTime + delta`, there to place a journey on the wall clock. `elapsed`
-  is inexact across a hard reload, since the RUM session cookie
-  (`allowCookies` on by default, 30-minute default session length) survives a
-  reload that resets `performance.timeOrigin`, so one `sessionId` can span an
-  `elapsed` reset.
+  `stepDelta`) is how long something took; `elapsed` and `sessionElapsed`
+  say _when_ it happened. `elapsed` counts from the host page load, so events
+  from one page can be lined up against each other; it restarts on every
+  reload. `sessionElapsed` counts from the start of the RUM session, which
+  survives a reload (`allowCookies` is on by default), so a journey can be
+  placed in the user's whole session. `endTime` is not a second duration —
+  it is `startTime + delta`, there to place a journey on the wall clock.
+- **`sessionElapsed` is measured by the library.** The RUM client keeps no
+  session start time, but records a `session_start` event each time it
+  starts a session — on the first page load, after 30 minutes without an
+  event, on sign-out. The RUM sink's metadata hook sees that event and
+  records the moment (`uwtMarkSessionStart`), so the start is exact. The
+  client can also start the first session inside its own constructor — the
+  landing page view, the navigation timing — before the hook exists; the
+  sink then sees the session cookie (`cwr_s`) appear and records that
+  moment instead. The start is kept in `localStorage`, because the session
+  outlives the page: the five most recent session ids with their start
+  times, five because tabs can drift onto different sessions. The field is
+  absent while the start isn't known: with `suppressSessionStartEvent`,
+  with cookies off (the session then ends with the page) or `localStorage`
+  blocked, for a session that began on a page in `pagesToExclude` or before
+  this version was running, and — rarely — when two tabs start sessions at
+  the same instant and one overwrites the other's entry, or when the system
+  clock was set back past the session's start: the start is a wall-clock
+  time, so a negative result is left out rather than sent. Steps carry no copy
+  of their own; a step's position in the session is
+  `sessionElapsed - (elapsed - step.elapsed)`.
 - **Step offsets are relative** to the scenario's own start, so they stay
   small integers inside the payload.
 - **A settled record has at least two steps.** Two zero-duration markers
@@ -1011,6 +1035,14 @@ application's responsibility: pass **opaque** user ids to `setUserId`, choose
 metadata keys responsibly, and keep identifiers out of URLs. Stack traces are
 assumed not to contain personal data, and RUM's own metadata (country,
 browser, device) is treated as non-personal.
+
+**What stays in the browser.** Besides the RUM client's own cookies (`cwr_s`
+for the session, `cwr_u` for the user id), the library keeps one
+`localStorage` entry, `ngx-ui-watchtower.sessionStarts`: up to five RUM
+session ids, each with the time it started, for `sessionElapsed`. It is
+written only while the RUM client's cookies are on, and an id stays until
+five newer sessions have replaced it. Debug flags are read from
+`localStorage`, never written.
 
 ### Scanning values for personal data
 
@@ -2195,6 +2227,9 @@ Both records then join on `parentScenarioId`.
   specifically so events from one session can be lined up against each
   other; a per-realm value would silently defeat that. Falls back to the
   local realm's own clock if `top` throws (cross-origin, sandboxed).
+- **`sessionElapsed`.** A fragment gets the shell's session id from the
+  identity handshake and that session's start from the shared
+  `localStorage`, so its records sit on the same session timeline.
 - **Durations.** `startedAt` is epoch milliseconds and `uwtEpochToPerf`
   converts using the _local_ `timeOrigin`, so a timestamp taken in the
   shell reads correctly in a fragment despite the iframe having a later
