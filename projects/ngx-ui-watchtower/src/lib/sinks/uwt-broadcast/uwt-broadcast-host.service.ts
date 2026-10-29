@@ -216,7 +216,8 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
     measuresSession = false
   ): T {
     const sessionId = this.currentSessionId();
-    const userId = this.currentUserId();
+    // '' is no user, as `setUserId('')` signs out.
+    const userId = this.currentUserId() || undefined;
     if (record.sessionId === sessionId && record.userId === userId) {
       return record;
     }

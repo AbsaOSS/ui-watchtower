@@ -566,6 +566,28 @@ describe('broadcast telemetry across realms', () => {
       });
     });
 
+    it("should stamp no user once the shell signed out with ''", async () => {
+      // Signed out with '': the host announces it, so the fragment holds '' too.
+      shellSink.userId = '';
+      const fragment = createFragment();
+      await UwtBroadcastChannelStub.settle();
+
+      fragment.get(UwtTelemetrySink).record(UWT_TELEMETRY_EVENT_TYPE.bi, {
+        eventName: 'x',
+        sessionId: 'test-session',
+        userId: fragment.get(UwtTelemetrySink).getUserId()
+      });
+      fragment.get(UWT_LOG_API_PROVIDER).send(storedRecord({ userId: '' }));
+      await UwtBroadcastChannelStub.settle();
+
+      expect(
+        shellSink.ofType(UWT_TELEMETRY_EVENT_TYPE.bi)[0].payload
+      ).not.toHaveProperty('userId');
+      expect(shell.get(RecordingLogApi).records[0]).not.toHaveProperty(
+        'userId'
+      );
+    });
+
     it('should propagate a user id set in one fragment to a sibling fragment', async () => {
       const a = createFragment();
       const b = createFragment();
