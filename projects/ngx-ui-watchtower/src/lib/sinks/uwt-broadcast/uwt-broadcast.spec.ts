@@ -45,6 +45,7 @@ import {
   provideUwtTelemetry,
   provideUwtTelemetrySink
 } from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
+import { uwtMarkSessionStart } from '../../utils/uwt-session-start.util/uwt-session-start.util';
 
 /**
  * Each realm gets its own injector — the shell and every fragment run in a
@@ -298,6 +299,7 @@ describe('broadcast telemetry across realms', () => {
   beforeEach(() => {
     UwtBroadcastChannelStub.install();
     TestBed.resetTestingModule();
+    localStorage.clear();
 
     shell = createRealm([
       RecordingSink,
@@ -579,6 +581,24 @@ describe('broadcast telemetry across realms', () => {
         scenarioName: 'add-to-cart',
         status: 'success'
       });
+    });
+
+    it("should place a fragment's scenario on the shell's session timeline", async () => {
+      shellSink.sessionId = 'shell-session-timeline';
+      uwtMarkSessionStart('shell-session-timeline', Date.now() - 60_000);
+      const fragment = createFragment();
+      await UwtBroadcastChannelStub.settle();
+
+      fragment
+        .get(UwtScenarioTelemetryService)
+        .start({ name: 'add-to-cart' })
+        .complete();
+      await UwtBroadcastChannelStub.settle();
+
+      const [record] = shellSink.ofType(UWT_TELEMETRY_EVENT_TYPE.scenario);
+      expect(record.payload.sessionId).toBe('shell-session-timeline');
+      expect(record.payload.sessionElapsed).toBeGreaterThanOrEqual(60_000);
+      expect(record.payload.sessionElapsed).toBeLessThan(70_000);
     });
 
     it('should let a fragment scenario name a shell scenario as its parent', async () => {

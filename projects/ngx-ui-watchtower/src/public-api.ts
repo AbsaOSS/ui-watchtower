@@ -116,6 +116,7 @@ export type { UwtScenarioHeaderOptions } from './lib/scenario/uwt-scenario-http/
 export { uwtIsDebugEnabled } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
 export type { UwtDebugFlag } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
 export { uwtUuid } from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+export { uwtMarkSessionStart } from './lib/utils/uwt-session-start.util/uwt-session-start.util';
 export {
   UWT_DEFAULT_REDACT_CONFIG,
   UWT_REDACTED,

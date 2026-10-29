@@ -30,6 +30,7 @@ import {
   uwtRedactMetadata,
   uwtScrubString
 } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
+import { uwtSessionElapsed } from '../../utils/uwt-session-start.util/uwt-session-start.util';
 import {
   uwtDeepClone,
   uwtElapsedNow,
@@ -126,7 +127,7 @@ export class UwtScenario {
   /** See {@link scheduleMarkCleanupFallback}. */
   private markCleanupTimer?: ReturnType<typeof setTimeout>;
 
-  private _elapsed = 0;
+  private _duration = 0;
   private settleOutcome?: UwtScenarioOutcome;
   private settleError?: unknown;
   /** Scrubbed once in {@link settle}, reused by {@link toRecord} — see that method's doc comment. */
@@ -237,17 +238,17 @@ export class UwtScenario {
   }
 
   /**
-   * Duration in milliseconds — how long the scenario has run, or its final
-   * duration once settled.
+   * How long the scenario has taken, in milliseconds: the time so far while
+   * it runs, its final duration once settled.
    *
-   * Named `delta`, not `elapsed`: the record's `elapsed` field means
-   * milliseconds since the page loaded, a different value.
+   * Don't confuse it with the record's `elapsed`, which says when something
+   * happened: milliseconds since the page loaded.
    */
   get delta(): number {
     if (this.inert) {
       return 0;
     }
-    return this.isSettled ? this._elapsed : uwtNow() - this.startedAt;
+    return this.isSettled ? this._duration : uwtNow() - this.startedAt;
   }
 
   /**
@@ -447,6 +448,8 @@ export class UwtScenario {
     const settled = this.isSettled;
 
     const aggregates = this.collectAggregates();
+    const sessionId = this.sessionId();
+    const sessionElapsed = uwtSessionElapsed(sessionId);
 
     const record: UwtScenarioRecord = {
       scenarioId: this._id,
@@ -458,7 +461,7 @@ export class UwtScenario {
       status: this._status,
       startTime: new Date(this._startTime).toISOString(),
       endTime: settled
-        ? new Date(this._startTime + Math.round(this._elapsed)).toISOString()
+        ? new Date(this._startTime + Math.round(this._duration)).toISOString()
         : undefined,
       delta: Math.round(this.delta),
       elapsed: Math.round(uwtElapsedNow()),
@@ -470,9 +473,13 @@ export class UwtScenario {
         ? uwtDeepClone(this.metadata)
         : undefined,
       application: this.deps.identity.application,
-      sessionId: this.sessionId(),
+      sessionId,
       userId: this.userId()
     };
+
+    if (sessionElapsed !== undefined) {
+      record.sessionElapsed = Math.round(sessionElapsed);
+    }
 
     if (this._stepCount > this.deps.scenarioTelemetryConfig.maxSteps) {
       record.exceededStepsLimit = true;
@@ -521,7 +528,7 @@ export class UwtScenario {
 
       this.clearTimeout();
       this.clearMarkCleanupTimer();
-      this._elapsed = uwtNow() - this.startedAt;
+      this._duration = uwtNow() - this.startedAt;
       this._status = status;
 
       const { message, reason } = outcome ?? {};
@@ -548,8 +555,8 @@ export class UwtScenario {
 
       this.steps.push({
         name: 'scenario-end',
-        startOffset: Math.round(this._elapsed),
-        endOffset: Math.round(this._elapsed),
+        startOffset: Math.round(this._duration),
+        endOffset: Math.round(this._duration),
         stepDelta: 0,
         elapsed: Math.round(uwtElapsedNow()),
         status,
@@ -577,7 +584,7 @@ export class UwtScenario {
       this.deps.onSettled(this._id, record);
       this.emit(
         { kind: 'scenario', payload: record },
-        `${status} in ${Math.round(this._elapsed)}ms`
+        `${status} in ${Math.round(this._duration)}ms`
       );
     });
   }
@@ -603,7 +610,7 @@ export class UwtScenario {
   /** Snapshots the aggregate totals, closing any call still open. */
   private collectAggregates(): UwtScenarioAggregate[] {
     const result: UwtScenarioAggregate[] = [];
-    const now = this.isSettled ? this.startedAt + this._elapsed : uwtNow();
+    const now = this.isSettled ? this.startedAt + this._duration : uwtNow();
 
     for (const [name, entry] of this.aggregates) {
       let total = entry.total;
