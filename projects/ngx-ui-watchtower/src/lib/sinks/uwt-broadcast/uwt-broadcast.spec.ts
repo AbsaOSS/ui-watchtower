@@ -345,10 +345,11 @@ describe('broadcast telemetry across realms', () => {
 
       await UwtBroadcastChannelStub.settle();
 
+      // Stamped with the shell's session: the fragment hadn't heard of it yet.
       expect(shellSink.events).toEqual([
         expect.objectContaining({
           eventType: 'com.uwt.bi',
-          payload: { eventName: 'x' }
+          payload: { eventName: 'x', sessionId: 'test-session' }
         })
       ]);
     });
@@ -500,6 +501,69 @@ describe('broadcast telemetry across realms', () => {
       expect(fragment.get(UwtTelemetrySink).getSessionId()).toBe(
         'shell-session-1'
       );
+    });
+
+    it("should stamp the shell's session on a record sent before the fragment heard of it", async () => {
+      shellSink.sessionId = undefined;
+      const fragment = createFragment();
+      await UwtBroadcastChannelStub.settle();
+      // The shell's client starts after the fragment asked who is signed in.
+      shellSink.sessionId = 'shell-session-late';
+      uwtMarkSessionStart('shell-session-late', Date.now() - 5_000);
+
+      fragment
+        .get(UwtScenarioTelemetryService)
+        .start({ name: 'add-to-cart' })
+        .complete();
+      await UwtBroadcastChannelStub.settle();
+
+      const [record] = shellSink.ofType(UWT_TELEMETRY_EVENT_TYPE.scenario);
+      expect(record.payload.sessionId).toBe('shell-session-late');
+      expect(record.payload.sessionElapsed).toBeGreaterThanOrEqual(5_000);
+      expect(record.payload.sessionElapsed).toBeLessThan(15_000);
+    });
+
+    it("should stamp the shell's current session and user over a fragment's stale ones", async () => {
+      createFragment()
+        .get(UwtTelemetrySink)
+        .record(UWT_TELEMETRY_EVENT_TYPE.bi, {
+          eventName: 'x',
+          sessionId: 'expired-session',
+          userId: 'signed-out-user'
+        });
+      await UwtBroadcastChannelStub.settle();
+
+      const [event] = shellSink.ofType(UWT_TELEMETRY_EVENT_TYPE.bi);
+      expect(event.payload).toMatchObject({
+        eventName: 'x',
+        sessionId: 'test-session'
+      });
+      // Nobody is signed in on the shell: absent, not an `undefined` key.
+      expect(event.payload).not.toHaveProperty('userId');
+    });
+
+    it("should leave a custom event's payload as it is", async () => {
+      createFragment()
+        .get(UwtTelemetrySink)
+        .record('custom.thing', { sessionId: 'its-own' });
+      await UwtBroadcastChannelStub.settle();
+
+      expect(shellSink.ofType('custom.thing')[0].payload).toEqual({
+        sessionId: 'its-own'
+      });
+    });
+
+    it("should stamp the shell's session and user on a forwarded log record", async () => {
+      shellSink.userId = 'shell-user';
+      createFragment()
+        .get(UWT_LOG_API_PROVIDER)
+        .send(storedRecord({ sessionId: 'expired-session' }));
+      await UwtBroadcastChannelStub.settle();
+
+      expect(shell.get(RecordingLogApi).records[0]).toMatchObject({
+        sessionId: 'test-session',
+        userId: 'shell-user'
+      });
     });
 
     it('should propagate a user id set in one fragment to a sibling fragment', async () => {

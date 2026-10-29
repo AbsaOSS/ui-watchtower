@@ -19,6 +19,15 @@ import {
   UWT_LOG_API_PROVIDER,
   UwtLogQuery
 } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+import { uwtClassifyTelemetryEvent } from '../../utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
+import { uwtSessionElapsed } from '../../utils/uwt-session-start.util/uwt-session-start.util';
+
+/** The identity fields scenario, BI and log records carry. */
+interface UwtIdentified {
+  sessionId?: string;
+  userId?: string;
+  sessionElapsed?: number;
+}
 
 /**
  * Active host count per channel, scoped to this JS realm — distinguishes a
@@ -32,7 +41,9 @@ const hostsInThisRealm = new Map<string, number>();
  *
  * Runs in the shell, the realm with the real sink. Fragments using
  * {@link UwtBroadcastTelemetrySink} post their events here, so one AWS client,
- * one session and one event budget serve the whole composed page.
+ * one session and one event budget serve the whole composed page. Their
+ * scenario, BI and log records are stamped with this realm's current session
+ * and user, which a fragment's own copy can lag behind.
  *
  * Fragments' log records arrive the same way, from
  * {@link UwtBroadcastLogApiProvider}, and go to this realm's
@@ -136,7 +147,11 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
 
       switch (data.kind) {
         case 'event':
-          this.sink.record(data.eventType, data.payload, data.metadata);
+          this.sink.record(
+            data.eventType,
+            this.stampEvent(data.eventType, data.payload),
+            data.metadata
+          );
           this.reannounceIfIdentityChanged();
           break;
         case 'error':
@@ -160,7 +175,7 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
           // warnIfDuplicateInThisRealm() instead.
           break;
         case 'log':
-          this.deliverLog(data.record);
+          this.deliverLog(this.withIdentity(data.record));
           this.reannounceIfIdentityChanged();
           break;
         case 'log-flush':
@@ -176,6 +191,51 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
           break;
       }
     });
+  }
+
+  /**
+   * A forwarded scenario or BI record with this realm's identity; any other
+   * payload as it is.
+   */
+  private stampEvent(eventType: string, payload: object): object {
+    const { kind } = uwtClassifyTelemetryEvent(eventType, payload);
+    return kind === 'unknown'
+      ? payload
+      : this.withIdentity(payload as UwtIdentified, kind === 'scenario');
+  }
+
+  /**
+   * `record` with this realm's session and user id. A follower stamps the ids
+   * it was last told, which lag behind whenever they change here — the client
+   * starting after the follower asked, a session expiring, a sign-out — so its
+   * record could name a session other than the one it is sent in. With
+   * `measuresSession`, a changed session's `sessionElapsed` is measured again.
+   */
+  private withIdentity<T extends UwtIdentified>(
+    record: T,
+    measuresSession = false
+  ): T {
+    const sessionId = this.currentSessionId();
+    const userId = this.currentUserId();
+    if (record.sessionId === sessionId && record.userId === userId) {
+      return record;
+    }
+    const stamped: T = { ...record, sessionId, userId };
+    // Absent rather than `undefined`, as the follower's own records have it.
+    if (sessionId === undefined) {
+      delete stamped.sessionId;
+    }
+    if (userId === undefined) {
+      delete stamped.userId;
+    }
+    if (measuresSession && record.sessionId !== sessionId) {
+      delete stamped.sessionElapsed;
+      const elapsed = uwtSessionElapsed(sessionId);
+      if (elapsed !== undefined) {
+        stamped.sessionElapsed = Math.round(elapsed);
+      }
+    }
+    return stamped;
   }
 
   /** Hands a follower's record to this realm's log API provider. */
