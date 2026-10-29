@@ -83,6 +83,23 @@ export function traceScenario<T>(
         scenario.complete(outcome || undefined);
       };
 
+      const unsubscribe = () => {
+        if (scenario.isSettled) {
+          return;
+        }
+        // The consumer got a value and stopped listening, as
+        // firstValueFrom, take(1) and first() do: treat it as completion.
+        if (hasValue && valueThenTeardown === 'complete') {
+          complete();
+          return;
+        }
+        const resolved =
+          typeof cancelOutcome === 'function'
+            ? uwtSafe('scenario.traceCancelOutcome', cancelOutcome, undefined)
+            : cancelOutcome;
+        scenario.cancel(resolved || undefined);
+      };
+
       return source.pipe(
         tap({
           next: (value) => {
@@ -93,26 +110,7 @@ export function traceScenario<T>(
           error: (error: unknown) => {
             scenario.fail({ error });
           },
-          unsubscribe: () => {
-            if (scenario.isSettled) {
-              return;
-            }
-            // The consumer got a value and stopped listening, as
-            // firstValueFrom, take(1) and first() do: treat it as completion.
-            if (hasValue && valueThenTeardown === 'complete') {
-              complete();
-              return;
-            }
-            const resolved =
-              typeof cancelOutcome === 'function'
-                ? uwtSafe(
-                    'scenario.traceCancelOutcome',
-                    cancelOutcome,
-                    undefined
-                  )
-                : cancelOutcome;
-            scenario.cancel(resolved || undefined);
-          }
+          unsubscribe
         })
       );
     });
