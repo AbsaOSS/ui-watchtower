@@ -33,18 +33,27 @@ const CREDENTIAL_REFRESH_SKEW_MS = 5 * 60 * 1000;
 const MAX_TIMEOUT_MS = 2_147_483_647;
 
 /**
- * Retry delay after the broker request fails — at startup or on a scheduled
- * refresh — or a refresh returns no credentials. Shorter than the normal
- * refresh-ahead-of-expiry interval.
+ * Retry delay after a scheduled refresh fails or returns no credentials.
+ * Shorter than the normal refresh-ahead-of-expiry interval.
  */
 const CREDENTIAL_RETRY_DELAY_MS = 30 * 1000;
 
 /**
- * Broker requests tried at startup before the sink gives up and runs the page
- * without RUM — five minutes at {@link CREDENTIAL_RETRY_DELAY_MS}. Bounds the
- * retries when the failure is permanent, such as a wrong URL or a 403.
+ * Startup retries wait a random time up to a limit that starts at
+ * {@link INIT_RETRY_BASE_MS} and doubles after each failure, up to
+ * {@link INIT_RETRY_MAX_MS}. The first retry comes fast, because the client
+ * captures nothing until it exists; the randomness keeps tabs reloaded
+ * together from retrying together.
  */
-const MAX_INIT_ATTEMPTS = 10;
+const INIT_RETRY_BASE_MS = 1000;
+const INIT_RETRY_MAX_MS = 60 * 1000;
+
+/**
+ * How long startup keeps retrying before the sink gives up and runs the page
+ * without RUM. Bounds the retries when the failure is permanent, such as a
+ * wrong URL or a 403.
+ */
+const INIT_RETRY_WINDOW_MS = 5 * 60 * 1000;
 
 /**
  * Events retained while the SDK loads. Bounded so a failed init cannot
@@ -129,6 +138,12 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private buffer: BufferedItem[] = [];
   private userId?: string;
+  /**
+   * Set once the app has called `setUserId`. Until then, the client's id may
+   * be a signed-in user's, restored from its cookie after a reload, so
+   * events carry no `signedIn`.
+   */
+  private userKnown = false;
   /** A sign-out arrived before the client existed; applied once it starts. */
   private signOutPending = false;
   /**
@@ -138,6 +153,8 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   private disabled = false;
   /** Broker requests that failed at startup so far. */
   private initFailures = 0;
+  /** When the first of them failed. */
+  private initFailedAt?: number;
   /**
    * The current startup attempt, shared by every caller —
    * `provideUwtTelemetryRumSink()`'s `APP_INITIALIZER`,
@@ -220,7 +237,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   /**
    * After a failed broker request at startup: tries again later, keeping
    * events buffered — the failure is usually a passing network or broker
-   * problem. Gives up after {@link MAX_INIT_ATTEMPTS}.
+   * problem. Gives up after {@link INIT_RETRY_WINDOW_MS}.
    */
   private retryInit(error: unknown): void {
     if (this.destroyed) {
@@ -228,7 +245,8 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     }
 
     this.initFailures++;
-    if (this.initFailures >= MAX_INIT_ATTEMPTS) {
+    this.initFailedAt ??= Date.now();
+    if (Date.now() - this.initFailedAt >= INIT_RETRY_WINDOW_MS) {
       this.disableAwsRum();
       this.buffer = [];
       this.reportFailure('RUM init failed, monitoring disabled', error);
@@ -238,10 +256,14 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     if (this.initFailures === 1) {
       this.reportFailure('RUM init failed, retrying', error);
     }
+    const limit = Math.min(
+      INIT_RETRY_BASE_MS * 2 ** (this.initFailures - 1),
+      INIT_RETRY_MAX_MS
+    );
     this.scheduleRetry(() => {
       this.initPromise = this.performInit();
       return this.initPromise;
-    });
+    }, Math.random() * limit);
   }
 
   /**
@@ -324,25 +346,43 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * Signing out starts a fresh session with a new anonymous id (`pinUserId`
    * has no inverse), which emits a `session_start` event and re-rolls
    * sampling. Before `init()` resolves, a sign-out is applied once the
-   * client starts.
+   * client starts. Signing out while nobody is signed in does nothing.
+   *
+   * Every event carries `signedIn` in its metadata, so a signed-in user's id
+   * can be told from an anonymous one. It is absent until the first call,
+   * so call this as early as possible, e.g. right after the auth library
+   * initializes.
    *
    * @param userId the application's own user identifier, or `undefined`
-   * (or `''`) on sign-out
+   * (or `''`) on sign-out. RUM accepts only a UUID, e.g. MSAL's
+   * `localAccountId`.
    */
   setUserId(userId: string | undefined): void {
     uwtSafeVoid('rum.setUserId', () => {
+      const previous = this.userId;
       this.userId = userId;
+      this.userKnown = true;
 
-      if (userId) {
-        this.signOutPending = false;
-        this.awsRum?.pinUserId(userId);
+      const awsRum = this.awsRum;
+      if (!awsRum) {
+        // A sign-in is pinned, a sign-out applied, once the client starts.
+        if (userId || previous) {
+          this.signOutPending = !userId;
+        }
         return;
       }
 
-      if (this.awsRum) {
-        this.awsRum.startSession({ userId: uwtUuid() });
-      } else {
-        this.signOutPending = true;
+      if (userId && userId !== previous) {
+        // The client reads the user id when it sends a batch, not when it
+        // records an event, so what's waiting goes first, under the old id —
+        // unless the client already has this one, as after a reload.
+        if (awsRum.getUserId() !== userId) {
+          awsRum.dispatch();
+        }
+        awsRum.pinUserId(userId);
+      } else if (!userId && previous) {
+        awsRum.dispatch();
+        awsRum.startSession({ userId: uwtUuid() });
       }
     });
   }
@@ -497,7 +537,8 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * Attaches application identity once per session rather than once per event.
    *
    * `addSessionAttributes` covers custom events; the metadata hook stamps
-   * the same attributes onto the client's own built-in events too.
+   * the same attributes onto the client's own built-in events too. The hook
+   * also adds `signedIn`, read when each event is recorded.
    *
    * See {@link UwtRumAppMonitorConfig.sessionAttributes} for how this
    * merges with a consumer-supplied base.
@@ -514,7 +555,9 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     };
 
     this.awsRum.addSessionAttributes(attributes);
-    this.awsRum.setEventMetadataHook(() => attributes);
+    this.awsRum.setEventMetadataHook(() =>
+      this.userKnown ? { ...attributes, signedIn: !!this.userId } : attributes
+    );
 
     if (this.userId) {
       this.awsRum.pinUserId(this.userId);
@@ -594,9 +637,10 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     }
   }
 
-  /** Runs `attempt` (by default, a credential refresh) after the retry delay. */
+  /** Runs `attempt` (by default, a credential refresh) after `delayMs`. */
   private scheduleRetry(
-    attempt: () => Promise<void> = () => this.refreshCredentials()
+    attempt: () => Promise<void> = () => this.refreshCredentials(),
+    delayMs = CREDENTIAL_RETRY_DELAY_MS
   ): void {
     if (this.destroyed) {
       return;
@@ -609,7 +653,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = null;
       attempt().catch(() => undefined);
-    }, CREDENTIAL_RETRY_DELAY_MS);
+    }, delayMs);
   }
 
   /**

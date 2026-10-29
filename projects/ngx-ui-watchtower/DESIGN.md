@@ -923,7 +923,7 @@ export class AuthService {
   private sink = inject(UwtTelemetrySink);
 
   onSignIn(user: User) {
-    // An opaque id — never an email, a username or an account number.
+    // An opaque UUID — never an email, a username or an account number.
     this.sink.setUserId(user.id);
   }
 
@@ -936,6 +936,28 @@ export class AuthService {
 `setUserId('')` signs out too: an empty string identifies nobody, so it is
 never pinned as an id.
 
+RUM accepts only a UUID as a user id (36 hex characters with dashes), so pass
+one — with MSAL, the account's `localAccountId`, not `homeAccountId`. An
+anonymous id is a random UUID too, so to tell the two apart, every event
+carries `signedIn` (`true` or `false`) in its metadata, next to
+`application`. Counting distinct anonymous users is then counting distinct
+user ids where `signedIn` is `false`.
+
+`signedIn` is absent until the app first calls `setUserId`: after a reload,
+the client restores a signed-in user's id from its cookie, and only the app
+knows whether that user is still signed in. So call `setUserId` as early as
+possible — for example in an app initializer, right after MSAL initializes.
+A call made before the RUM client starts leaves no event without `signedIn`.
+
+The client reads the user id when it sends a batch, not when it records an
+event. So when the user changes, the RUM sink sends what's waiting first,
+under the old id, and an event's `signedIn` matches its batch's user id.
+That one request holds up to the SDK's `batchLimit` (100 events by
+default); anything beyond it goes out later, under the new id. The sink
+skips the early send when the client already has the new id, as after a
+reload. If that request fails, the SDK reports it as an unhandled promise
+rejection, as it does for `flush()`.
+
 Sign-out is not just cosmetic. The RUM client's `pinUserId` has no inverse,
 so the RUM sink starts a fresh session with a fresh anonymous id — otherwise
 the client would keep attributing everything to the person who just left,
@@ -945,8 +967,9 @@ cost of one `session_start` event and a re-rolled sampling decision.
 The SDK's `startSession` is documented for exactly this case ("sign-in,
 sign-out, kiosk handoff").
 
-Call it on a real sign-out only: every call starts a new session, so calling
-it at startup when nobody is signed in would start one on every page load.
+Signing out while nobody is signed in does nothing, and so does signing out
+twice. So `setUserId` can follow an auth stream directly —
+`user$.pipe(map((u) => u?.id))` — including its initial `undefined`.
 
 The RUM client keeps a signed-in user's id in its `cwr_u` cookie, for
 `userIdRetentionDays` (default 30). That cookie is shared by every app on the
@@ -1343,15 +1366,24 @@ revoke telemetry mid-session and the running client is torn down rather than
 left collecting with stale credentials.
 
 Throwing means the request failed, not that telemetry is unwanted. The sink
-tries again every 30 seconds — at startup, keeping events buffered meanwhile,
-and on a refresh. A passing broker or network outage therefore doesn't leave
-the rest of the page without RUM or a `sessionId`. At startup it gives up
-after ten attempts (about five minutes), so a permanent failure — a wrong
-URL, a 403 — doesn't poll for the life of the page. Buffered events reach RUM
-stamped with the time they are sent, not the time they happened; the
-scenario and BI payloads keep their own times. A bootstrap that succeeds but
-whose SDK download or client start fails is not retried: browsers remember a
-failed module import, and a configuration error would fail the same way.
+tries again, so a passing broker or network outage doesn't leave the rest of
+the page without RUM or a `sessionId`:
+
+- **At startup**, keeping events buffered meanwhile, it waits a random time
+  up to a limit that starts at 1 second and doubles after each failure, up
+  to 60 seconds. The first retry comes fast because the client captures
+  nothing — JS errors, failed HTTP calls — until it exists; the randomness
+  keeps tabs reloaded together during an outage from retrying together. It
+  gives up after five minutes of failures, so a permanent failure — a wrong
+  URL, a 403 — doesn't poll for the life of the page.
+- **On a refresh**, every 30 seconds: the client keeps running on the current
+  credentials meanwhile.
+
+Buffered events reach RUM stamped with the time they are sent, not the time
+they happened; the scenario and BI payloads keep their own times. A
+bootstrap that succeeds but whose SDK download or client start fails is not
+retried: browsers remember a failed module import, and a configuration error
+would fail the same way.
 
 Returning a bootstrap with `credentials` omitted is a different, valid state:
 an app monitor configured for unauthenticated access — as long as the session
@@ -1455,7 +1487,7 @@ convention, for an application that wants the pre-fallback behavior back.
   a throw.
 - **Fail-open.** A broker outage, expired credentials or an SDK throw all
   leave the application behaving exactly as with healthy telemetry. A failed
-  broker request at startup is retried every 30 seconds, up to ten times. A
+  broker request at startup is retried with backoff for five minutes. A
   broker declining a session (`null`) makes the RUM sink a clean no-op rather
   than a queue that fills forever.
 - **SSR-safe.** Every browser-touching path is a no-op on the server.

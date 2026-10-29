@@ -290,9 +290,18 @@ class SupportService {
 ```ts
 const sink = inject(UwtTelemetrySink);
 
-sink.setUserId(user.id); // on sign-in — an opaque id, never an email
+sink.setUserId(user.id); // on sign-in — an opaque UUID, never an email
 sink.setUserId(undefined); // on sign-out
 ```
+
+RUM accepts only a UUID as a user id — with MSAL, use the account's
+`localAccountId`. Anonymous users get a random one, so every event also
+carries `signedIn: true | false` to tell them apart. It's absent until your
+first `setUserId` call, so make that call early, e.g. right after MSAL
+initializes.
+
+Signing out while nobody is signed in does nothing, so it's safe to call
+`setUserId` on every change of your auth state.
 
 ## Privacy
 

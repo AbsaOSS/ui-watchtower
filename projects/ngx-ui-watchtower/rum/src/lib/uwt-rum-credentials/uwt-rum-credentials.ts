@@ -310,8 +310,9 @@ export interface UwtRumCredentialsProvider {
    * Called once at startup and again shortly before each credential expiry.
    * Returning `null` disables RUM for the rest of the page — the telemetry
    * layer stays fully functional, it simply stops shipping. Throw instead when
-   * the request fails: the sink retries every 30 s — at startup up to ten
-   * times, buffering events until the client starts — and on refresh.
+   * the request fails: the sink retries — at startup with a growing, random
+   * wait for up to five minutes, buffering events until the client starts;
+   * on refresh every 30 s.
    *
    * @returns the bootstrap payload, or `null` to disable RUM
    */
