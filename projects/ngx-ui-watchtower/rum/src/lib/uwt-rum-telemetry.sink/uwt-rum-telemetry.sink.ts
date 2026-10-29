@@ -8,6 +8,7 @@ import {
   UwtTelemetryError,
   UwtTelemetryMetadata,
   UwtTelemetrySink,
+  uwtMarkSessionStart,
   uwtNormalizeError
 } from '@absaoss-cps/ngx-ui-watchtower';
 import {
@@ -43,6 +44,20 @@ const CREDENTIAL_RETRY_DELAY_MS = 30 * 1000;
  * grow the buffer without limit.
  */
 const PRE_INIT_BUFFER_LIMIT = 100;
+
+/** The event the RUM client records each time it starts a session. */
+const SESSION_START_EVENT_TYPE = 'com.amazon.rum.session_start_event';
+
+/**
+ * The RUM client's session cookie: `cwr_s`, or `cwr_s_<app monitor id>` with
+ * `cookieAttributes.unique` (both documented by AWS).
+ */
+function sessionCookieName(bootstrap: UwtRumBootstrap): string {
+  const { config } = bootstrap;
+  return config.cookieAttributes?.unique
+    ? `cwr_s_${config.applicationId}`
+    : 'cwr_s';
+}
 
 /** Metadata keys under this prefix are reserved by the RUM client. */
 const RESERVED_PREFIX = 'aws:';
@@ -221,6 +236,15 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private buffer: BufferedItem[] = [];
   private userId?: string;
+  /**
+   * Whether a session's start is recorded (`uwtMarkSessionStart`): only when
+   * the client keeps sessions in its cookie, so a session outlives the page,
+   * and the app hasn't suppressed session-start events. Set when the client
+   * starts.
+   */
+  private marksSessionStarts = false;
+  /** Set while {@link markSessionStart} runs, to stop it calling itself. */
+  private markingSession = false;
   /** Set once a refresh returns null/undefined; distinct from `!awsRum` alone. */
   private disabled = false;
   /**
@@ -282,6 +306,9 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         return;
       }
 
+      const sessionCookie = sessionCookieName(bootstrap);
+      const hadSession = this.hasCookie(sessionCookie);
+
       this.awsRum = new AwsRum(
         bootstrap.config.applicationId,
         bootstrap.config.applicationVersion,
@@ -289,7 +316,23 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         this.buildRumConfig(bootstrap)
       );
 
+      this.marksSessionStarts =
+        bootstrap.config.allowCookies !== false &&
+        this.document.defaultView?.navigator.cookieEnabled !== false &&
+        bootstrap.config.suppressSessionStartEvent !== true;
       this.applyIdentity();
+      // The client can start the first session inside its constructor — the
+      // landing page view, the navigation timing — before the metadata hook
+      // exists to see its session_start. It writes the session cookie then,
+      // so a cookie that wasn't there a moment ago means a session that
+      // started just now.
+      if (
+        this.marksSessionStarts &&
+        !hadSession &&
+        this.hasCookie(sessionCookie)
+      ) {
+        this.markSessionStart();
+      }
       this.applyCredentials(bootstrap.credentials);
       this.replayBuffer();
     } catch (error) {
@@ -556,6 +599,11 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    *
    * See {@link UwtRumAppMonitorConfig.sessionAttributes} for how this
    * merges with a consumer-supplied base.
+   *
+   * The hook also sees the client's own `session_start` event, recorded
+   * each time it starts a session, and records that moment as the
+   * session's start (`uwtMarkSessionStart`) — the client keeps no start time
+   * itself. Only while {@link marksSessionStarts}.
    */
   private applyIdentity(): void {
     if (!this.awsRum) {
@@ -569,11 +617,51 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     };
 
     this.awsRum.addSessionAttributes(attributes);
-    this.awsRum.setEventMetadataHook(() => attributes);
+    this.awsRum.setEventMetadataHook((type) => {
+      if (this.marksSessionStarts && type === SESSION_START_EVENT_TYPE) {
+        this.markSessionStart();
+      }
+      return attributes;
+    });
 
     if (this.userId) {
       this.awsRum.pinUserId(this.userId);
     }
+  }
+
+  /**
+   * Records the current session's start as now. Called right after a session
+   * started, so it is current and reading its id doesn't start another one —
+   * except with a session length of 0, where the read starts a new session
+   * whose session_start calls back in here; the guard stops that recursion.
+   */
+  private markSessionStart(): void {
+    if (this.markingSession) {
+      return;
+    }
+    this.markingSession = true;
+    try {
+      uwtSafeVoid('rum.markSessionStart', () => {
+        const sessionId = this.awsRum?.getSessionId();
+        if (sessionId) {
+          uwtMarkSessionStart(sessionId);
+        }
+      });
+    } finally {
+      this.markingSession = false;
+    }
+  }
+
+  /** Whether the page has a cookie with this name; `false` when cookies can't be read. */
+  private hasCookie(name: string): boolean {
+    return uwtSafe(
+      'rum.readCookie',
+      () =>
+        this.document.cookie
+          .split(';')
+          .some((cookie) => cookie.trim().split('=')[0] === name),
+      false
+    );
   }
 
   private applyCredentials(credentials?: UwtRumCredentials): void {

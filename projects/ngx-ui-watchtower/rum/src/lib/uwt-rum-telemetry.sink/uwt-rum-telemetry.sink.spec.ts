@@ -7,6 +7,7 @@ import {
   UWT_TELEMETRY_EVENT_TYPE,
   UWT_TELEMETRY_IDENTITY
 } from '@absaoss-cps/ngx-ui-watchtower';
+import { uwtSessionElapsed } from '../../../../src/lib/utils/uwt-session-start.util/uwt-session-start.util';
 import {
   UWT_RUM_CREDENTIALS_PROVIDER,
   UwtRumBootstrap
@@ -1011,6 +1012,118 @@ describe('UwtRumTelemetrySink', () => {
 
     it('should report no session id before init', () => {
       expect(sink.getSessionId()).toBeUndefined();
+    });
+
+    describe('session start', () => {
+      const SESSION_START = 'com.amazon.rum.session_start_event';
+      let now: jest.SpyInstance<number, []>;
+
+      /** The metadata hook the sink gave the client. */
+      const metadataHook = () =>
+        awsRumInstance.setEventMetadataHook.mock.calls[0][0] as (
+          type: string
+        ) => unknown;
+
+      const clearSessionCookie = () => {
+        document.cookie =
+          'cwr_s=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+      };
+
+      beforeEach(() => {
+        localStorage.clear();
+        clearSessionCookie();
+        now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+        awsRumInstance.getSessionId.mockImplementation(() => 'session-1');
+      });
+
+      afterEach(() => {
+        clearSessionCookie();
+        awsRumInstance.getSessionId.mockImplementation(() => 'rum-session-1');
+      });
+
+      it("should record a session's start when the client records its session_start event", async () => {
+        await sink.init();
+
+        metadataHook()(SESSION_START);
+        now.mockReturnValue(6_000);
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBe(5_000);
+      });
+
+      it('should record nothing for other events', async () => {
+        await sink.init();
+
+        metadataHook()('com.amazon.rum.page_view_event');
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBeUndefined();
+      });
+
+      it('should record the first session when the client started it while being built', async () => {
+        // The landing page view or navigation timing starts the session
+        // inside the constructor, before the hook exists; the client writes
+        // its session cookie then.
+        AwsRumCtor.mockImplementationOnce(() => {
+          document.cookie = 'cwr_s=new-session; path=/';
+          return awsRumInstance;
+        });
+
+        await sink.init();
+        now.mockReturnValue(4_000);
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBe(3_000);
+      });
+
+      it('should not record a session restored from its cookie, whose start it can only know from an earlier page', async () => {
+        document.cookie = 'cwr_s=earlier-session; path=/';
+
+        await sink.init();
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBeUndefined();
+      });
+
+      it('should record nothing while cookies are off, since the session ends with the page', async () => {
+        AwsRumCtor.mockImplementationOnce(() => {
+          document.cookie = 'cwr_s=new-session; path=/';
+          return awsRumInstance;
+        });
+        configure({ loadImpl: async () => bootstrap({ allowCookies: false }) });
+        await sink.init();
+
+        metadataHook()(SESSION_START);
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBeUndefined();
+        expect(localStorage.length).toBe(0);
+      });
+
+      it('should record nothing when session-start events are suppressed, for a session started while the client was built either', async () => {
+        AwsRumCtor.mockImplementationOnce(() => {
+          document.cookie = 'cwr_s=new-session; path=/';
+          return awsRumInstance;
+        });
+        configure({
+          loadImpl: async () => bootstrap({ suppressSessionStartEvent: true })
+        });
+        await sink.init();
+
+        metadataHook()(SESSION_START);
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBeUndefined();
+        expect(localStorage.length).toBe(0);
+      });
+
+      it('should not recurse when reading the id starts yet another session (a session length of 0)', async () => {
+        await sink.init();
+        awsRumInstance.getSessionId.mockImplementation(() => {
+          metadataHook()(SESSION_START);
+          return 'session-loop';
+        });
+
+        awsRumInstance.getSessionId.mockClear();
+
+        expect(() => metadataHook()(SESSION_START)).not.toThrow();
+        expect(awsRumInstance.getSessionId).toHaveBeenCalledTimes(1);
+        expect(uwtSessionElapsed('session-loop', Date.now())).toBe(0);
+      });
     });
   });
 
