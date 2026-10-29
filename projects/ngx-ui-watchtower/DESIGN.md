@@ -952,11 +952,13 @@ A call made before the RUM client starts leaves no event without `signedIn`.
 The client reads the user id when it sends a batch, not when it records an
 event. So when the user changes, the RUM sink sends what's waiting first,
 under the old id, and an event's `signedIn` matches its batch's user id.
-That one request holds up to the SDK's `batchLimit` (100 events by
-default); anything beyond it goes out later, under the new id. The sink
-skips the early send when the client already has the new id, as after a
-reload. If that request fails, the SDK reports it as an unhandled promise
-rejection, as it does for `flush()`.
+A request holds up to `batchLimit` events, so the sink sends as many as
+the client can hold — `eventCacheSize / batchLimit`, 10 by default; once
+it's empty, the rest send nothing. Only web-vitals candidates (such as LCP)
+stay behind: the client sends those when the page is hidden. The sink skips
+the early send when the client already has the new id, as after a reload.
+If a request fails, the SDK reports it as an unhandled promise rejection,
+as it does for `flush()`.
 
 Sign-out is not just cosmetic. The RUM client's `pinUserId` has no inverse,
 so the RUM sink starts a fresh session with a fresh anonymous id — otherwise

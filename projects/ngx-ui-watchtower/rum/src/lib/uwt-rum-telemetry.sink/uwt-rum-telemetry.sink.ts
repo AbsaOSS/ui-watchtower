@@ -56,6 +56,14 @@ const INIT_RETRY_MAX_MS = 60 * 1000;
 const INIT_RETRY_WINDOW_MS = 5 * 60 * 1000;
 
 /**
+ * The RUM client's defaults for `eventCacheSize` and `batchLimit`, which it
+ * keeps to itself — used only when the app monitor config sets neither.
+ * Together they bound how many batches the client can hold.
+ */
+const SDK_DEFAULT_EVENT_CACHE_SIZE = 1000;
+const SDK_DEFAULT_BATCH_LIMIT = 100;
+
+/**
  * Events retained while the SDK loads. Bounded so a failed init cannot
  * grow the buffer without limit.
  */
@@ -146,6 +154,8 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   private userKnown = false;
   /** A sign-out arrived before the client existed; applied once it starts. */
   private signOutPending = false;
+  /** The most batches the client can hold, set when it starts. */
+  private maxBatches = 1;
   /**
    * Set once RUM is off for the page — the broker declined, startup gave up,
    * or a refresh returned null; distinct from `!awsRum` alone.
@@ -223,6 +233,13 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         bootstrap.config.region,
         this.buildRumConfig(bootstrap)
       );
+      const {
+        eventCacheSize = SDK_DEFAULT_EVENT_CACHE_SIZE,
+        batchLimit = SDK_DEFAULT_BATCH_LIMIT
+      } = bootstrap.config;
+      const batches = Math.ceil(eventCacheSize / batchLimit);
+      // A batchLimit of 0 or a non-number would make this unbounded.
+      this.maxBatches = Number.isFinite(batches) && batches > 1 ? batches : 1;
 
       this.applyIdentity();
       this.applyCredentials(bootstrap.credentials);
@@ -373,18 +390,28 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       }
 
       if (userId && userId !== previous) {
-        // The client reads the user id when it sends a batch, not when it
-        // records an event, so what's waiting goes first, under the old id —
-        // unless the client already has this one, as after a reload.
+        // Unless the client already has this id, as after a reload.
         if (awsRum.getUserId() !== userId) {
-          awsRum.dispatch();
+          this.sendWaiting(awsRum);
         }
         awsRum.pinUserId(userId);
       } else if (!userId && previous) {
-        awsRum.dispatch();
+        this.sendWaiting(awsRum);
         awsRum.startSession({ userId: uwtUuid() });
       }
     });
+  }
+
+  /**
+   * Sends everything the client holds, under the current user id. The client
+   * reads the id when it sends a batch, not when it records an event, so
+   * events still waiting at a change would otherwise go out under the new id.
+   * Each `dispatch()` sends one batch, and nothing once the client is empty.
+   */
+  private sendWaiting(awsRum: AwsRum): void {
+    for (let batch = 0; batch < this.maxBatches; batch++) {
+      awsRum.dispatch();
+    }
   }
 
   /** @inheritdoc */

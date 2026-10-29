@@ -996,13 +996,18 @@ describe('UwtRumTelemetrySink', () => {
       expect(awsRumInstance.startSession).toHaveBeenCalledTimes(1);
     });
 
+    /** When the last early send happened, to compare with the change. */
+    const lastDispatch = () =>
+      Math.max(...awsRumInstance.dispatch.mock.invocationCallOrder);
+
     it('should send what is waiting under the old id before a sign-in', async () => {
       await sink.init();
 
       sink.setUserId('user-42');
 
-      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(1);
-      expect(awsRumInstance.dispatch.mock.invocationCallOrder[0]).toBeLessThan(
+      // Every batch the client can hold by default: 1000 events, 100 a batch.
+      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(10);
+      expect(lastDispatch()).toBeLessThan(
         awsRumInstance.pinUserId.mock.invocationCallOrder[0]
       );
     });
@@ -1014,10 +1019,31 @@ describe('UwtRumTelemetrySink', () => {
 
       sink.setUserId(undefined);
 
-      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(1);
-      expect(awsRumInstance.dispatch.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(10);
+      expect(lastDispatch()).toBeLessThan(
         awsRumInstance.startSession.mock.invocationCallOrder[0]
       );
+    });
+
+    it('should send as many batches as the configured client can hold', async () => {
+      configure({
+        loadImpl: async () =>
+          bootstrap({ eventCacheSize: 250, batchLimit: 100 })
+      });
+      await sink.init();
+
+      sink.setUserId('user-42');
+
+      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(3);
+    });
+
+    it('should send one batch, not loop forever, with a batchLimit of 0', async () => {
+      configure({ loadImpl: async () => bootstrap({ batchLimit: 0 }) });
+      await sink.init();
+
+      sink.setUserId('user-42');
+
+      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(1);
     });
 
     it('should send early and pin the new user on a switch, keeping the session', async () => {
@@ -1029,7 +1055,7 @@ describe('UwtRumTelemetrySink', () => {
 
       sink.setUserId('user-7');
 
-      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(1);
+      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(10);
       expect(awsRumInstance.pinUserId).toHaveBeenCalledWith('user-7');
       expect(awsRumInstance.startSession).not.toHaveBeenCalled();
     });
