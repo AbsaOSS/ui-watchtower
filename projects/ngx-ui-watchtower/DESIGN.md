@@ -408,7 +408,7 @@ interface UwtScenarioAggregate {
 - **`sessionElapsed` is measured by the library.** The RUM client keeps no
   session start time, but records a `session_start` event each time it
   starts a session — on the first page load, after 30 minutes without an
-  event, on sign-out. The RUM sink's metadata hook sees that event and
+  event, on a real sign-out. The RUM sink's metadata hook sees that event and
   records the moment (`uwtMarkSessionStart`), so the start is exact. The
   client can also start the first session inside its own constructor — the
   landing page view, the navigation timing — before the hook exists; the
@@ -947,7 +947,7 @@ export class AuthService {
   private sink = inject(UwtTelemetrySink);
 
   onSignIn(user: User) {
-    // An opaque id — never an email, a username or an account number.
+    // An opaque UUID — never an email, a username or an account number.
     this.sink.setUserId(user.id);
   }
 
@@ -960,14 +960,54 @@ export class AuthService {
 `setUserId('')` signs out too: an empty string identifies nobody, so it is
 never pinned as an id.
 
+RUM accepts only a UUID as a user id (36 hex characters with dashes), so pass
+one — with MSAL, the account's `localAccountId`, not `homeAccountId`. An
+anonymous id is a random UUID too, so to tell the two apart, every event
+carries `signedIn` (`true` or `false`) in its metadata, next to
+`application`. Counting distinct anonymous users is then counting distinct
+user ids where `signedIn` is `false`.
+
+`signedIn` is absent until the app first calls `setUserId`: after a reload,
+the client restores a signed-in user's id from its cookie, and only the app
+knows whether that user is still signed in. So call `setUserId` as early as
+possible — for example in an app initializer, right after MSAL initializes.
+A call made before the RUM client starts leaves no event without `signedIn`.
+
+The client reads the user id when it sends a batch, not when it records an
+event. So when the user changes, the RUM sink sends what's waiting first,
+under the old id, and an event's `signedIn` matches its batch's user id.
+A request holds up to `batchLimit` events, so the sink sends as many as
+the client can hold — `eventCacheSize / batchLimit`, 10 by default; once
+it's empty, the rest send nothing. Only web-vitals candidates (such as LCP)
+stay behind: the client sends those when the page is hidden. The sink skips
+the early send when the client already has the new id, as after a reload.
+If a request fails, the SDK reports it as an unhandled promise rejection,
+as it does for `flush()`.
+
 Sign-out is not just cosmetic. The RUM client's `pinUserId` has no inverse,
 so the RUM sink starts a fresh session with a fresh anonymous id — otherwise
 the client would keep attributing everything to the person who just left,
-which matters most on a shared device. **So the session id changes**, at the
-cost of one `session_start` event and a re-rolled sampling decision.
+which matters most on a shared device. **So the session id changes**, and
+`sessionElapsed` starts again, at the cost of one `session_start` event and a
+re-rolled sampling decision.
 
 The SDK's `startSession` is documented for exactly this case ("sign-in,
 sign-out, kiosk handoff").
+
+Signing out while nobody is signed in does nothing, and so does signing out
+twice. So `setUserId` can follow an auth stream directly —
+`user$.pipe(map((u) => u?.id))` — including its initial `undefined`.
+
+The RUM client keeps a signed-in user's id in its `cwr_u` cookie, for
+`userIdRetentionDays` (default 30). That cookie is shared by every app on the
+hostname — `cookieAttributes.unique` renames only the session cookie. On a
+shared device, a user who closes the tab without signing out leaves their id
+there, and the next visitor starts with it until someone signs in or out.
+Once the app says nobody is signed in, those events carry `signedIn: false`,
+so they never count as that user's signed-in activity. An app where that
+matters can set
+`userIdRetentionDays: 0`: no user cookie at all, and anonymous visitors get
+the nil id (or, after a sign-out, a random one for that page).
 
 In a fragment, this call is forwarded to the shell, so the whole composed
 page agrees on who is signed in.
@@ -1348,7 +1388,8 @@ export class AppRumCredentialsProvider implements UwtRumCredentialsProvider {
   async load(): Promise<UwtRumBootstrap | null> {
     // no-store: this response carries live, temporary AWS credentials.
     const res = await fetch('/rum/init', { cache: 'no-store' });
-    if (!res.ok) return null;
+    // Throw on failure, so the sink retries; null means "don't ship".
+    if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`);
 
     const { enabled, config, credentials } = await res.json();
     return enabled ? { config, credentials } : null;
@@ -1360,6 +1401,30 @@ Returning `null` turns off shipping without disabling the library —
 including from a later refresh, not just the initial load, so a provider can
 revoke telemetry mid-session and the running client is torn down rather than
 left collecting with stale credentials.
+
+Throwing means the request failed, not that telemetry is unwanted. The sink
+tries again, so a passing broker or network outage doesn't leave the rest of
+the page without RUM or a `sessionId`:
+
+- **At startup**, keeping events buffered meanwhile, it waits a random time
+  up to a limit that starts at 1 second and doubles after each failure, up
+  to 60 seconds. The first retry comes fast because the client captures
+  nothing — JS errors, failed HTTP calls — until it exists; the randomness
+  keeps tabs reloaded together during an outage from retrying together. It
+  gives up after five minutes of failures, so a permanent failure — a wrong
+  URL, a 403 — doesn't poll for the life of the page.
+- **On a refresh**, every 30 seconds: the client keeps running on the current
+  credentials meanwhile.
+
+Buffered events reach RUM stamped with the time they are sent, not the time
+they happened; the scenario and BI payloads keep their own times. They also
+take the sign-in state in force when the client starts: their batch's user
+id and their `signedIn` reflect it, not the state when each happened — so an
+event from just before a sign-in goes out as that user, and one from just
+before a sign-out as anonymous. With start-up retries that window can last
+up to five minutes. A bootstrap that succeeds but whose SDK download or
+client start fails is not retried: browsers remember a failed module import,
+and a configuration error would fail the same way.
 
 Returning a bootstrap with `credentials` omitted is a different, valid state:
 an app monitor configured for unauthenticated access — as long as the session
@@ -1381,7 +1446,7 @@ list. A representative sample:
 ```ts
 async load(): Promise<UwtRumBootstrap | null> {
   const res = await fetch('/rum/init');
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`);
   const { enabled, config, credentials } = await res.json();
   if (!enabled) return null;
 
@@ -1462,16 +1527,18 @@ convention, for an application that wants the pre-fallback behavior back.
   silent. Even a broken `console.error` cannot turn a suppressed failure into
   a throw.
 - **Fail-open.** A broker outage, expired credentials or an SDK throw all
-  leave the application behaving exactly as with healthy telemetry. A broker
-  declining a session (`null`) makes the RUM sink a clean no-op rather than a
-  queue that fills forever.
+  leave the application behaving exactly as with healthy telemetry. A failed
+  broker request at startup is retried with backoff for five minutes. A
+  broker declining a session (`null`) makes the RUM sink a clean no-op rather
+  than a queue that fills forever.
 - **SSR-safe.** Every browser-touching path is a no-op on the server.
 - **Cheap.** One RUM event per scenario, not per step. Redaction is a single
   shallow pass over a flat object. Durations use `performance.now()`, which
   wall-clock adjustments and sleeping devices can't skew. Batching, retries
   and dispatch of recorded events are left to the RUM SDK.
 - **Zone-neutral.** Long-lived timers — a scenario's timeout, the
-  mark-cleanup fallback, a fragment's log-query timeout — are scheduled
+  mark-cleanup fallback, a fragment's log-query timeout, the RUM client's
+  dispatch interval and the sink's retry and refresh timers — are scheduled
   outside Angular's zone, so telemetry never keeps the application from
   becoming stable.
 - **Bounded.** A 100-item buffer keeps events, page views and errors recorded
@@ -1493,8 +1560,8 @@ call leaves application code unaffected.
   signal on `UwtRumCredentialsProvider.load()` — tears the client down and
   stops scheduling further refreshes, instead of retrying forever against
   an already-disabled sink still holding a stale, capped event buffer. The
-  very first load honors the identical contract: `performInit()` sets the
-  same `disabled` flag when the broker declines before the client is ever
+  very first load honors the identical contract: `performInit()` sets
+  the same `disabled` flag when the broker declines before the client is ever
   constructed, not only on a later refresh — otherwise every `record()`
   call would buffer into the capped pre-init queue forever instead of
   becoming the clean no-op a deliberately-disabled session should be.
@@ -2393,8 +2460,11 @@ With a channel per tab, each tab's election trivially picks itself, and a
 tab's fragments never hear another tab. A duplicated tab loads a fresh
 document, so it gets a fresh id — unlike `sessionStorage`, which Chrome
 copies into the duplicate. A per-tab channel does **not** give each tab its
-own `sessionId`: the RUM session is a cookie shared across the origin's
-tabs, deliberately, since RUM models a session as a user's, not a tab's.
+own `sessionId`: tabs start from the same RUM session cookie, deliberately,
+since RUM models a session as a user's, not a tab's. Each tab reads that
+cookie only when it loads and then keeps its own copy, so tabs drift apart
+once one of them starts a new session — after 30 minutes without an event,
+or on a real sign-out.
 
 ### Known limits
 

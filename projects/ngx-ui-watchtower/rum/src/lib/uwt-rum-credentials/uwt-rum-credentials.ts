@@ -65,7 +65,11 @@ export interface UwtRumAppMonitorConfig {
   /** Fraction of sessions recorded, `0`–`1`. Default `1`. */
   sessionSampleRate?: number;
 
-  /** Session length before a new one begins, in seconds. Default `1800` (30 minutes). */
+  /**
+   * Inactivity timeout of a session, in seconds. Default `1800` (30 minutes).
+   * Each recorded event pushes the expiry back; the next event after it
+   * starts a new session.
+   */
   sessionLengthSeconds?: number;
 
   /** Hard cap on events recorded per session, across all telemetry. Default `200`. */
@@ -78,7 +82,13 @@ export interface UwtRumAppMonitorConfig {
    */
   suppressSessionStartEvent?: boolean;
 
-  /** Days an anonymous user id is retained in cookies/local storage. Default `30`. */
+  /**
+   * Days the user id is kept in the `cwr_u` cookie. Default `30`. A signed-in
+   * user's id is kept there too, so on a shared device the next visitor starts
+   * with it until the app calls `setUserId(undefined)` or someone signs in.
+   * `0` keeps no user cookie at all: anonymous visitors get the nil id, or a
+   * random one for the rest of the page after a sign-out.
+   */
   userIdRetentionDays?: number;
 
   /**
@@ -186,13 +196,24 @@ export interface UwtRumAppMonitorConfig {
 
   // ---- Cookies & privacy ----
 
-  /** Whether the client may use cookies for session continuity. Default `true`. */
+  /**
+   * Whether the client may keep the session and user ids in cookies
+   * (`cwr_s`, `cwr_u`), so they survive a reload. Default `true` — the SDK's
+   * own default is `false`. Without cookies, every page load starts a new
+   * session.
+   */
   allowCookies?: boolean;
 
   /**
    * Overrides for the cookies the client sets. Unset fields fall back to the
    * SDK's own defaults (`domain` = current hostname, `path` = `/`,
    * `sameSite` = `'Strict'`, `secure` = `true`, `unique` = `false`).
+   *
+   * With `unique: false`, every app monitor on the same hostname shares one
+   * session cookie (`cwr_s`). Set `unique: true` when several apps with their
+   * own app monitors run on one hostname, so each keeps its own session. The
+   * user cookie (`cwr_u`) stays shared either way — `aws-rum-web` 3.2.1
+   * suffixes only the session cookie.
    */
   cookieAttributes?: {
     unique?: boolean;
@@ -274,7 +295,7 @@ export interface UwtRumBootstrap {
  * export class AppRumCredentialsProvider implements UwtRumCredentialsProvider {
  *   async load(): Promise<UwtRumBootstrap | null> {
  *     const res = await fetch('/rum/init');
- *     if (!res.ok) return null;
+ *     if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`);
  *     const { enabled, config, credentials } = await res.json();
  *     return enabled ? { config, credentials } : null;
  *   }
@@ -288,8 +309,11 @@ export interface UwtRumCredentialsProvider {
    * Resolves the app monitor settings and a set of credentials.
    *
    * Called once at startup and again shortly before each credential expiry.
-   * Returning `null` disables RUM for the session — the telemetry layer stays
-   * fully functional, it simply stops shipping.
+   * Returning `null` disables RUM for the rest of the page — the telemetry
+   * layer stays fully functional, it simply stops shipping. Throw instead when
+   * the request fails: the sink retries — at startup with a growing, random
+   * wait for up to five minutes, buffering events until the client starts;
+   * on refresh every 30 s.
    *
    * @returns the bootstrap payload, or `null` to disable RUM
    */
