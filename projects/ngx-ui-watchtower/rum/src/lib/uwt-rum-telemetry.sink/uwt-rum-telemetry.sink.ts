@@ -23,6 +23,8 @@ import {
   UwtRumBootstrap,
   UwtRumCredentials
 } from '../uwt-rum-credentials/uwt-rum-credentials';
+import { UWT_RUM_SINK_OPTIONS } from '../uwt-rum-sink-options/uwt-rum-sink-options';
+import { uwtHostHttpRealms } from '../uwt-rum-realms/uwt-rum-realms';
 
 /** Refresh credentials this long before they expire. */
 const CREDENTIAL_REFRESH_SKEW_MS = 5 * 60 * 1000;
@@ -117,6 +119,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   private readonly config = inject(UWT_TELEMETRY_IDENTITY);
   private readonly redact = inject(UWT_REDACT_CONFIG);
   private readonly credentialsProvider = inject(UWT_RUM_CREDENTIALS_PROVIDER);
+  private readonly options = inject(UWT_RUM_SINK_OPTIONS, { optional: true });
   private readonly document = inject(DOCUMENT);
   /**
    * False on the server and while telemetry is off: the client never starts —
@@ -125,6 +128,18 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   private readonly canStart =
     uwtIsBrowser() &&
     (inject(UWT_TELEMETRY_ENABLED, { optional: true }) ?? true);
+
+  /** Traces fragment realms' HTTP requests like this realm's own. */
+  private readonly realms = this.canStart
+    ? uwtSafe(
+        'rum.realms',
+        () =>
+          this.document.defaultView
+            ? uwtHostHttpRealms(this.document.defaultView)
+            : undefined,
+        undefined
+      )
+    : undefined;
 
   private awsRum: AwsRum | null = null;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -183,7 +198,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         return;
       }
 
-      const { AwsRum } = await import('aws-rum-web');
+      const { AwsRum, FetchPlugin, XhrPlugin } = await import('aws-rum-web');
       if (this.destroyed) {
         return;
       }
@@ -191,12 +206,14 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       const sessionCookie = sessionCookieName(bootstrap);
       const hadSession = this.hasCookie(sessionCookie);
 
-      this.awsRum = new AwsRum(
+      const rumConfig = this.buildRumConfig(bootstrap);
+      const awsRum = new AwsRum(
         bootstrap.config.applicationId,
         bootstrap.config.applicationVersion,
         bootstrap.config.region,
-        this.buildRumConfig(bootstrap)
+        rumConfig
       );
+      this.awsRum = awsRum;
 
       this.marksSessionStarts =
         bootstrap.config.allowCookies !== false &&
@@ -217,6 +234,17 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       }
       this.applyCredentials(bootstrap.credentials);
       this.replayBuffer();
+      // Not while the client is switched off: it has disabled its own
+      // plugins, and a fragment's would otherwise enable themselves on load.
+      if (bootstrap.config.enableRumClient !== false) {
+        uwtSafeVoid('rum.realms.start', () =>
+          this.realms?.start(
+            { FetchPlugin, XhrPlugin },
+            awsRum,
+            rumConfig.telemetries ?? []
+          )
+        );
+      }
     } catch (error) {
       this.disableAwsRum();
       this.buffer = [];
@@ -388,6 +416,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    */
   private disableAwsRum(): void {
     uwtSafeVoid('rum.disable', () => this.awsRum?.disable());
+    uwtSafeVoid('rum.realms.stop', () => this.realms?.stop());
     this.awsRum = null;
     this.disabled = true;
   }
@@ -405,16 +434,33 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    */
   private buildRumConfig(bootstrap: UwtRumBootstrap): AwsRumConfig {
     const { config } = bootstrap;
-    const origin = this.document.defaultView?.location?.origin ?? '';
+    const document = this.document;
+    const origin = document.defaultView?.origin;
 
     // X-Ray trace header only on same-origin requests; a cross-origin
-    // request with an unexpected header fails CORS preflight. Anchored at
-    // both ends (with a path/query/fragment/end-of-string lookahead) so
-    // `https://example.com` doesn't also match a look-alike host like
-    // `https://example.com.attacker.example`.
-    const sameOrigin = new RegExp(
-      '^' + origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:[/?#]|$)'
-    );
+    // request with an unexpected header fails CORS preflight. The client
+    // tests each URL as the caller passed it — Angular's HttpClient passes
+    // `/api/...` unresolved — so resolve it the way the browser will
+    // (backslashes, stray whitespace and all) before comparing origins. A
+    // RegExp, as the client's config expects, whose `test` does that; the
+    // pattern itself never matches, so anything that bypasses `test` adds
+    // no header rather than adding it everywhere.
+    const excluded = this.options?.xRayExcludeUrls ?? [];
+    const sameOrigin = Object.assign(/(?!)/, {
+      test: (url: string) => {
+        try {
+          const resolved = new URL(url, document.baseURI);
+          return (
+            resolved.origin === origin &&
+            // search(), not test(): a `g` pattern's test() carries lastIndex
+            // over, and would skip every other request.
+            !excluded.some((pattern) => resolved.href.search(pattern) >= 0)
+          );
+        } catch {
+          return false;
+        }
+      }
+    });
 
     return {
       allowCookies: config.allowCookies ?? true,

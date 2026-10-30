@@ -95,6 +95,18 @@ export class MyRumCredentials implements UwtRumCredentialsProvider {
 }
 ```
 
+### AWS X-Ray
+
+RUM adds an `X-Amzn-Trace-Id` header to your same-origin requests, including
+those from embedded fragments, so AWS X-Ray can follow them into your
+backend. If an endpoint redirects to another origin (e.g. a download that
+302s to S3), the browser sends the header there too, and the request fails
+unless that origin allows the header in CORS. Keep the header off such URLs:
+
+```ts
+provideUwtTelemetryRumSink({ xRayExcludeUrls: [/\/files\//] });
+```
+
 ### Log backend
 
 ```ts
@@ -238,6 +250,25 @@ For RxJS, `traceScenario` ends the scenario for you:
 this.api.fetchCustomers().pipe(traceScenario(scenario)).subscribe();
 ```
 
+### Telling your backend
+
+To let backend logs and AWS X-Ray traces tie a request to its journey, send
+the scenario id with it:
+
+```ts
+provideHttpClient(withInterceptors([uwtScenarioHeaderInterceptor()]));
+
+this.http
+  .get('/api/customers', { context: uwtScenarioContext(scenario) })
+  .pipe(traceScenario(scenario))
+  .subscribe();
+```
+
+Marked same-origin requests get an `X-Uwt-Scenario-Id` header (rename it
+with `{ headerName }`); nothing else changes. List the interceptor after any
+that rewrite URLs. Have your backend log the header, and add it to its X-Ray
+trace as the `scenarioId` annotation.
+
 ## BI events
 
 ```ts
@@ -329,6 +360,16 @@ providers: [
 ```
 
 Fragment code doesn't change. Give each fragment its own `application` name.
+A fragment's HTTP requests are traced by the shell's RUM client, the same as
+the shell's own: same X-Ray header, same session.
+
+If the page can be open in several tabs, give each tab its own channel, so
+one tab's fragments aren't recorded under another tab's page. Set it in the
+shell only; nested fragments follow it:
+
+```ts
+provideUwtTelemetryBroadcastHost(`ngx-ui-watchtower-${crypto.randomUUID()}`);
+```
 
 ## Seeing what is sent
 

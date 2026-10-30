@@ -115,6 +115,7 @@ Everything each entry point exports, by role.
 | Setup                       | `provideUwtTelemetry`, `withLogging`, `withScenarios`, `withBIEvents`, `withRedaction`, `UwtTelemetryFeature`, `provideUwtTelemetrySink`, `UwtTelemetryLocalSinkMode` (`'broadcast' \| 'noop'`), `provideUwtTelemetryBroadcastHost`, `provideUwtTelemetryDestination` + `UwtTelemetryDestinationOptions`    |
 | Configuration               | `UWT_TELEMETRY_IDENTITY` + `UwtTelemetryIdentity`; `UWT_LOG_CONFIG` + `UwtLogConfig`; `UWT_SCENARIO_TELEMETRY_CONFIG` + `UwtScenarioTelemetryConfig`; `UWT_BI_TELEMETRY_CONFIG` + `UwtBITelemetryConfig`; `UWT_REDACT_CONFIG`; `UWT_DEFAULT_TELEMETRY_CONFIG` (every default)                               |
 | Scenarios                   | `UwtScenarioTelemetryService`, `UwtScenario`, `traceScenario` + `UwtTraceScenarioOptions`; models `UwtScenarioOptions`, `UwtScenarioOutcome`, `UwtScenarioStepDetail`, `UwtScenarioRecord`, `UwtScenarioStep`, `UwtScenarioStepEvent`, `UwtScenarioAggregate`, `UwtScenarioStatus`, `UwtScenarioStepStatus` |
+| Backend correlation         | `uwtScenarioHeaderInterceptor` + `UwtScenarioHeaderOptions`, `uwtScenarioContext`, `UWT_DEFAULT_SCENARIO_HEADER` (`'X-Uwt-Scenario-Id'`)                                                                                                                                                                    |
 | BI events                   | `UwtBITelemetryService`; `UwtBIEvent`, `UwtBIEventDetail` (`scenarioId`, `feature`)                                                                                                                                                                                                                         |
 | Logging                     | `UwtLoggerService`, `UwtLogger`; `UwtLogDetail`, `UwtLogRecord`, `UwtLogLevel`, `UWT_LOG_LEVEL_ORDER`; `UWT_LOG_API_PROVIDER`, `UwtLogApiProvider`, `UwtLogQuery`; `UwtNoopLogApiProvider`, `UwtBroadcastLogApiProvider`                                                                                    |
 | Name registries             | `UwtScenarioNames` / `UwtScenarioName`, `UwtScenarioSteps` / `UwtStepName`, `UwtBIEventNames` / `UwtBIEventName`, `UwtLoggerNames` / `UwtLoggerName`                                                                                                                                                        |
@@ -123,7 +124,7 @@ Everything each entry point exports, by role.
 | Redaction, for custom sinks | `uwtRedactMetadata`, `uwtNormalizeError`, `uwtScrubString`, `uwtRedactConfigFor`, `UwtRedactConfig`, `UWT_DEFAULT_REDACT_CONFIG`, `UwtPiiValuePattern`, `UWT_REDACTED` (`'[redacted]'`, the replacement value)                                                                                              |
 | Utilities                   | `uwtUuid()`, `uwtIsDebugEnabled(flag, name?)` + `UwtDebugFlag` (`'debugLogger' \| 'debugScenario' \| 'debugBI'`)                                                                                                                                                                                            |
 
-**`@absaoss-cps/ngx-ui-watchtower/rum`:** `provideUwtTelemetryRumSink`, `UwtRumTelemetrySink`,
+**`@absaoss-cps/ngx-ui-watchtower/rum`:** `provideUwtTelemetryRumSink` + `UwtRumSinkOptions` (`xRayExcludeUrls`), `UwtRumTelemetrySink`,
 `UWT_RUM_CREDENTIALS_PROVIDER`, `UwtRumCredentialsProvider`,
 `UwtRumBootstrap` (`{ config, credentials? }`), `UwtRumAppMonitorConfig`,
 `UwtRumCredentials` (`accessKeyId`, `secretAccessKey`, `sessionToken`,
@@ -820,7 +821,7 @@ against documentation.
 | Performance measurements                | ✅ via built-in `performance` telemetry + Web Vitals plugin                                                                                                       | `WebVitalsPlugin`, `NavigationPlugin`, `ResourcePlugin`      |
 | Flushing / buffering                    | ✅ `dispatch()`, `dispatchBeacon()`; `dispatchInterval` 5s, `batchLimit` 100 by default, both configurable via `UwtRumAppMonitorConfig`                           | `Orchestration.js` defaults                                  |
 | Custom **metrics**                      | ❌ **not an SDK concept.** Emit events; define CloudWatch RUM _extended metrics_ server-side                                                                      |
-| Correlation identifiers                 | ⚠️ **no built-in scenario correlation.** X-Ray trace ids exist for HTTP; journey correlation is ours to design                                                    |
+| Correlation identifiers                 | ⚠️ **no built-in scenario correlation.** X-Ray trace ids exist for HTTP, one per request; ours is `X-Uwt-Scenario-Id` (§8)                                        |
 | Reading telemetry back from the browser | ❌ no export/read API                                                                                                                                             |
 | Offline behaviour                       | ⚠️ events sit in the in-memory cache (`eventCacheSize` 1000 by default, configurable) and are lost on tab close; there is no persistent queue                     |
 | Web Worker execution                    | ❌ **not possible** — `SessionManager` reads `window.location.hostname`, `document.cookie` and `navigator.cookieEnabled`, none of which exist in a worker context |
@@ -928,11 +929,69 @@ with the sink's own. Correlation runs only through
 holds no logger, so scenario telemetry never requires the logging stack to
 be configured at all — the two concerns meet only through the id.
 
-**Backend correlation is by convention.** AWS performs no cross-system
-correlation. Send `scenario.id` to your backend as a request header (e.g.
-`X-Correlation-Id`) and have backend logs record it under the same name. The
-library ships no HTTP interceptor for this — the header name and which hosts
-may receive it are application decisions.
+### Sending the scenario to your backend
+
+AWS performs no cross-system correlation, so the library sends the scenario's
+id with the requests that belong to it, and the backend records it.
+
+```ts
+providers: [
+  provideHttpClient(withInterceptors([uwtScenarioHeaderInterceptor()]))
+];
+
+this.http
+  .get<Customer[]>('/api/customers', { context: uwtScenarioContext(scenario) })
+  .pipe(traceScenario(scenario))
+  .subscribe();
+```
+
+`uwtScenarioHeaderInterceptor` adds `X-Uwt-Scenario-Id: <scenario.id>`
+(`UWT_DEFAULT_SCENARIO_HEADER`; rename it with `{ headerName }`) when:
+
+- the request is marked with `uwtScenarioContext(scenario)`. Requests are
+  marked one by one, because several scenarios can run at once and nothing
+  else can tell which one a request belongs to. Unmarked requests get no
+  header;
+- the request is same-origin. A custom header on a cross-origin request
+  needs a CORS preflight the other server may not allow — the same reason
+  the RUM client sends its X-Ray header to the same origin only;
+- telemetry is on, and the code runs in a browser;
+- the request doesn't already carry the header.
+
+It judges "same-origin" by the URL as it sees it, so list it after any
+interceptor that rewrites URLs, such as one that prefixes an API host. It
+only adds the header. Errors, retries and cancellation reach the caller
+unchanged, and settling the scenario stays with the caller or
+`traceScenario`. A `retry()` sends the same id again. For `fetch`, set the
+header yourself: `headers: { [UWT_DEFAULT_SCENARIO_HEADER]: scenario.id }`.
+
+**The X-Ray trace stays as it is.** The RUM client starts a new trace for
+every request and sends it as `X-Amzn-Trace-Id`, so one scenario spans
+several traces, and a retry gets its own. It does this for same-origin
+requests, relative URLs (`/api/...`) included, and for a fragment's
+requests too ([§13](#what-behaves-the-same-across-realms)). A same-origin
+endpoint that redirects cross-origin (to S3, an IdP) passes both headers
+on, so the target must allow them in CORS. Otherwise list the path in
+`provideUwtTelemetryRumSink({ xRayExcludeUrls: [/\/files\//] })`, and don't mark that request with
+a scenario. The two headers travel together;
+the backend links them by adding the scenario id to its trace as an
+annotation (an indexed, searchable label), and to its log lines:
+
+```ts
+// Node + OpenTelemetry; the backend must continue the incoming X-Ray trace
+const scenarioId = req.get('X-Uwt-Scenario-Id'); // untrusted: validate it
+if (scenarioId && UUID.test(scenarioId)) {
+  const span = trace.getActiveSpan();
+  span?.setAttribute('scenarioId', scenarioId);
+  span?.setAttribute('aws.xray.annotations', ['scenarioId']);
+  req.log = req.log.child({ scenarioId });
+}
+```
+
+The X-Ray filter `annotation.scenarioId = "<id>"` then finds every trace of
+the journey. Filterable annotation keys allow letters, digits and
+underscores only, so use `scenarioId` in both places. Only the entry service needs to do this — the
+trace header carries the trace on to the services it calls.
 
 ### Who is signed in
 
@@ -1397,6 +1456,17 @@ async load(): Promise<UwtRumBootstrap | null> {
     credentials
   };
 }
+```
+
+`config` mirrors the SDK and usually comes from the backend. Settings that
+belong to the application's own code go to the provider instead, as
+`UwtRumSinkOptions`. Today that is `xRayExcludeUrls`: same-origin URLs that
+must not get the X-Ray header, such as an endpoint that redirects to another
+origin which doesn't allow the header (see
+[§8](#sending-the-scenario-to-your-backend)):
+
+```ts
+provideUwtTelemetryRumSink({ xRayExcludeUrls: [/\/files\//] });
 ```
 
 ### Per-logger levels
@@ -1973,10 +2043,11 @@ That binding has a consequence for configuration. A bound fragment is
 embedded by id and routed to by a gateway, so the shell never sets its URL,
 and reading `location.search` inside one returns the host's query string
 rather than a fragment-specific one. A shell therefore cannot hand
-per-fragment configuration down on a URL; it publishes it on the top-level
-window instead, which every fragment can read because they all share the
-shell's origin. See "Multiple tabs of the same composed page" below for
-the pattern, applied there to a per-tab channel name.
+per-fragment configuration down on a URL; it leaves it on its own `window`
+instead, which every fragment can reach because they all share the shell's
+origin. The library does this itself for what fragments need from it, the
+channel name and the HTTP-tracing hook: see "Multiple tabs of the same
+composed page" and "What behaves the same across realms" below.
 
 A separate realm means a separate Angular injector, so left alone
 **every realm builds its own copy of every telemetry service**:
@@ -2045,11 +2116,11 @@ bootstrapApplication(FragmentRoot, {
 });
 ```
 
-| Setting          | Rule                                                                                                                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `eventNamespace` | **Must match** the shell, or the event types diverge and your CloudWatch queries split with them                                                                                  |
-| Channel name     | **Must match.** The default (`'ngx-ui-watchtower'`) needs no argument; if the shell passes a custom name, pass the same — `provideUwtTelemetrySink('broadcast', { channelName })` |
-| `application`    | **Should differ** per fragment. The forwarding sink stamps its realm's `application`, `environment` and `appVersion` onto every event, so you can tell fragments apart            |
+| Setting          | Rule                                                                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eventNamespace` | **Must match** the shell, or the event types diverge and your CloudWatch queries split with them                                                                                             |
+| Channel name     | **Follows the shell.** A fragment nested in the shell's page uses the shell's channel by itself. Set `channelName` only for a realm outside the page (a popup), and then to the shell's name |
+| `application`    | **Should differ** per fragment. The forwarding sink stamps its realm's `application`, `environment` and `appVersion` onto every event, so you can tell fragments apart                       |
 
 A forwarded **error** has no metadata to carry that origin in —
 `recordError` takes none — so the RUM sink folds a differing origin into the
@@ -2219,8 +2290,20 @@ Both records then join on `parentScenarioId`.
   shell reads correctly in a fragment despite the iframe having a later
   origin. The one limit: a moment from _before_ the fragment's realm
   existed gets clamped away and falls back to now.
+- **HTTP requests.** The RUM client runs only in the shell, and patches only
+  the shell's `fetch` and `XMLHttpRequest`; a fragment has its own. So the
+  `'broadcast'` sink hands its realm's `window` to the shell's RUM sink at
+  startup (through the handle the shell leaves on its `window`, found by
+  walking `parent`), and the shell applies the client's own `fetch`/XHR plugins to
+  the fragment's globals. Fragment requests then get the same X-Ray header,
+  the same RUM HTTP events and the same session as the shell's. The fragment
+  keeps its own `fetch`, XHR and zone.js: requests aren't rerouted through
+  the shell's realm, which would break change detection in a zone-based
+  fragment. The shell lets go of the fragment's `window` when the iframe is
+  removed, or when its app is destroyed — not when the page only
+  enters the back/forward cache.
 - **Page identity.** The iframe's `location` is synced to the host's, so
-  the X-Ray same-origin regex and the route template both resolve against
+  the X-Ray same-origin check and the route template both resolve against
   the real URL.
 - **Debug flags.** One origin means one `localStorage`: a flag set once
   applies in every realm, and all of them write to the same console.
@@ -2320,74 +2403,37 @@ providers: [
 ];
 ```
 
-Publish it as a global on the top-level window. Every fragment is same-origin
-with its shell — `BroadcastChannel` would not work otherwise — so
-`window.top` is reachable from inside any of them, plain iframe and Web
-Fragment alike:
+Fragments nested in the shell's page, plain iframes and Web Fragments
+alike, pick that channel up by themselves, with nothing to add in them. The
+host publishes it on a handle on its `window`
+(`Symbol.for('ngx-ui-watchtower.host')`), and a fragment's `'broadcast'`
+sink and log provider find it by walking up `window.parent`. Web Fragments'
+reframing virtualizes the DOM, `history` and `location`, but not `parent` or
+`BroadcastChannel`, which is why this works there.
 
-```ts
-declare global {
-  interface Window {
-    __uwtTelemetryChannel?: string;
-  }
-}
+Under SSR, generate the id inside a browser check (`crypto` is only a global
+from Node 19, and nothing on the server needs an id):
+`provideUwtTelemetryBroadcastHost(undefined)` keeps the default channel.
 
-// shell — at module scope, before any fragment can read it. Browser-only,
-// so the same module stays safe to evaluate under SSR.
-if (typeof window !== 'undefined') {
-  window.__uwtTelemetryChannel = channelId;
-}
-```
+A fragment that sets its own channel (`UWT_BROADCAST_CHANNEL`, or
+`channelName` on `provideUwtTelemetrySink('broadcast')`) keeps it. A
+realm that forwards from outside the shell's page, such as a popup window
+or another tab, can't see the shell's window, so it needs the channel set explicitly and
+otherwise stays on the default. So does a fragment that starts before its
+shell's host exists; Web Fragments mount after the shell has started.
 
-Under SSR, generate the id inside that same browser check — `crypto` is only
-a global from Node 19, and nothing on the server needs an id:
-`provideUwtTelemetryBroadcastHost(undefined)` just keeps the default channel.
+**Upgrading from the manual pattern.** Before, these docs had apps publish
+`window.__uwtTelemetryChannel` in the shell and read it in each fragment
+with `{ provide: UWT_BROADCAST_CHANNEL, useFactory: shellChannelName }`.
+That keeps working, since an explicit channel always wins. Shells and fragments
+usually deploy separately, so remove it in this order:
 
-```ts
-// fragment
-function shellChannelName(): string | undefined {
-  if (typeof window === 'undefined') {
-    return undefined; // server render
-  }
-  try {
-    return window.top?.__uwtTelemetryChannel;
-  } catch {
-    return undefined; // cross-origin `top`
-  }
-}
-
-providers: [
-  provideUwtTelemetry({ application: 'cart', environment: 'prod', version }),
-  provideUwtTelemetrySink('broadcast'),
-  { provide: UWT_BROADCAST_CHANNEL, useFactory: shellChannelName }
-];
-```
-
-Use `UWT_BROADCAST_CHANNEL` with `useFactory` rather than the `channelName`
-option: the factory runs when the sink is first constructed, late enough
-that a fragment booting before the shell publishes the id still picks it up.
-`undefined` falls back to the default channel, so a fragment with no shell
-behaves as before. Web Fragments' reframing virtualizes the DOM, `history`
-and `location`, but not `top`, `BroadcastChannel` or storage — which is why
-this works there.
-
-**Where the shell owns the fragment's URL** — a plain iframe — a query
-parameter does the same job. The iframe must be same-origin with the shell,
-like every fragment; a sourceless iframe (`about:blank`, `srcdoc`) qualifies
-but has no URL to carry the parameter, so it reads the `top` global instead.
-
-```ts
-// shell
-iframe.src = `/fragment/?channel=${channelId}`;
-
-// fragment
-const channelId = new URLSearchParams(window.location.search).get('channel');
-provideUwtTelemetrySink('broadcast', { channelName: channelId ?? undefined });
-```
-
-That doesn't work under Web Fragments: a fragment is embedded by id and
-routed by a gateway, so the shell has no URL to append to, and a _bound_
-fragment shares the host's `location`, so `location.search` is the shell's.
+1. Upgrade every fragment, then drop its `useFactory` provider. An upgraded
+   fragment finds the channel itself.
+2. Only then remove `window.__uwtTelemetryChannel` from the shell. A
+   fragment still on an earlier version reads only that global; without it,
+   it falls back to the default channel, and its events stop reaching the
+   shell.
 
 With a channel per tab, each tab's election trivially picks itself, and a
 tab's fragments never hear another tab. A duplicated tab loads a fresh
@@ -2405,6 +2451,14 @@ tabs, deliberately, since RUM models a session as a user's, not a tab's.
 - **Multiple tabs on one channel cross-attribute**, as above, until each tab
   has its own channel — the protocol carries no tab identifier to route
   back by.
+- **Fragment HTTP tracing has the shell's limits, and two more.** As in the
+  shell, a request is traced only once the RUM client has loaded, and
+  fragment requests count against the one session's event budget (200 by
+  default). Code that captured the fragment's `fetch` before the shell
+  patched it is not traced. And when a fragment request fails at the
+  network level, its X-Ray segment is marked as a fault but has no
+  exception: the client tests the error with `instanceof Object`, which
+  fails for an error made in another realm.
 
 ---
 

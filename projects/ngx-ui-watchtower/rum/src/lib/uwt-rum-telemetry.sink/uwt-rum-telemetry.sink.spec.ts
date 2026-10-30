@@ -12,6 +12,10 @@ import {
   UWT_RUM_CREDENTIALS_PROVIDER,
   UwtRumBootstrap
 } from '../uwt-rum-credentials/uwt-rum-credentials';
+import {
+  UWT_RUM_SINK_OPTIONS,
+  UwtRumSinkOptions
+} from '../uwt-rum-sink-options/uwt-rum-sink-options';
 import { UwtRumTelemetrySink } from './uwt-rum-telemetry.sink';
 
 /** Stand-in for the real `AwsRum` client. */
@@ -27,7 +31,8 @@ const awsRumInstance = {
   getSessionId: jest.fn(() => 'rum-session-1'),
   dispatch: jest.fn(),
   dispatchBeacon: jest.fn(),
-  disable: jest.fn()
+  disable: jest.fn(),
+  addPlugin: jest.fn()
 };
 
 // Typed on the real `new AwsRum(applicationId, applicationVersion, region,
@@ -46,6 +51,20 @@ jest.mock(
   () => ({
     AwsRum: function (this: unknown, ...args: unknown[]) {
       return AwsRumCtor(...(args as Parameters<typeof AwsRumCtor>));
+    },
+    FetchPlugin: class {
+      getPluginId() {
+        return 'fetch';
+      }
+
+      disable() {}
+    },
+    XhrPlugin: class {
+      getPluginId() {
+        return 'xhr';
+      }
+
+      disable() {}
     }
   }),
   { virtual: true }
@@ -71,6 +90,19 @@ function bootstrap(
   };
 }
 
+/** The X-Ray header matchers the client was built with. */
+function xRayMatchers() {
+  const config = AwsRumCtor.mock.calls[0][3] as {
+    telemetries: [string, string, [string, { addXRayTraceIdHeader: RegExp[] }]];
+  };
+  const matchers = config.telemetries[2][1].addXRayTraceIdHeader;
+  // The SDK adds the header when any matcher matches the URL as passed.
+  return {
+    matchers,
+    traced: (url: string) => matchers.some((m) => m.test(url))
+  };
+}
+
 describe('UwtRumTelemetrySink', () => {
   let sink: UwtRumTelemetrySink;
   let load: jest.Mock;
@@ -79,6 +111,7 @@ describe('UwtRumTelemetrySink', () => {
     platformId?: object;
     enabled?: boolean;
     loadImpl?: () => Promise<UwtRumBootstrap | null>;
+    sinkOptions?: UwtRumSinkOptions;
   }): void {
     load = jest.fn(options?.loadImpl ?? (async () => bootstrap()));
 
@@ -99,6 +132,9 @@ describe('UwtRumTelemetrySink', () => {
         },
         { provide: PLATFORM_ID, useValue: options?.platformId ?? 'browser' },
         { provide: UWT_RUM_CREDENTIALS_PROVIDER, useValue: { load } },
+        ...(options?.sinkOptions
+          ? [{ provide: UWT_RUM_SINK_OPTIONS, useValue: options.sinkOptions }]
+          : []),
         { provide: UWT_TELEMETRY_ENABLED, useValue: options?.enabled ?? true },
         UwtRumTelemetrySink
       ]
@@ -155,19 +191,55 @@ describe('UwtRumTelemetrySink', () => {
     it('should scope the X-Ray trace header to the exact origin, not a look-alike host', async () => {
       await sink.init();
 
-      const config = AwsRumCtor.mock.calls[0][3] as {
-        telemetries: [
-          string,
-          string,
-          [string, { addXRayTraceIdHeader: RegExp[] }]
-        ];
-      };
-      const sameOrigin = config.telemetries[2][1].addXRayTraceIdHeader[0];
+      const { traced } = xRayMatchers();
       const origin = window.location.origin;
 
-      expect(sameOrigin.test(`${origin}/api/customers`)).toBe(true);
-      expect(sameOrigin.test(origin)).toBe(true);
-      expect(sameOrigin.test(`${origin}.attacker.example/api`)).toBe(false);
+      expect(traced(`${origin}/api/customers`)).toBe(true);
+      expect(traced(origin)).toBe(true);
+      expect(traced(`${origin}.attacker.example/api`)).toBe(false);
+      expect(traced('https://other.example/api')).toBe(false);
+      expect(traced('//other.example/api')).toBe(false);
+      expect(traced('data:text/plain,x')).toBe(false);
+    });
+
+    it('should resolve a URL the way the browser does before comparing origins', async () => {
+      await sink.init();
+
+      const { matchers, traced } = xRayMatchers();
+
+      // Each of these looks relative but resolves to another host.
+      expect(traced('/\\api.other.example/x')).toBe(false);
+      expect(traced('\\\\api.other.example/x')).toBe(false);
+      expect(traced(' https://api.other.example/x')).toBe(false);
+      expect(traced('/\t/api.other.example/x')).toBe(false);
+      expect(traced('http://[bad')).toBe(false);
+      // Anything bypassing `test` gets a pattern that matches nothing.
+      expect(RegExp.prototype.exec.call(matchers[0], '/api')).toBeNull();
+    });
+
+    it('should treat a relative URL as same-origin, as HttpClient passes it unresolved', async () => {
+      await sink.init();
+
+      const { traced } = xRayMatchers();
+
+      expect(traced('/api/customers')).toBe(true);
+      expect(traced('api/customers')).toBe(true);
+      expect(traced('?page=2')).toBe(true);
+    });
+
+    it('should leave out URLs listed in xRayExcludeUrls, relative or absolute', async () => {
+      configure({
+        // `g` on purpose: it must not skip every other request.
+        sinkOptions: { xRayExcludeUrls: [/\/files\//g] }
+      });
+      await sink.init();
+
+      const { traced } = xRayMatchers();
+
+      expect(traced('/files/123')).toBe(false);
+      expect(traced('/files/124')).toBe(false);
+      expect(traced(`${window.location.origin}/files/123`)).toBe(false);
+      expect(traced('/api/customers')).toBe(true);
     });
 
     it('should honour explicitly supplied app monitor settings', async () => {
@@ -625,6 +697,82 @@ describe('UwtRumTelemetrySink', () => {
 
       expect(AwsRumCtor).toHaveBeenCalled();
       expect(awsRumInstance.setAwsCredentials).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fragment realms', () => {
+    const KEY = Symbol.for('ngx-ui-watchtower.host');
+    const traceHttp = () =>
+      (
+        window as unknown as Record<
+          symbol,
+          { traceHttp?(realm: Window): () => void } | undefined
+        >
+      )[KEY]?.traceHttp;
+    const join = (realm: Window) => {
+      const trace = traceHttp();
+      if (!trace) {
+        throw new Error('no traceHttp on the handle');
+      }
+      return trace(realm);
+    };
+    const realm = () =>
+      Object.assign(new EventTarget(), {
+        parent: window
+      }) as unknown as Window;
+    const addedIds = () =>
+      awsRumInstance.addPlugin.mock.calls.map(([plugin]) =>
+        (plugin as { getPluginId(): string }).getPluginId()
+      );
+
+    it('should trace a realm that joined before the client started', async () => {
+      join(realm());
+      expect(awsRumInstance.addPlugin).not.toHaveBeenCalled();
+
+      await sink.init();
+
+      expect(addedIds()).toEqual(['fetch.realm-1', 'xhr.realm-1']);
+    });
+
+    it('should trace a realm that joins after the client started', async () => {
+      await sink.init();
+      join(realm());
+
+      expect(addedIds()).toEqual(['fetch.realm-1', 'xhr.realm-1']);
+    });
+
+    it('should trace no realm when the app monitor has no http telemetry', async () => {
+      configure({
+        loadImpl: async () => bootstrap({ telemetries: ['errors'] })
+      });
+      await sink.init();
+      join(realm());
+
+      expect(awsRumInstance.addPlugin).not.toHaveBeenCalled();
+    });
+
+    it('should trace no realm while the client is switched off', async () => {
+      configure({
+        loadImpl: async () => bootstrap({ enableRumClient: false })
+      });
+      await sink.init();
+      join(realm());
+
+      expect(awsRumInstance.addPlugin).not.toHaveBeenCalled();
+    });
+
+    it('should take traceHttp off the handle on destroy', () => {
+      expect(traceHttp()).toBeDefined();
+
+      sink.ngOnDestroy();
+
+      expect(traceHttp()).toBeUndefined();
+    });
+
+    it('should offer no traceHttp while telemetry is off', () => {
+      configure({ enabled: false });
+
+      expect(traceHttp()).toBeUndefined();
     });
   });
 
