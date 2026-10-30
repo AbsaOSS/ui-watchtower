@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/AbsaOSS/ui-watchtower/compare/v0.3.0...v0.4.0) (2026-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* remove the BI event-type override ([#14](https://github.com/AbsaOSS/ui-watchtower/issues/14))
+
+### Features
+
+* add sessionElapsed to scenario records ([#20](https://github.com/AbsaOSS/ui-watchtower/issues/20)) ([b05d9e2](https://github.com/AbsaOSS/ui-watchtower/commit/b05d9e2d6f856a27a579787f2ef6c615ada7e1da))
+* add sessionId and userId to BI events ([#16](https://github.com/AbsaOSS/ui-watchtower/issues/16)) ([b4d6fc2](https://github.com/AbsaOSS/ui-watchtower/commit/b4d6fc210691b8ebb81d305fba25c6645e4b8a70))
+* remove the BI event-type override ([#14](https://github.com/AbsaOSS/ui-watchtower/issues/14)) ([d18fb47](https://github.com/AbsaOSS/ui-watchtower/commit/d18fb47b2bb303bf5c89a21ee872fb63ea8a06f6))
+
 ## [0.3.0](https://github.com/AbsaOSS/ui-watchtower/compare/v0.2.0...v0.3.0) (2026-10-14)
 
 
