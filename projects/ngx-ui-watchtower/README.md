@@ -95,6 +95,12 @@ export class MyRumCredentials implements UwtRumCredentialsProvider {
 }
 ```
 
+Settings that need a `RegExp` or a function — `pagesToExclude`, or
+`urlsToExclude` and `ignore` inside `telemetries` — can't come from JSON. If
+one arrives as a string, the sink doesn't start RUM for the page and warns in
+the console, rather than let the SDK throw or record what you meant to
+exclude. Set those in code.
+
 ### Log backend
 
 ```ts

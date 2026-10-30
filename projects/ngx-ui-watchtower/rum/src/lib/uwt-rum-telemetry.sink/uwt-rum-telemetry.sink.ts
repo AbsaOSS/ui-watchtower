@@ -84,20 +84,126 @@ interface BufferedError {
 type BufferedItem = BufferedEvent | BufferedPageView | BufferedError;
 
 /**
- * Drops every key whose value is `undefined`.
+ * Drops every key whose value is unset: `undefined`, or `null` as a broker's
+ * JSON spells it.
  *
  * Used to build the SDK config object from optional consumer fields: a key
- * present with value `undefined` would overwrite the SDK's own default for
- * that key, so unset fields must be absent rather than `undefined`.
+ * present with value `undefined` or `null` would overwrite the SDK's own
+ * default for that key, so unset fields must be absent.
  */
-function omitUndefined<T extends object>(obj: T): Partial<T> {
+function omitUnset<T extends object>(obj: T): Partial<T> {
   const result: Partial<T> = {};
   for (const key of Object.keys(obj) as (keyof T)[]) {
-    if (obj[key] !== undefined) {
+    if (obj[key] !== undefined && obj[key] !== null) {
       result[key] = obj[key];
     }
   }
   return result;
+}
+
+/** Whether `value` is an array of `RegExp`s only. */
+function isRegExpList(value: unknown): boolean {
+  return (
+    Array.isArray(value) && value.every((entry) => entry instanceof RegExp)
+  );
+}
+
+/** A setting's type check, and the type it expects, for the warning. */
+interface UwtSettingCheck {
+  valid: (value: unknown) => boolean;
+  expected: string;
+}
+
+const REGEXP_LIST: UwtSettingCheck = {
+  valid: isRegExpList,
+  expected: 'an array of RegExp'
+};
+const FUNCTION: UwtSettingCheck = {
+  valid: (value) => typeof value === 'function',
+  expected: 'a function'
+};
+
+/**
+ * Telemetry options the SDK calls as a function or matches with
+ * `RegExp.test`. JSON can carry neither, and anything else in their place
+ * makes the SDK throw each time it applies the option — for the URL filters,
+ * inside its patched `fetch` and XHR, so on every application request.
+ */
+const TELEMETRY_OPTION_CHECKS = new Map<string, UwtSettingCheck>([
+  ['urlsToInclude', REGEXP_LIST],
+  ['urlsToExclude', REGEXP_LIST],
+  [
+    'addXRayTraceIdHeader',
+    {
+      valid: (value) => typeof value === 'boolean' || isRegExpList(value),
+      expected: 'a boolean or an array of RegExp'
+    }
+  ],
+  ['ignore', FUNCTION],
+  ['interactionId', FUNCTION]
+]);
+
+/**
+ * Lists the settings in `config` the SDK can't use, each with the type it
+ * expects: `pagesToInclude` or `pagesToExclude` that isn't an array of
+ * `RegExp`s, `telemetries` that isn't an array, and each telemetry option
+ * failing its {@link TELEMETRY_OPTION_CHECKS} check, as `name.option`.
+ * `undefined` and `null` count as unset, not as invalid.
+ */
+function invalidRumSettings(config: UwtRumBootstrap['config']): string[] {
+  const invalid: string[] = [];
+  for (const key of ['pagesToInclude', 'pagesToExclude'] as const) {
+    const value = config[key];
+    if (value != null && !REGEXP_LIST.valid(value)) {
+      invalid.push(`${key} (expected ${REGEXP_LIST.expected})`);
+    }
+  }
+  const telemetries: unknown = config.telemetries;
+  if (telemetries == null) {
+    return invalid;
+  }
+  if (!Array.isArray(telemetries)) {
+    // A string would be read as one telemetry per character.
+    invalid.push('telemetries (expected an array)');
+    return invalid;
+  }
+  for (const telemetry of telemetries) {
+    if (!Array.isArray(telemetry)) {
+      continue;
+    }
+    const [name, options] = telemetry;
+    if (typeof options !== 'object' || options === null) {
+      continue;
+    }
+    for (const [key, value] of Object.entries(options)) {
+      const check = TELEMETRY_OPTION_CHECKS.get(key);
+      if (value != null && check && !check.valid(value)) {
+        invalid.push(`${String(name)}.${key} (expected ${check.expected})`);
+      }
+    }
+  }
+  return invalid;
+}
+
+/**
+ * Copies `telemetries` without tuple options that are unset (`undefined` or
+ * `null`). The SDK merges a telemetry's options over its defaults with
+ * `Object.assign`, so an explicit unset value would replace a default it
+ * relies on — `urlsToExclude: null` would throw on every request.
+ */
+function withoutUnsetOptions(
+  telemetries: NonNullable<UwtRumBootstrap['config']['telemetries']>
+): NonNullable<UwtRumBootstrap['config']['telemetries']> {
+  return telemetries.map((telemetry) => {
+    if (!Array.isArray(telemetry)) {
+      return telemetry;
+    }
+    const [name, options, ...rest] = telemetry;
+    if (typeof options !== 'object' || options === null) {
+      return telemetry;
+    }
+    return [name, omitUnset(options), ...rest];
+  });
 }
 
 /**
@@ -180,6 +286,18 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       if (!bootstrap?.config) {
         this.disableAwsRum();
         this.buffer = [];
+        return;
+      }
+
+      // Fails closed: the page and URL filters and `ignore` decide what is
+      // *not* recorded, so dropping one would record what the app meant to
+      // keep out, and passing it on would make the SDK throw. RUM stays off
+      // for the page instead, as with a broker that returns `null`.
+      const invalid = invalidRumSettings(bootstrap.config);
+      if (invalid.length) {
+        this.disableAwsRum();
+        this.buffer = [];
+        this.reportInvalidSettings(invalid);
         return;
       }
 
@@ -396,12 +514,16 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * Maps {@link UwtRumAppMonitorConfig} onto the SDK's own `PartialConfig`.
    *
    * The SDK merges this object over its own defaults with a shallow
-   * `Object.assign`, so a key present with value `undefined` overwrites the
-   * SDK's default instead of falling through to it. `allowCookies`,
-   * `enableXRay`, `endpoint` and `telemetries` always carry this library's
-   * own override; every other field goes through {@link omitUndefined} (or,
-   * for `client`, a conditional spread) so an unset field is absent and the
-   * SDK's own default applies.
+   * `Object.assign`, so a key present with value `undefined` or `null`
+   * overwrites the SDK's default instead of falling through to it.
+   * `allowCookies`, `enableXRay`, `endpoint` and `telemetries` always carry
+   * this library's own override; every other field goes through
+   * {@link omitUnset} (or, for `client`, a conditional spread) so an unset
+   * field is absent and the SDK's own default applies. Unset telemetry options
+   * are left out for the same reason. `performInit()` has already checked the
+   * types of `pagesToInclude`/`pagesToExclude`, `telemetries` and the telemetry
+   * options in {@link TELEMETRY_OPTION_CHECKS} ({@link invalidRumSettings});
+   * every other field is passed on as given.
    */
   private buildRumConfig(bootstrap: UwtRumBootstrap): AwsRumConfig {
     const { config } = bootstrap;
@@ -422,15 +544,17 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       endpoint:
         config.endpoint ??
         `https://dataplane.rum.${config.region}.amazonaws.com`,
-      telemetries: config.telemetries ?? [
-        'errors',
-        'performance',
-        ['http', { addXRayTraceIdHeader: [sameOrigin] }]
-      ],
+      telemetries: Array.isArray(config.telemetries)
+        ? withoutUnsetOptions(config.telemetries)
+        : (config.telemetries ?? [
+            'errors',
+            'performance',
+            ['http', { addXRayTraceIdHeader: [sameOrigin] }]
+          ]),
 
-      ...(config.client !== undefined ? { client: config.client } : {}),
+      ...(config.client != null ? { client: config.client } : {}),
 
-      ...omitUndefined({
+      ...omitUnset({
         releaseId: config.releaseId,
         clientBuilder: config.clientBuilder,
         applicationAttributes: config.applicationAttributes,
@@ -622,6 +746,21 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     this.refreshTimer = setTimeout(() => {
       this.refreshCredentials().catch(() => undefined);
     }, CREDENTIAL_RETRY_DELAY_MS);
+  }
+
+  /**
+   * Reports settings that kept RUM from starting, in every environment: a
+   * silent production page would hide that RUM is off. Each setting's name and
+   * expected type are printed, never its value.
+   *
+   * @param problems one `name (expected type)` entry per setting
+   */
+  private reportInvalidSettings(problems: string[]): void {
+    uwtSafeVoid('rum.reportInvalidSettings', () => {
+      console.warn(
+        `[ngx-ui-watchtower] RUM not started, settings of the wrong type: ${problems.join(', ')}`
+      );
+    });
   }
 
   /**

@@ -170,6 +170,132 @@ describe('UwtRumTelemetrySink', () => {
       expect(sameOrigin.test(`${origin}.attacker.example/api`)).toBe(false);
     });
 
+    it('should not start RUM when a telemetry option needs a RegExp or a function but holds a string', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      configure({
+        loadImpl: async () =>
+          bootstrap({
+            telemetries: [
+              'errors',
+              [
+                'http',
+                {
+                  urlsToExclude: ['/health'],
+                  addXRayTraceIdHeader: ['/api'],
+                  recordAllRequests: true
+                }
+              ],
+              ['performance', { ignore: 'resource', eventLimit: 5 }],
+              [
+                'interaction',
+                { interactionId: 'id', events: [{ event: 'click' }] }
+              ]
+            ]
+          })
+      });
+      await sink.init();
+      sink.record('scenario', {});
+
+      expect(AwsRumCtor).not.toHaveBeenCalled();
+      expect(awsRumInstance.recordEvent).not.toHaveBeenCalled();
+      // Names and expected types only, never the values.
+      expect(warn).toHaveBeenCalledWith(
+        '[ngx-ui-watchtower] RUM not started, settings of the wrong type: ' +
+          'http.urlsToExclude (expected an array of RegExp), ' +
+          'http.addXRayTraceIdHeader (expected a boolean or an array of RegExp), ' +
+          'performance.ignore (expected a function), ' +
+          'interaction.interactionId (expected a function)'
+      );
+    });
+
+    it('should keep telemetry options that are RegExps, functions or booleans', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const ignore = () => false;
+      const telemetries = [
+        ['http', { urlsToExclude: [/\/health/], addXRayTraceIdHeader: true }],
+        ['errors', { ignore }]
+      ];
+      configure({ loadImpl: async () => bootstrap({ telemetries }) });
+      await sink.init();
+
+      const config = AwsRumCtor.mock.calls[0][3] as { telemetries: unknown[] };
+      expect(config.telemetries).toEqual(telemetries);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('should not start RUM when a page filter is not a RegExp list', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      configure({
+        loadImpl: async () =>
+          bootstrap({
+            pagesToInclude: [/^\/app/],
+            pagesToExclude: ['/admin'] as unknown as RegExp[]
+          })
+      });
+      await sink.init();
+
+      expect(AwsRumCtor).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        '[ngx-ui-watchtower] RUM not started, settings of the wrong type: ' +
+          'pagesToExclude (expected an array of RegExp)'
+      );
+    });
+
+    it.each([
+      ['a string', 'errors'],
+      ['an object', { http: true }]
+    ])(
+      'should not start RUM when telemetries is %s, not an array',
+      async (_label, telemetries) => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        configure({
+          loadImpl: async () =>
+            bootstrap({ telemetries: telemetries as unknown as string[] })
+        });
+        await sink.init();
+
+        expect(AwsRumCtor).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(
+          '[ngx-ui-watchtower] RUM not started, settings of the wrong type: ' +
+            'telemetries (expected an array)'
+        );
+      }
+    );
+
+    it('should treat settings set to undefined or null as unset', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      configure({
+        loadImpl: async () =>
+          bootstrap({
+            // As a broker's JSON may spell unset fields.
+            pagesToInclude: null as unknown as RegExp[],
+            pagesToExclude: undefined,
+            sessionSampleRate: null as unknown as number,
+            telemetries: [
+              [
+                'http',
+                {
+                  urlsToExclude: undefined,
+                  urlsToInclude: null,
+                  recordAllRequests: true
+                }
+              ]
+            ]
+          })
+      });
+      await sink.init();
+
+      const config = AwsRumCtor.mock.calls[0][3] as { telemetries: unknown[] };
+      // Strict: an explicit `undefined` or `null` would replace the SDK's default.
+      expect(config.telemetries).toStrictEqual([
+        ['http', { recordAllRequests: true }]
+      ]);
+      expect(config).not.toHaveProperty('pagesToInclude');
+      expect(config).not.toHaveProperty('pagesToExclude');
+      expect(config).not.toHaveProperty('sessionSampleRate');
+      expect(warn).not.toHaveBeenCalled();
+    });
+
     it('should honour explicitly supplied app monitor settings', async () => {
       configure({
         loadImpl: async () =>
