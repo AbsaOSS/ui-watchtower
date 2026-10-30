@@ -110,7 +110,10 @@ export class MyLogBackend implements UwtLogApiProvider {
     void fetch('/api/logs', {
       method: 'POST',
       body: JSON.stringify(record),
-      keepalive: true
+      // Only while the page is hidden (it may be closing): browsers reject
+      // keepalive requests once all in flight exceed 64 KiB, so a burst would
+      // be lost.
+      keepalive: document.visibilityState === 'hidden'
     }).catch(() => undefined);
   }
 
