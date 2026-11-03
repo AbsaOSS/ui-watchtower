@@ -80,14 +80,17 @@ provideUwtTelemetry(
 
 ### AWS credentials
 
-Fetch them from your backend:
+The RUM sink gets its AWS details from a credentials provider: a class you
+write that fetches them from your backend, registered as
+`UWT_RUM_CREDENTIALS_PROVIDER`. The sink calls its `load()` at startup and
+again shortly before the credentials expire.
 
 ```ts
 @Injectable({ providedIn: 'root' })
 export class MyRumCredentials implements UwtRumCredentialsProvider {
   async load(): Promise<UwtRumBootstrap | null> {
     const res = await fetch('/rum/init', { cache: 'no-store' });
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`); // retried
 
     const { enabled, config, credentials } = await res.json();
     return enabled ? { config, credentials } : null; // null = don't ship
@@ -290,9 +293,18 @@ class SupportService {
 ```ts
 const sink = inject(UwtTelemetrySink);
 
-sink.setUserId(user.id); // on sign-in — an opaque id, never an email
+sink.setUserId(user.id); // on sign-in — an opaque UUID, never an email
 sink.setUserId(undefined); // on sign-out
 ```
+
+RUM accepts only a UUID as a user id — with MSAL, use the account's
+`localAccountId`. Anonymous users get a random one, so every event also
+carries `signedIn: true | false` to tell them apart. It's absent until your
+first `setUserId` call, so make that call early, e.g. right after MSAL
+initializes.
+
+Signing out while nobody is signed in does nothing, so it's safe to call
+`setUserId` on every change of your auth state.
 
 ## Privacy
 
