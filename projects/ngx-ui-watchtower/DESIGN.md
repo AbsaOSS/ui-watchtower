@@ -614,8 +614,11 @@ all along — use the named method instead.
 For Observable-driven journeys, the pipeable `traceScenario` operator
 completes or fails the scenario based on how the stream ends. If it is torn
 down some other way first — a superseding `switchMap`, `takeUntilDestroyed()`,
-a manual unsubscribe — it cancels the scenario instead of leaving it to
-settle as a `timeout`.
+a manual unsubscribe — what it records depends on whether a value got
+through. Before any value, it cancels the scenario instead of leaving it to
+settle as a `timeout`. After a value, it completes the scenario, because that
+is how `firstValueFrom`, `take(1)` and `first()` end a stream once they have
+what they need.
 
 ```ts
 import { traceScenario } from '@absaoss-cps/ngx-ui-watchtower';
@@ -650,13 +653,36 @@ this.searchSubject$.pipe(
 ```
 
 How it decides: `traceScenario` settles on `complete` with optional derived
-outcome metadata, and fails with the caught error on `error`. A teardown that reaches neither — a superseding `switchMap`, `takeUntilDestroyed()`,
-a manual unsubscribe — cancels the scenario instead, guarded by `isSettled`
-so it never re-cancels one that already completed or failed (`tap`'s own
-`unsubscribe` hook fires after every teardown, settled or not). Without
-this, a cancelled-by-unsubscription scenario would sit active until its own
-timeout and record as `timeout` rather than the caller-driven abandonment
-it actually was.
+outcome metadata, and fails with the caught error on `error`. A teardown that
+reaches neither — a superseding `switchMap`, `takeUntilDestroyed()`, a manual
+unsubscribe — settles it by whether the stream has emitted:
+
+- **No value yet:** cancels the scenario. Without this, a
+  cancelled-by-unsubscription scenario would sit active until its own timeout
+  and record as `timeout` rather than the caller-driven abandonment it
+  actually was.
+- **After a value:** completes the scenario, with the outcome mapped from the
+  last value. `firstValueFrom`, `take(1)` and `first()` unsubscribe upstream
+  as soon as they have a value, before the source's `complete` arrives, so
+  without this a successful request would record as `abandoned`.
+
+Both are guarded by `isSettled`, so a teardown never re-settles a scenario
+that already completed or failed (`tap`'s own `unsubscribe` hook fires after
+every teardown, settled or not).
+
+For a multi-value stream — polling, progress, a websocket — stopping after a
+value usually means the user gave up, not that the journey succeeded. Opt
+back into cancelling with `valueThenTeardown: 'cancel'`:
+
+```ts
+this.api
+  .pollJobStatus(jobId)
+  .pipe(
+    traceScenario(scenario, { valueThenTeardown: 'cancel' }),
+    takeUntilDestroyed(this.destroyRef)
+  )
+  .subscribe();
+```
 
 ### Measuring what the user waited for
 
