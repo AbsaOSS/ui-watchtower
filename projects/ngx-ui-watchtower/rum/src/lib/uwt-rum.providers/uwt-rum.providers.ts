@@ -1,5 +1,9 @@
-import { EnvironmentProviders } from '@angular/core';
+import { EnvironmentProviders, makeEnvironmentProviders } from '@angular/core';
 import { provideUwtTelemetryDestination } from '@absaoss-cps/ngx-ui-watchtower';
+import {
+  UWT_RUM_SINK_OPTIONS,
+  UwtRumSinkOptions
+} from '../uwt-rum-sink-options/uwt-rum-sink-options';
 import { UwtRumTelemetrySink } from '../uwt-rum-telemetry.sink/uwt-rum-telemetry.sink';
 
 /**
@@ -26,18 +30,27 @@ import { UwtRumTelemetrySink } from '../uwt-rum-telemetry.sink/uwt-rum-telemetry
  *   provideUwtTelemetryRumSink(),
  *   { provide: UWT_RUM_CREDENTIALS_PROVIDER, useExisting: CartRumCredentials }
  * ]
+ *
+ * // keep the X-Ray header off an endpoint that redirects to another origin
+ * provideUwtTelemetryRumSink({ xRayExcludeUrls: [/\/files\//] });
  * ```
  *
+ * @param options optional settings, e.g. URLs to keep the X-Ray header off
  * @returns providers wiring the RUM sink
  *
  * @group Utils
  */
-export function provideUwtTelemetryRumSink(): EnvironmentProviders {
-  return provideUwtTelemetryDestination(UwtRumTelemetrySink, {
-    // Not awaited, so a slow or hung credential broker doesn't delay first
-    // paint.
-    init: (sink) => {
-      sink.init().catch(() => undefined);
-    }
-  });
+export function provideUwtTelemetryRumSink(
+  options: UwtRumSinkOptions = {}
+): EnvironmentProviders {
+  return makeEnvironmentProviders([
+    { provide: UWT_RUM_SINK_OPTIONS, useValue: options },
+    provideUwtTelemetryDestination(UwtRumTelemetrySink, {
+      // Not awaited, so a slow or hung credential broker doesn't delay first
+      // paint.
+      init: (sink) => {
+        sink.init().catch(() => undefined);
+      }
+    })
+  ]);
 }

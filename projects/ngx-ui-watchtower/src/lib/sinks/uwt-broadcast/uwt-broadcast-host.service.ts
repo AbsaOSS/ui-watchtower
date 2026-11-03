@@ -1,9 +1,12 @@
+import { DOCUMENT } from '@angular/common';
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import {
+  uwtIsBrowser,
   uwtSafe,
   uwtSafeVoid,
   uwtSafeVoidMaybeAsync
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+import { uwtHostHandleOf } from './uwt-host-handle.util';
 import {
   UwtBroadcastConnection,
   uwtConnectBroadcastChannel,
@@ -84,6 +87,12 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
   private isLeader = false;
   private releaseLeadership: () => void = () => undefined;
   private readonly enabled = uwtTelemetryEnabled();
+  private readonly hostWindow = uwtIsBrowser()
+    ? inject(DOCUMENT).defaultView
+    : null;
+
+  /** Whether this host put its channel name on the page's handle. */
+  private published = false;
 
   constructor() {
     if (!this.enabled) {
@@ -97,6 +106,10 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
     }
 
     this.connection.onMessage((data) => this.onMessage(data));
+    // Fragments nested in this page take this channel, so a shell with its
+    // own channel needs no setup in them. Leader or not: they talk to this
+    // page's host either way.
+    this.publishChannel();
     this.releaseLeadership = uwtElectBroadcastHostLeader(
       this.connection.channelName,
       () => {
@@ -116,8 +129,31 @@ export class UwtTelemetryBroadcastHost implements OnDestroy {
     if (this.enabled) {
       this.forgetInThisRealm();
     }
+    this.withdrawChannel();
     this.releaseLeadership();
     this.connection.close();
+  }
+
+  private publishChannel(): void {
+    uwtSafeVoid('broadcastHost.publishChannel', () => {
+      if (this.hostWindow) {
+        uwtHostHandleOf(this.hostWindow).channelName =
+          this.connection.channelName;
+        this.published = true;
+      }
+    });
+  }
+
+  private withdrawChannel(): void {
+    uwtSafeVoid('broadcastHost.withdrawChannel', () => {
+      if (!this.published || !this.hostWindow) {
+        return;
+      }
+      const handle = uwtHostHandleOf(this.hostWindow);
+      if (handle.channelName === this.connection.channelName) {
+        delete handle.channelName;
+      }
+    });
   }
 
   private onMessage(data: unknown): void {

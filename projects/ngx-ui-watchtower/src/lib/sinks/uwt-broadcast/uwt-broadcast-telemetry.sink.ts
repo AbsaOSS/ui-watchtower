@@ -1,15 +1,23 @@
+import { DOCUMENT } from '@angular/common';
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import {
   UwtTelemetryError,
   UwtTelemetryMetadata
 } from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import { UWT_TELEMETRY_IDENTITY } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
-import { uwtSafeVoid } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+import {
+  UWT_TELEMETRY_IDENTITY,
+  uwtTelemetryEnabled
+} from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
+import {
+  uwtIsBrowser,
+  uwtSafeVoid
+} from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import {
   UwtBroadcastConnection,
   uwtConnectBroadcastChannel,
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
+import { uwtJoinHttpRealm } from './uwt-host-handle.util';
 import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 
 /**
@@ -38,7 +46,16 @@ export class UwtBroadcastTelemetrySink
   implements OnDestroy
 {
   private readonly connection: UwtBroadcastConnection =
-    uwtConnectBroadcastChannel('broadcastSink');
+    uwtConnectBroadcastChannel('broadcastSink', { followShellChannel: true });
+
+  /** This realm's `window`, whose HTTP requests the host's RUM client traces. */
+  private readonly realmWindow =
+    uwtIsBrowser() && uwtTelemetryEnabled()
+      ? inject(DOCUMENT).defaultView
+      : null;
+
+  /** Hands the realm back; set once the host's RUM client took it. */
+  private leaveHttpRealm?: () => void;
 
   /** The host's session id, once it has answered. */
   private sessionId?: string;
@@ -63,6 +80,8 @@ export class UwtBroadcastTelemetrySink
 
     this.connection.onMessage((data) => this.onMessage(data));
     this.connection.post({ kind: 'identity-request' });
+    // Last, so nothing after it can throw and leave a join no one undoes.
+    this.joinHttpRealm();
   }
 
   /** @inheritdoc */
@@ -119,6 +138,8 @@ export class UwtBroadcastTelemetrySink
   /** @inheritdoc */
   ngOnDestroy(): void {
     this.connection.close();
+    this.leaveHttpRealm?.();
+    this.leaveHttpRealm = undefined;
   }
 
   private onMessage(data: unknown): void {
@@ -128,6 +149,15 @@ export class UwtBroadcastTelemetrySink
       }
       this.sessionId = data.sessionId;
       this.userId = data.userId;
+      // The host is up, so its RUM sink exists: join now if this realm
+      // started too early to find it.
+      this.joinHttpRealm();
     });
+  }
+
+  private joinHttpRealm(): void {
+    if (this.realmWindow && !this.leaveHttpRealm) {
+      this.leaveHttpRealm = uwtJoinHttpRealm(this.realmWindow);
+    }
   }
 }

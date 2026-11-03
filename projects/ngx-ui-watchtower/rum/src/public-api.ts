@@ -15,4 +15,5 @@ export type {
   UwtRumCredentials,
   UwtRumCredentialsProvider
 } from './lib/uwt-rum-credentials/uwt-rum-credentials';
+export type { UwtRumSinkOptions } from './lib/uwt-rum-sink-options/uwt-rum-sink-options';
 export { UwtRumTelemetrySink } from './lib/uwt-rum-telemetry.sink/uwt-rum-telemetry.sink';
