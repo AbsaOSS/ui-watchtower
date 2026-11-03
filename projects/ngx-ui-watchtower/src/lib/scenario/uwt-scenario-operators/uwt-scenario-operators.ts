@@ -22,6 +22,14 @@ export interface UwtTraceScenarioOptions<T> {
    * erroring — e.g. a `switchMap` moving on to a newer value.
    */
   cancelOutcome?: UwtScenarioOutcome | (() => UwtScenarioOutcome | void);
+
+  /**
+   * What a downstream unsubscribe means once a value has been delivered.
+   * Default `'complete'`, so `firstValueFrom`, `take(1)` and `first()` settle
+   * as success. Use `'cancel'` for multi-value streams (polling, progress),
+   * where stopping after a value is abandonment.
+   */
+  valueThenTeardown?: 'complete' | 'cancel';
 }
 
 /**
@@ -54,11 +62,43 @@ export function traceScenario<T>(
     typeof options === 'function' ? options : options?.outcome;
   const cancelOutcome =
     typeof options === 'function' ? undefined : options?.cancelOutcome;
+  const valueThenTeardown =
+    (typeof options === 'function' ? undefined : options?.valueThenTeardown) ??
+    'complete';
 
   return (source: Observable<T>): Observable<T> =>
     defer(() => {
       let lastValue: T | undefined;
       let hasValue = false;
+
+      const complete = () => {
+        const outcome =
+          hasValue && outcomeMapper
+            ? uwtSafe(
+                'scenario.traceOutcome',
+                () => outcomeMapper(lastValue as T),
+                undefined
+              )
+            : undefined;
+        scenario.complete(outcome || undefined);
+      };
+
+      const unsubscribe = () => {
+        if (scenario.isSettled) {
+          return;
+        }
+        // The consumer got a value and stopped listening, as
+        // firstValueFrom, take(1) and first() do: treat it as completion.
+        if (hasValue && valueThenTeardown === 'complete') {
+          complete();
+          return;
+        }
+        const resolved =
+          typeof cancelOutcome === 'function'
+            ? uwtSafe('scenario.traceCancelOutcome', cancelOutcome, undefined)
+            : cancelOutcome;
+        scenario.cancel(resolved || undefined);
+      };
 
       return source.pipe(
         tap({
@@ -66,33 +106,11 @@ export function traceScenario<T>(
             lastValue = value;
             hasValue = true;
           },
-          complete: () => {
-            const outcome =
-              hasValue && outcomeMapper
-                ? uwtSafe(
-                    'scenario.traceOutcome',
-                    () => outcomeMapper(lastValue as T),
-                    undefined
-                  )
-                : undefined;
-            scenario.complete(outcome || undefined);
-          },
+          complete,
           error: (error: unknown) => {
             scenario.fail({ error });
           },
-          unsubscribe: () => {
-            if (!scenario.isSettled) {
-              const resolved =
-                typeof cancelOutcome === 'function'
-                  ? uwtSafe(
-                      'scenario.traceCancelOutcome',
-                      cancelOutcome,
-                      undefined
-                    )
-                  : cancelOutcome;
-              scenario.cancel(resolved || undefined);
-            }
-          }
+          unsubscribe
         })
       );
     });
