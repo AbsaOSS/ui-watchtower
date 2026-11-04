@@ -16,9 +16,9 @@ import { UwtEventInspectorService } from '../uwt-event-inspector.service/uwt-eve
  * Adds the Event Inspector: an in-app window showing, live,
  * every BI, scenario and log event this app hands to its destinations.
  *
- * Opens with ⇧⌥⌘8 (macOS) or Ctrl+Alt+Shift+8 (Windows, Linux) by
- * default, in every environment. Needs cps-ui-kit set up in the app, as
- * for any cps-ui-kit dialog.
+ * Opens with Shift+E+I by default — hold Shift, press E, then I — in every
+ * environment. Needs cps-ui-kit set up in the app, as for any cps-ui-kit
+ * dialog.
  *
  * @example
  * ```typescript

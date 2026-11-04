@@ -1,5 +1,6 @@
 import { DOCUMENT } from '@angular/common';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -7,7 +8,8 @@ import {
   ElementRef,
   inject,
   input,
-  signal
+  signal,
+  viewChild
 } from '@angular/core';
 import {
   CPS_LIVE_ANNOUNCER_SERVICE,
@@ -37,6 +39,7 @@ import {
   uwtShortcutLabel
 } from '../uwt-inspector-shortcut/uwt-inspector-shortcut';
 import { UwtInspectorDockSwitcherComponent } from '../uwt-inspector-dock-switcher/uwt-inspector-dock-switcher.component';
+import { UwtInspectorLogoComponent } from '../uwt-inspector-logo/uwt-inspector-logo.component';
 import { UwtInspectorSession } from '../uwt-inspector-session/uwt-inspector-session';
 import {
   UWT_INSPECTOR_MAX_TRANSPARENCY,
@@ -64,6 +67,7 @@ const ANNOUNCE_EVERY_MS = 10_000;
     CpsSliderComponent,
     CpsSwitchComponent,
     UwtInspectorDockSwitcherComponent,
+    UwtInspectorLogoComponent,
     UwtInspectorSectionComponent
   ],
   providers: [
@@ -121,12 +125,15 @@ export class UwtInspectorComponent {
     this.preferences.read().transparency
   );
 
+  private readonly dialogLogo = viewChild('dialogLogo', { read: ElementRef });
+
   private lastAnnounced = { bi: 0, scenario: 0, logging: 0 };
 
   constructor() {
     const timer = setInterval(() => this.announceNew(), ANNOUNCE_EVERY_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
     this.applyTransparency(this.transparency());
+    afterNextRender(() => this.placeDialogLogo());
   }
 
   /** Whether keyboard focus is anywhere in the inspector, header included. */
@@ -182,6 +189,26 @@ export class UwtInspectorComponent {
         ...this.dialogConfig.style,
         opacity: String((100 - percent) / 100)
       };
+    }
+  }
+
+  /**
+   * cps-dialog draws the dialog's header, and its icon slot takes only an
+   * icon name, so the mark moves into that slot, before the title. Without
+   * the slot the mark goes.
+   */
+  private placeDialogLogo(): void {
+    const logo: HTMLElement | undefined = this.dialogLogo()?.nativeElement;
+    if (!logo) {
+      return;
+    }
+    const slot = this.host.nativeElement
+      .closest('.cps-dialog')
+      ?.querySelector('.cps-dialog-header-icon');
+    if (slot) {
+      slot.append(logo);
+    } else {
+      logo.remove();
     }
   }
 

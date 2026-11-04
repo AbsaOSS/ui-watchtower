@@ -1,31 +1,20 @@
 import { UwtInspectorShortcut } from '../uwt-inspector.models/uwt-inspector.models';
 
 /**
- * The default shortcuts: ⇧⌥⌘8 on macOS, Ctrl+Alt+Shift+8 on Windows and
- * Linux.
+ * The default shortcut, the same on every platform: Shift+E+I — hold Shift,
+ * press E, then I — for Event Inspector.
  *
- * Four keys so it is never pressed by accident, ending in a digit because
- * every layout has one. Both are active everywhere — the other platform's
- * combination is harmless, and covers external keyboards and remote
- * desktops. None is bound by Chrome, Safari, Edge or Firefox; ⌥⌘8 alone is
- * macOS Accessibility Zoom, which is why Shift is part of it.
+ * No browser binds it. It types text, so it is ignored in text fields:
+ * typing a capital "EI" there never opens the inspector.
  *
  * @group Utils
  */
 export const UWT_DEFAULT_INSPECTOR_SHORTCUTS: readonly UwtInspectorShortcut[] =
-  [
-    { code: 'Digit8', shift: true, alt: true, meta: true, label: '⇧⌥⌘8' },
-    {
-      code: 'Digit8',
-      ctrl: true,
-      alt: true,
-      shift: true,
-      label: 'Ctrl+Alt+Shift+8'
-    }
-  ];
+  [{ code: 'KeyI', after: 'KeyE', shift: true, label: 'Shift+E+I' }];
 
 /**
- * Whether `event` is exactly `shortcut`.
+ * Whether `event` is exactly `shortcut`, given the key pressed just before
+ * it (`previous`, a `KeyboardEvent.code`).
  *
  * - The physical key is compared (`code`), never the produced character —
  *   Option turns 8 into `•` on macOS, and Shift turns it into `*`.
@@ -33,15 +22,23 @@ export const UWT_DEFAULT_INSPECTOR_SHORTCUTS: readonly UwtInspectorShortcut[] =
  * - Held-down repeats don't count.
  * - AltGr is rejected. On many European Windows layouts it reports as
  *   Ctrl+Alt, and typing an AltGr character must never open the popup.
+ * - Without Ctrl or ⌘ it types text, so it doesn't count in a text field.
  */
 export function uwtMatchesShortcut(
   event: KeyboardEvent,
-  shortcut: UwtInspectorShortcut
+  shortcut: UwtInspectorShortcut,
+  previous?: string
 ): boolean {
   if (event.repeat || event.code !== shortcut.code) {
     return false;
   }
+  if (shortcut.after !== undefined && previous !== shortcut.after) {
+    return false;
+  }
   if (event.getModifierState?.('AltGraph')) {
+    return false;
+  }
+  if (!shortcut.ctrl && !shortcut.meta && isTextField(event.target)) {
     return false;
   }
   return (
@@ -79,14 +76,25 @@ export function uwtShortcutLabel(
 }
 
 function describeShortcut(s: UwtInspectorShortcut): string {
-  const key = s.code.replace(/^Digit|^Key/, '');
+  const key = (code: string | undefined) => code?.replace(/^Digit|^Key/, '');
   return [
     s.ctrl && 'Ctrl',
     s.alt && 'Alt',
     s.shift && 'Shift',
     s.meta && 'Meta',
-    key
+    key(s.after),
+    key(s.code)
   ]
     .filter(Boolean)
     .join('+');
+}
+
+/** Where typing goes into the page: an input, a text area or an editor. */
+function isTextField(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  return (
+    !!element &&
+    (element.isContentEditable ||
+      ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName))
+  );
 }

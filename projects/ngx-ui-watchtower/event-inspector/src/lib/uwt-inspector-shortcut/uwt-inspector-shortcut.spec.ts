@@ -9,74 +9,117 @@ type Mods = Partial<
   Pick<KeyboardEvent, 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey' | 'repeat'>
 >;
 
-function key(code: string, mods: Mods, keyChar = '8', altGraph = false) {
+function key(
+  code: string,
+  mods: Mods,
+  keyChar = 'I',
+  altGraph = false,
+  target: EventTarget | null = null
+) {
   const event = new KeyboardEvent('keydown', { code, key: keyChar, ...mods });
   Object.defineProperty(event, 'getModifierState', {
     value: (k: string) => k === 'AltGraph' && altGraph
   });
+  Object.defineProperty(event, 'target', { value: target });
   return event;
 }
 
-const [MAC, WIN] = UWT_DEFAULT_INSPECTOR_SHORTCUTS;
-const macMods = { shiftKey: true, altKey: true, metaKey: true };
-const winMods = { ctrlKey: true, altKey: true, shiftKey: true };
+const [DEFAULT] = UWT_DEFAULT_INSPECTOR_SHORTCUTS;
+const shift = { shiftKey: true };
+const CUSTOM = { code: 'Digit8', ctrl: true, alt: true, shift: true };
+const customMods = { ctrlKey: true, altKey: true, shiftKey: true };
 
 describe('uwtMatchesShortcut', () => {
-  it('should match ⇧⌥⌘8, even though Option and Shift change the character', () => {
-    // On macOS, ⇧⌥8 produces "°" — only the physical key is reliable.
-    expect(uwtMatchesShortcut(key('Digit8', macMods, '°'), MAC)).toBe(true);
-  });
-
-  it('should match Ctrl+Alt+Shift+8', () => {
-    expect(uwtMatchesShortcut(key('Digit8', winMods, '*'), WIN)).toBe(true);
+  it('should match Shift+I pressed right after Shift+E', () => {
+    expect(uwtMatchesShortcut(key('KeyI', shift), DEFAULT, 'KeyE')).toBe(true);
   });
 
   it.each([
-    ['a modifier missing', { shiftKey: true, altKey: true }],
-    ['an extra modifier', { ...macMods, ctrlKey: true }],
-    ['no modifiers', {}]
-  ])('should not match with %s', (_label, mods) => {
-    expect(uwtMatchesShortcut(key('Digit8', mods), MAC)).toBe(false);
+    ['nothing before', undefined],
+    ['another key before', 'KeyX'],
+    ['Shift pressed again in between', 'ShiftLeft']
+  ])('should not match Shift+I with %s', (_label, previous) => {
+    expect(uwtMatchesShortcut(key('KeyI', shift), DEFAULT, previous)).toBe(
+      false
+    );
   });
 
-  it('should not match the numpad 8', () => {
-    expect(uwtMatchesShortcut(key('Numpad8', macMods), MAC)).toBe(false);
+  it.each([
+    ['Shift missing', {}],
+    ['an extra modifier', { ...shift, ctrlKey: true }]
+  ])('should not match with %s', (_label, mods) => {
+    expect(uwtMatchesShortcut(key('KeyI', mods), DEFAULT, 'KeyE')).toBe(false);
+  });
+
+  it.each([
+    ['an input', 'input'],
+    ['a text area', 'textarea']
+  ])('should not match while typing in %s', (_label, tag) => {
+    const field = document.createElement(tag);
+    expect(
+      uwtMatchesShortcut(key('KeyI', shift, 'I', false, field), DEFAULT, 'KeyE')
+    ).toBe(false);
+  });
+
+  it('should match a shortcut with Ctrl in a text field, where it types nothing', () => {
+    const field = document.createElement('input');
+    expect(
+      uwtMatchesShortcut(key('Digit8', customMods, '*', false, field), CUSTOM)
+    ).toBe(true);
+  });
+
+  it('should match the physical key, whatever character it produces', () => {
+    // On macOS, ⇧⌥8 produces "°" — only the physical key is reliable.
+    const mac = { code: 'Digit8', shift: true, alt: true, meta: true };
+    const mods = { shiftKey: true, altKey: true, metaKey: true };
+    expect(uwtMatchesShortcut(key('Digit8', mods, '°'), mac)).toBe(true);
+    expect(uwtMatchesShortcut(key('Numpad8', mods, '°'), mac)).toBe(false);
   });
 
   it('should ignore a held-down repeat', () => {
     expect(
-      uwtMatchesShortcut(key('Digit8', { ...winMods, repeat: true }), WIN)
+      uwtMatchesShortcut(
+        key('KeyI', { ...shift, repeat: true }),
+        DEFAULT,
+        'KeyE'
+      )
     ).toBe(false);
   });
 
   it('should not fire while AltGr is producing a character', () => {
     // AltGr reports as Ctrl+Alt on many European Windows layouts.
-    expect(uwtMatchesShortcut(key('Digit8', winMods, '8', true), WIN)).toBe(
-      false
-    );
-  });
-
-  it('should match a custom shortcut', () => {
-    const custom = { code: 'KeyD', ctrl: true, alt: true, shift: true };
-    expect(uwtMatchesShortcut(key('KeyD', winMods, 'D'), custom)).toBe(true);
-    expect(uwtMatchesShortcut(key('Digit8', winMods), custom)).toBe(false);
+    expect(
+      uwtMatchesShortcut(key('Digit8', customMods, '8', true), CUSTOM)
+    ).toBe(false);
   });
 });
 
 describe('uwtShortcutLabel', () => {
-  it('should show the macOS label on Apple platforms, and the other elsewhere', () => {
+  it('should show Shift+E+I on every platform', () => {
     expect(uwtShortcutLabel(UWT_DEFAULT_INSPECTOR_SHORTCUTS, true)).toBe(
-      '⇧⌥⌘8'
+      'Shift+E+I'
     );
     expect(uwtShortcutLabel(UWT_DEFAULT_INSPECTOR_SHORTCUTS, false)).toBe(
-      'Ctrl+Alt+Shift+8'
+      'Shift+E+I'
     );
+  });
+
+  it('should prefer the shortcut written for the platform', () => {
+    const both = [
+      { code: 'Digit8', shift: true, alt: true, meta: true, label: '⇧⌥⌘8' },
+      { ...CUSTOM, label: 'Ctrl+Alt+Shift+8' }
+    ];
+    expect(uwtShortcutLabel(both, true)).toBe('⇧⌥⌘8');
+    expect(uwtShortcutLabel(both, false)).toBe('Ctrl+Alt+Shift+8');
   });
 
   it('should describe a shortcut that has no label', () => {
     expect(
       uwtShortcutLabel([{ code: 'KeyD', ctrl: true, shift: true }], false)
     ).toBe('Ctrl+Shift+D');
+    expect(
+      uwtShortcutLabel([{ code: 'KeyI', after: 'KeyE', shift: true }], false)
+    ).toBe('Shift+E+I');
   });
 
   it('should be undefined with no shortcuts', () => {

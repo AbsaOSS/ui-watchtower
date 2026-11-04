@@ -347,6 +347,18 @@ describe('UwtRumTelemetrySink', () => {
       });
     });
 
+    it("should add RUM's error plugin, capturing nothing itself, for recordError", async () => {
+      configure({ loadImpl: async () => bootstrap({ telemetries: ['http'] }) });
+      await sink.init();
+
+      const { telemetries } = AwsRumCtor.mock.calls[0][3] as {
+        telemetries: [string, [string, { ignore: () => boolean }]];
+      };
+      expect(telemetries[0]).toBe('http');
+      expect(telemetries[1][0]).toBe('errors');
+      expect(telemetries[1][1].ignore()).toBe(true);
+    });
+
     it('should omit every SDK-default-mirroring field entirely when unset, not send it as undefined', async () => {
       await sink.init();
 

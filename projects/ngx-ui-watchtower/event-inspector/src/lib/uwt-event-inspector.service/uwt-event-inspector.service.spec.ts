@@ -41,22 +41,20 @@ class FakeDialogs {
   }
 }
 
-const SHORTCUT = {
-  code: 'Digit8',
-  ctrlKey: true,
-  altKey: true,
-  shiftKey: true
-};
-
 type KeyInit = ConstructorParameters<typeof KeyboardEvent>[1];
 
-function press(init: KeyInit = SHORTCUT): KeyboardEvent {
+/** Presses one key on `target`; with none given, the default Shift+E+I. */
+function press(init?: KeyInit, target: Element = document.body): KeyboardEvent {
+  if (!init) {
+    press({ code: 'KeyE', shiftKey: true }, target);
+    return press({ code: 'KeyI', shiftKey: true }, target);
+  }
   const event = new KeyboardEvent('keydown', {
     ...init,
     bubbles: true,
     cancelable: true
   });
-  document.body.dispatchEvent(event);
+  target.dispatchEvent(event);
   return event;
 }
 
@@ -132,20 +130,28 @@ describe('UwtEventInspectorService', () => {
     expect(TestBed.inject(UwtEventInspectorService).isOpen()).toBe(true);
   });
 
-  it('should also open on the macOS shortcut', () => {
-    create().install();
-    press({ code: 'Digit8', metaKey: true, altKey: true, shiftKey: true });
-    expect(dialogs.opened).toHaveLength(1);
-  });
-
   it('should ignore ordinary typing and near misses', () => {
     create().install();
 
-    press({ code: 'Digit8' });
-    press({ code: 'Digit8', ctrlKey: true, shiftKey: true });
-    press({ code: 'KeyD', ctrlKey: true, altKey: true, shiftKey: true });
+    press({ code: 'KeyI', shiftKey: true });
+    press({ code: 'KeyE' });
+    press({ code: 'ShiftLeft', shiftKey: true });
+    press({ code: 'KeyI', shiftKey: true });
+    press({ code: 'KeyE', shiftKey: true });
+    press({ code: 'KeyX', shiftKey: true });
+    press({ code: 'KeyI', shiftKey: true });
 
     expect(dialogs.opened).toHaveLength(0);
+  });
+
+  it('should ignore Shift+E+I typed into a text field', () => {
+    create().install();
+    const field = document.body.appendChild(document.createElement('input'));
+
+    press(undefined, field);
+
+    expect(dialogs.opened).toHaveLength(0);
+    field.remove();
   });
 
   it('should bring focus back to an open popup, and close it from inside', () => {

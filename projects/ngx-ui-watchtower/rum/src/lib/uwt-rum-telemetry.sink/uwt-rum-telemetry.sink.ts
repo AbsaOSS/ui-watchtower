@@ -20,6 +20,7 @@ import {
 } from '../uwt-rum-internal.util/uwt-rum-internal.util';
 import {
   UWT_RUM_CREDENTIALS_PROVIDER,
+  UwtRumAppMonitorConfig,
   UwtRumBootstrap,
   UwtRumCredentials
 } from '../uwt-rum-credentials/uwt-rum-credentials';
@@ -123,6 +124,21 @@ function omitUndefined<T extends object>(obj: T): Partial<T> {
     }
   }
   return result;
+}
+
+/**
+ * The app's telemetries, plus RUM's error plugin when they leave it out.
+ * `recordError` goes through that plugin — RUM rejects it otherwise — so it
+ * is added with its own capture of unhandled errors switched off.
+ */
+function withErrorPlugin(
+  telemetries: NonNullable<UwtRumAppMonitorConfig['telemetries']>
+): UwtRumAppMonitorConfig['telemetries'] {
+  const named = (t: (typeof telemetries)[number]) =>
+    Array.isArray(t) ? t[0] : t;
+  return telemetries.some((t) => named(t) === 'errors')
+    ? telemetries
+    : [...telemetries, ['errors', { ignore: () => true }]];
 }
 
 /**
@@ -558,11 +574,13 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       endpoint:
         config.endpoint ??
         `https://dataplane.rum.${config.region}.amazonaws.com`,
-      telemetries: config.telemetries ?? [
-        'errors',
-        'performance',
-        ['http', { addXRayTraceIdHeader: [sameOrigin] }]
-      ],
+      telemetries: withErrorPlugin(
+        config.telemetries ?? [
+          'errors',
+          'performance',
+          ['http', { addXRayTraceIdHeader: [sameOrigin] }]
+        ]
+      ),
 
       ...(config.client !== undefined ? { client: config.client } : {}),
 

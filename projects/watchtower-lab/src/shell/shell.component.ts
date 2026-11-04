@@ -1,0 +1,132 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  inject,
+  signal
+} from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { UwtTelemetrySink } from '@absaoss-cps/ngx-ui-watchtower';
+import { UwtEventInspectorService } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
+import { LabLayout } from '../lab/lab-layout.service';
+import { LabWire } from '../lab/lab-wire.service';
+import { LAB_OPTIONS, SHELL_PAGES } from './shell.config';
+
+/** The lab's frame: a fixed header, the pages, and a fixed status bar. */
+@Component({
+  selector: 'lab-root',
+  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <header class="lab-header">
+      <img
+        class="lab-logo"
+        src="assets/logo/logo-mark.svg"
+        alt=""
+        width="32"
+        height="32" />
+      <strong class="lab-title">Watchtower Lab</strong>
+      <span class="lab-chip">destination: {{ options.destination }}</span>
+      <span class="lab-chip"
+        >telemetry: {{ options.telemetry ? 'on' : 'off' }}</span
+      >
+      <span class="lab-chip">broker: {{ wire.brokerMode() }}</span>
+      <span class="lab-chip"
+        >rum telemetries: {{ wire.telemetriesLabel() }}</span
+      >
+      <span class="lab-spacer"></span>
+      <span class="lab-user">{{
+        identity().userId ? 'Signed in' : 'Signed out'
+      }}</span>
+      <button
+        type="button"
+        class="lab-header-button"
+        (click)="inspector.open()">
+        Event Inspector
+      </button>
+    </header>
+
+    <div class="lab-layout">
+      <nav class="lab-nav" aria-label="Lab pages">
+        @for (page of pages; track page.path) {
+          <a [routerLink]="page.path" routerLinkActive="active">{{
+            page.label
+          }}</a>
+        }
+      </nav>
+      <main class="lab-main">
+        <router-outlet />
+      </main>
+    </div>
+
+    <footer class="lab-status">
+      <span
+        >Mock dataplane: {{ wire.rum().length }} RUM events ({{
+          wire.libraryEvents()
+        }}
+        from the library) in {{ wire.batches() }} batches</span
+      >
+      <span>logs: {{ wire.logs().length }}</span>
+      <span>session: {{ identity().sessionId ?? '—' }}</span>
+      <span>user: {{ identity().userId ?? '—' }}</span>
+    </footer>
+  `,
+  styles: `
+    .lab-logo {
+      flex-shrink: 0;
+      margin-right: -0.25rem;
+      border-radius: 50%;
+      box-shadow: 0 0 0 0.125rem #ffffffb3;
+    }
+    .lab-title {
+      font-size: 1.2rem;
+    }
+    .lab-chip {
+      padding: 0.15rem 0.6rem;
+      border-radius: 1rem;
+      background-color: #ffffff26;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+    .lab-spacer {
+      flex: 1;
+    }
+    .lab-user {
+      white-space: nowrap;
+    }
+    .lab-header-button {
+      padding: 0.35rem 0.9rem;
+      border: 0.0625rem solid #fff;
+      border-radius: 0.25rem;
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+  `
+})
+export class ShellComponent {
+  protected readonly options = inject(LAB_OPTIONS);
+  protected readonly wire = inject(LabWire);
+  protected readonly inspector = inject(UwtEventInspectorService);
+  protected readonly pages = SHELL_PAGES;
+  protected readonly identity = signal<{ sessionId?: string; userId?: string }>(
+    {}
+  );
+
+  private readonly sink = inject(UwtTelemetrySink);
+
+  constructor() {
+    inject(LabLayout);
+    const timer = setInterval(
+      () =>
+        this.identity.set({
+          sessionId: this.sink.getSessionId(),
+          userId: this.sink.getUserId()
+        }),
+      1000
+    );
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+  }
+}

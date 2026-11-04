@@ -37,19 +37,27 @@ export type UwtInspectorPaneSide = Extract<
  *
  * Matched on `KeyboardEvent.code` — the physical key — so it works on every
  * keyboard layout, and isn't affected by what Option or Shift produce.
- * A modifier left out must be *up*, so extra modifiers never match.
+ * A modifier left out must be *up*, so extra modifiers never match. One
+ * without Ctrl or ⌘ types text, so it doesn't count in a text field.
  *
  * @group Interfaces
  */
 export interface UwtInspectorShortcut {
   /** `KeyboardEvent.code`, e.g. `'Digit8'` or `'KeyD'`. */
   code: string;
+
+  /**
+   * A key pressed just before `code`, with the modifiers still held:
+   * `'KeyE'` in Shift+E+I. Without it, `code` alone is pressed.
+   */
+  after?: string;
+
   ctrl?: boolean;
   alt?: boolean;
   shift?: boolean;
   meta?: boolean;
 
-  /** How the shortcut is written for people, e.g. `'⇧⌥⌘8'`. */
+  /** How the shortcut is written for people, e.g. `'Shift+E+I'`. */
   label?: string;
 }
 

@@ -57,7 +57,7 @@
           placeholder="Text to compare"
           [hideDetails]="true"
           [value]="value()"
-          (valueChanged)="value.set($event ?? '')">
+          (valueChanged)="value.set($event)">
         </cps-input>
       }
       <cps-button

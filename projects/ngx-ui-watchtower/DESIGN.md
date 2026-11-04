@@ -910,6 +910,10 @@ The custom layers duplicate nothing built in: the library records no page
 views, does not re-capture unhandled errors, and collects no browser or
 device attributes.
 
+An app that sets its own `telemetries` without `'errors'` still gets RUM's
+error plugin, with its own capture off: `recordError` and
+`mirrorErrorsToRum` go through it, and RUM rejects them without it.
+
 ### From events to metrics
 
 - **Custom RUM events don't become CloudWatch metrics on their own.** They
@@ -2050,22 +2054,20 @@ dark theme is not yet complete for the components inside it.
 
 #### Opening it
 
-| Platform          | Shortcut                   |
-| ----------------- | -------------------------- |
-| macOS             | **⇧ ⌥ ⌘ 8**                |
-| Windows and Linux | **Ctrl + Alt + Shift + 8** |
+**Shift + E + I** on every platform — hold Shift, press E, then I — for
+Event Inspector. No browser binds it. Keys are matched by physical position
+(`KeyboardEvent.code`), so it works on any layout; Shift must be the only
+modifier, and held-down repeats are ignored.
 
-Four keys, so it never opens by accident; both combinations work
-everywhere, which covers external keyboards and remote desktops. Keys are
-matched by physical position (`KeyboardEvent.code`), so they work on any
-layout — Option rewrites the typed character on macOS. Every modifier must
-match exactly, held-down repeats are ignored, and AltGr — which many
-European Windows layouts report as Ctrl+Alt — never triggers it. ⌥⌘8 alone
-is macOS Accessibility Zoom, which is why Shift is part of it.
+It types text, so it is ignored in a text field — typing a capital "EI"
+there never opens it; press it with focus outside the field. Screen readers
+in browse mode keep letter keys for their own navigation; there, open it
+from a button that calls `open()`.
 
 It opens where it was last — a dialog the first time — and never blocks the
 app, so you can watch events arrive. With it open, the shortcut brings focus
-back to it from the app, and closes it when focus is already inside.
+back to it from the app — to its search field — and closes it when focus is
+already inside, outside a text field.
 
 #### Where it opens
 
@@ -2195,9 +2197,13 @@ Characters here are UTF-16 code units (JavaScript's `length`), not bytes: the
 limit protects rendering, which costs by the length of the text. A cut never
 splits a surrogate pair.
 
-A shortcut is a `UwtInspectorShortcut` — `{ code, ctrl?, alt?, shift?,
-meta?, label? }`, where `code` is a `KeyboardEvent.code` such as `'Digit8'`
-or `'KeyD'`, and an omitted modifier must be up. Spread
+A shortcut is a `UwtInspectorShortcut` — `{ code, after?, ctrl?, alt?,
+shift?, meta?, label? }`, where `code` is a `KeyboardEvent.code` such as
+`'Digit8'` or `'KeyD'`, and an omitted modifier must be up. `after` is a key
+pressed just before `code` with the modifiers still held: the default is
+`{ code: 'KeyI', after: 'KeyE', shift: true }`. A shortcut without `ctrl` or
+`meta` types text, so it doesn't count in a text field. AltGr, which many
+European Windows layouts report as Ctrl+Alt, never matches. Spread
 `UWT_DEFAULT_INSPECTOR_SHORTCUTS` to add one rather than replace them.
 
 `UwtEventInspectorService` opens it from code: `open()`, `close()`,

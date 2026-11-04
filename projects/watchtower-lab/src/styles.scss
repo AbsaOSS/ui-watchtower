@@ -1,0 +1,213 @@
+// cps-ui-kit's global styles, without its primeicons import: the lab doesn't
+// use PrimeIcons, and the package isn't installed here.
+@use 'cps-ui-kit/styles/colors';
+@use 'cps-ui-kit/styles/fonts';
+@use 'cps-ui-kit/styles/cps-tooltip-style';
+@use 'cps-ui-kit/styles/mixins' as cps;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.p-scrollbar-measure {
+  position: absolute;
+  top: -9999px;
+  width: 100px;
+  height: 100px;
+  overflow: scroll;
+}
+
+.cps-sr-only {
+  position: absolute;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  margin: -0.0625rem;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+body {
+  margin: 0;
+  background-color: #f4f6f9;
+  color: var(--cps-color-text-dark);
+  font-family: 'Source Sans Pro', sans-serif;
+}
+
+// The header and status bar are fixed to the window on purpose: they show
+// what an Event Inspector pane covers, and — with `lab-insets` on <html>,
+// switched on the Event Inspector page — how an app keeps them beside it.
+.lab-header {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: 3.5rem;
+  padding: 0 1.25rem;
+  background-color: #8a0b3c;
+  color: #fff;
+}
+
+.lab-status {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 2.25rem;
+  padding: 0 1.25rem;
+  background-color: #1f2937;
+  color: #e5e7eb;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+html.lab-insets {
+  .lab-header {
+    right: var(--uwt-inspector-inset-right, 0px);
+    left: var(--uwt-inspector-inset-left, 0px);
+  }
+
+  .lab-status {
+    right: var(--uwt-inspector-inset-right, 0px);
+    bottom: var(--uwt-inspector-inset-bottom, 0px);
+    left: var(--uwt-inspector-inset-left, 0px);
+  }
+}
+
+.lab-layout {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr);
+  min-height: 100vh;
+  padding: 3.5rem 0 2.25rem;
+}
+
+.lab-nav {
+  position: sticky;
+  top: 3.5rem;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0;
+
+  a {
+    padding: 0.5rem 1.25rem;
+    color: var(--cps-color-text-dark);
+    text-decoration: none;
+
+    &.active {
+      border-left: 0.25rem solid #8a0b3c;
+      background-color: #f3e6eb;
+      color: #8a0b3c;
+      font-weight: 700;
+    }
+
+    // Inside the link, as cps-ui-kit does for full-width items: outside, the
+    // ring would be cut off at the window's edge.
+    &:focus-visible {
+      @include cps.focus-ring(-0.125rem, -0.25rem, 0);
+    }
+  }
+}
+
+// The header's own button; its other styles are the shell component's.
+.lab-header-button:focus-visible {
+  @include cps.focus-ring;
+}
+
+.lab-main {
+  padding: 1.5rem 2rem;
+}
+
+.lab-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 64rem;
+
+  h1 {
+    margin: 0;
+    font-size: 1.6rem;
+  }
+
+  > p {
+    margin: 0;
+    color: var(--cps-text-secondary);
+  }
+}
+
+.lab-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border: 0.0625rem solid var(--cps-color-line-mid);
+  border-radius: 0.5rem;
+  background-color: #fff;
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  p {
+    margin: 0;
+    color: var(--cps-text-secondary);
+    font-size: 0.9rem;
+  }
+}
+
+.lab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lab-readout {
+  max-height: 20rem;
+  margin: 0;
+  padding: 0.75rem;
+  overflow: auto;
+  border-radius: 0.25rem;
+  background-color: #f8fafc;
+  font:
+    0.8rem/1.5 ui-monospace,
+    Menlo,
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+}
+
+.lab-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+
+  th,
+  td {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 0.0625rem solid var(--cps-color-line-light);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background-color: #fafbfc;
+  }
+
+  code {
+    font-size: 0.8rem;
+  }
+}

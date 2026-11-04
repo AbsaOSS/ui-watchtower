@@ -35,6 +35,48 @@
           }
         }
       }
+    },
+    "watchtower-lab": {
+      "projectType": "application",
+      "root": "projects/watchtower-lab",
+      "sourceRoot": "projects/watchtower-lab/src",
+      "prefix": "lab",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/watchtower-lab",
+            "index": "projects/watchtower-lab/src/index.html",
+            "browser": "projects/watchtower-lab/src/main.ts",
+            "tsConfig": "projects/watchtower-lab/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "styles": ["projects/watchtower-lab/src/styles.scss"],
+            "assets": [
+              {
+                "glob": "icons.svg",
+                "input": "node_modules/cps-ui-kit/assets",
+                "output": "assets"
+              },
+              {
+                "glob": "logo-mark.svg",
+                "input": "assets/logo",
+                "output": "assets/logo"
+              }
+            ],
+            "optimization": false,
+            "sourceMap": true,
+            "extractLicenses": false
+          }
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": {
+            "buildTarget": "watchtower-lab:build",
+            "proxyConfig": "projects/watchtower-lab/proxy.conf.json",
+            "port": 4280
+          }
+        }
+      }
     }
   }
 }

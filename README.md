@@ -26,6 +26,8 @@ projects/ngx-ui-watchtower/
   README.md         usage guide, published to npm
   DESIGN.md         full design
   package.json      the published package's manifest
+projects/watchtower-lab/  the Watchtower Lab: a testing app, never published
+playwright/               the lab's end-to-end suite (Playwright)
 ```
 
 ## Getting started
@@ -42,16 +44,59 @@ The package is built to `dist/ngx-ui-watchtower`.
 
 ## Scripts
 
-| Script                  | What it does                                         |
-| ----------------------- | ---------------------------------------------------- |
-| `npm run build`         | Builds the package (production, partial compilation) |
-| `npm run watch`         | Rebuilds on change (development)                     |
-| `npm run test`          | Runs the unit tests (Jest)                           |
-| `npm run test:coverage` | Runs the unit tests with coverage, as CI does        |
-| `npm run typecheck`     | Type-checks every library and spec tsconfig          |
-| `npm run lint`          | ESLint, no warnings allowed                          |
-| `npm run format`        | Formats with Prettier                                |
-| `npm run format:check`  | Checks formatting without writing                    |
+| Script                  | What it does                                          |
+| ----------------------- | ----------------------------------------------------- |
+| `npm run build`         | Builds the package (production, partial compilation)  |
+| `npm run watch`         | Rebuilds on change (development)                      |
+| `npm run test`          | Runs the unit tests (Jest)                            |
+| `npm run test:coverage` | Runs the unit tests with coverage, as CI does         |
+| `npm run typecheck`     | Type-checks every library, spec and suite tsconfig    |
+| `npm run lint`          | ESLint, no warnings allowed                           |
+| `npm run format`        | Formats with Prettier                                 |
+| `npm run format:check`  | Checks formatting without writing                     |
+| `npm run lab`           | Starts the Watchtower Lab on http://localhost:4280    |
+| `npm run lab:build`     | Builds the lab, to check it compiles                  |
+| `npm run e2e`           | Builds the lab and runs the Playwright suite          |
+| `npm run e2e:ui`        | Opens the suite in Playwright's UI, on the last build |
+
+## Watchtower Lab
+
+A testing app for the library, built from its source, so a change shows up
+on save. `npm run lab` starts it with a mock backend on port 4380, which
+stands in for everything the library talks to: the real `aws-rum-web` runs
+against a mock RUM broker and dataplane, fully offline, and logs go to a mock
+log backend.
+
+One page per concern: **Scenarios**, **BI events**, **Logging**,
+**Identity**, **Privacy**, **Lifecycle**, **Fragment** (a second app in an
+iframe, forwarding through the shell), **Event Inspector** (every dock, event
+generators, and the `--uwt-inspector-inset-*` opt-in on the lab's fixed
+header and status bar) and **On the wire**: what the mock backend actually
+received.
+
+Options, read once at startup like an app's configuration:
+
+| Query                   | Effect                                   |
+| ----------------------- | ---------------------------------------- |
+| `?destination=noop`     | The noop destination instead of RUM      |
+| `?telemetry=off`        | `withTelemetryEnabled(false)`            |
+| `?inspector=off`        | The Event Inspector disabled             |
+| `?inspector=noshortcut` | The Event Inspector without its shortcut |
+
+The mock RUM broker's answer is set on the **On the wire** page, then applied
+by reloading: `ok`, `null` (RUM off for the page), `fail` (the broker errors;
+the app carries on) or `short-expiry` (credentials refresh within seconds).
+The same page sets RUM's own `telemetries`: the library's default, or any of
+`errors`, `performance`, `interaction`, `http` and `replay`, down to none.
+
+### Automated tests
+
+`npm run e2e` builds the lab and runs the suite in `playwright/` on Chromium
+and WebKit: every lab page, the broker modes, RUM's telemetries, the query
+options and the Event Inspector's docks and shortcut, checked against what
+the mock backend received. The server it starts serves the built lab with the
+mock backend on http://localhost:4390, so it runs beside `npm run lab`. The
+first time, download the browsers with `npx playwright install chromium webkit`.
 
 ## Before you push
 
@@ -63,6 +108,7 @@ npm run typecheck
 npm run lint
 npm run format:check
 npm run build
+npm run e2e
 ```
 
 CI runs the same checks on every pull request and every push to `main`.

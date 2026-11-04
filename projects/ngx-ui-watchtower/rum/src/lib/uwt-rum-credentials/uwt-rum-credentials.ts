@@ -111,7 +111,8 @@ export interface UwtRumAppMonitorConfig {
    * Built-in telemetry categories to enable. Defaults to errors, performance
    * and same-origin HTTP. The SDK's own default also includes `'replay'`
    * (session replay via `rrweb`); this library does not enable it by
-   * default.
+   * default. Left out, `'errors'` is still loaded with its own capture off,
+   * because `recordError` and `mirrorErrorsToRum` go through it.
    */
   telemetries?: (string | (string | object)[])[];
 

@@ -87,6 +87,7 @@ export class UwtEventInspectorService {
   private host?: UwtInspectorHost;
   private installed = false;
   private warnedBlocked = false;
+  private lastKey?: string;
 
   /** Whether the inspector is currently open, in any dock. */
   readonly isOpen = signal(false);
@@ -184,7 +185,14 @@ export class UwtEventInspectorService {
 
   private readonly onKeydown = (event: KeyboardEvent): void =>
     uwtSafeVoid('shortcut', () => {
-      if (!this.config.shortcuts.some((s) => uwtMatchesShortcut(event, s))) {
+      // A shortcut like Shift+E+I needs the key pressed before this one.
+      const previous = this.lastKey;
+      this.lastKey = event.code;
+      if (
+        !this.config.shortcuts.some((s) =>
+          uwtMatchesShortcut(event, s, previous)
+        )
+      ) {
         return;
       }
       event.preventDefault();

@@ -385,6 +385,27 @@ describe('UwtInspectorComponent', () => {
       'Event Inspector'
     );
     expect(button('Close Event Inspector')).toBeTruthy();
+    expect(
+      el().querySelector('.uwt-inspector__brand uwt-inspector-logo')
+    ).not.toBeNull();
+  });
+
+  it("should put the mark in cps-dialog's header icon slot", () => {
+    // Outside a cps-dialog, as in every other test, there is nowhere to put it.
+    expect(el().querySelector('uwt-inspector-logo')).toBeNull();
+
+    const dialog = document.body.appendChild(document.createElement('div'));
+    dialog.className = 'cps-dialog';
+    const slot = dialog.appendChild(document.createElement('div'));
+    slot.className = 'cps-dialog-header-icon';
+    const inDialog = TestBed.createComponent(UwtInspectorComponent);
+    dialog.appendChild(inDialog.nativeElement);
+    inDialog.detectChanges();
+    TestBed.tick();
+
+    expect(slot.querySelector('uwt-inspector-logo')).not.toBeNull();
+    inDialog.destroy();
+    dialog.remove();
   });
 
   it('should ask to move to another dock, or to close', () => {

@@ -1,6 +1,9 @@
 @if (framed()) {
   <div class="uwt-inspector__header">
-    <h2 class="uwt-inspector__title">Event Inspector</h2>
+    <div class="uwt-inspector__brand">
+      <uwt-inspector-logo></uwt-inspector-logo>
+      <h2 class="uwt-inspector__title">Event Inspector</h2>
+    </div>
     <cps-button
       icon="close-x-2"
       ariaLabel="Close Event Inspector"
@@ -11,6 +14,9 @@
       (clicked)="close()">
     </cps-button>
   </div>
+} @else {
+  <!-- Moved into cps-dialog's header icon slot once rendered. -->
+  <uwt-inspector-logo #dialogLogo></uwt-inspector-logo>
 }
 
 <div class="uwt-inspector__body">

@@ -360,7 +360,7 @@ import { provideUwtEventInspector } from '@absaoss-cps/ngx-ui-watchtower/event-i
 providers: [provideUwtEventInspector()];
 ```
 
-Open it with **⇧⌥⌘8** on macOS or **Ctrl+Alt+Shift+8** on Windows and Linux.
+Open it with **Shift+E+I** (hold Shift, press E, then I), outside a text field.
 It lists everything the app sends from that moment on, with search, filters
 and JSON download. It opens as a dialog, with a Transparency slider; its Dock
 buttons move it to its own window or a pane on the left, right or bottom.
@@ -399,6 +399,10 @@ TestBed.configureTestingModule({
 - It is safe under server-side rendering.
 - A scenario sends one event when it ends, not one per step — AWS RUM allows
   200 events per session by default.
+- RUM's own telemetry defaults to errors, performance and same-origin HTTP;
+  set `telemetries` in the RUM config to change it. Without `'errors'`, the
+  sink still loads RUM's error plugin, capturing nothing by itself, because
+  `mirrorErrorsToRum` needs it.
 
 ## License
 
