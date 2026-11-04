@@ -11,10 +11,9 @@ import {
   UWT_INSPECTOR_FLUSH_MS,
   UwtInspectorStore
 } from '../uwt-inspector-store/uwt-inspector-store';
-import {
-  UWT_INSPECTOR_TRANSPARENCY_KEY,
-  UwtInspectorDialogComponent
-} from './uwt-inspector-dialog.component';
+import { UWT_INSPECTOR_PREFERENCES_KEY } from '../uwt-inspector-preferences/uwt-inspector-preferences';
+import { UwtInspectorSession } from '../uwt-inspector-session/uwt-inspector-session';
+import { UwtInspectorComponent } from './uwt-inspector.component';
 
 const bi = (name: string, theme = 'dark'): UwtTelemetryPublishInput => ({
   kind: 'bi',
@@ -62,8 +61,8 @@ const warn: UwtTelemetryPublishInput = {
   origin: { forwarded: false }
 };
 
-describe('UwtInspectorDialogComponent', () => {
-  let fixture: ComponentFixture<UwtInspectorDialogComponent>;
+describe('UwtInspectorComponent', () => {
+  let fixture: ComponentFixture<UwtInspectorComponent>;
   let monitor: UwtTelemetryMonitor;
   let announce: jest.Mock;
   let dialogConfig: CpsDialogConfig;
@@ -103,7 +102,7 @@ describe('UwtInspectorDialogComponent', () => {
     announce = jest.fn();
     dialogConfig = {};
     await TestBed.configureTestingModule({
-      imports: [UwtInspectorDialogComponent, NoopAnimationsModule],
+      imports: [UwtInspectorComponent, NoopAnimationsModule],
       providers: [
         {
           provide: UWT_TELEMETRY_IDENTITY,
@@ -121,7 +120,7 @@ describe('UwtInspectorDialogComponent', () => {
       ]
     }).compileComponents();
     monitor = TestBed.inject(UwtTelemetryMonitor);
-    fixture = TestBed.createComponent(UwtInspectorDialogComponent);
+    fixture = TestBed.createComponent(UwtInspectorComponent);
     fixture.detectChanges();
   });
 
@@ -129,7 +128,8 @@ describe('UwtInspectorDialogComponent', () => {
     fixture.destroy();
     jest.useRealTimers();
     jest.restoreAllMocks();
-    localStorage.removeItem(UWT_INSPECTOR_TRANSPARENCY_KEY);
+    TestBed.inject(UwtInspectorSession).end();
+    localStorage.removeItem(UWT_INSPECTOR_PREFERENCES_KEY);
   });
 
   it('should open empty, with three sections and an explanation', () => {
@@ -342,7 +342,7 @@ describe('UwtInspectorDialogComponent', () => {
     expect(seen).toHaveLength(0);
   });
 
-  it('should make the whole window see-through, and remember it', () => {
+  it('should make the whole dialog see-through, and remember it', () => {
     expect(dialogConfig.style).toEqual({ opacity: '1' });
 
     const slider = el().querySelector('cps-slider input') as HTMLInputElement;
@@ -350,12 +350,18 @@ describe('UwtInspectorDialogComponent', () => {
     slider.dispatchEvent(new Event('input'));
 
     expect(dialogConfig.style).toEqual({ opacity: '0.7' });
-    expect(localStorage.getItem(UWT_INSPECTOR_TRANSPARENCY_KEY)).toBe('30');
+    expect(
+      JSON.parse(localStorage.getItem(UWT_INSPECTOR_PREFERENCES_KEY) ?? '{}')
+        .transparency
+    ).toBe(30);
   });
 
   it('should reopen at the remembered transparency', () => {
-    localStorage.setItem(UWT_INSPECTOR_TRANSPARENCY_KEY, '40');
-    const reopened = TestBed.createComponent(UwtInspectorDialogComponent);
+    localStorage.setItem(
+      UWT_INSPECTOR_PREFERENCES_KEY,
+      JSON.stringify({ transparency: 40 })
+    );
+    const reopened = TestBed.createComponent(UwtInspectorComponent);
     reopened.detectChanges();
 
     expect(dialogConfig.style).toEqual({ opacity: '0.6' });
@@ -367,17 +373,48 @@ describe('UwtInspectorDialogComponent', () => {
     reopened.destroy();
   });
 
-  it('should open opaque when the remembered value is out of range', () => {
-    localStorage.setItem(UWT_INSPECTOR_TRANSPARENCY_KEY, '95');
-    const reopened = TestBed.createComponent(UwtInspectorDialogComponent);
+  it('should have the slider only as a dialog, and its own header elsewhere', () => {
+    expect(el().querySelector('cps-slider')).not.toBeNull();
+    expect(el().querySelector('.uwt-inspector__header')).toBeNull();
 
-    expect(dialogConfig.style).toEqual({ opacity: '1' });
-    reopened.destroy();
+    fixture.componentRef.setInput('dock', 'right');
+    fixture.detectChanges();
+
+    expect(el().querySelector('cps-slider')).toBeNull();
+    expect(el().querySelector('.uwt-inspector__title')?.textContent).toBe(
+      'Event Inspector'
+    );
+    expect(button('Close Event Inspector')).toBeTruthy();
   });
 
-  it('should stop observing when closed', () => {
-    expect(monitor.observed).toBe(true);
+  it('should ask to move to another dock, or to close', () => {
+    const controls = { setDock: jest.fn(), close: jest.fn() };
+    TestBed.inject(UwtInspectorSession).controls = controls;
+    const dock = (name: string) =>
+      el().querySelector<HTMLButtonElement>(`button[data-dock="${name}"]`)!;
+
+    expect(dock('dialog').getAttribute('aria-pressed')).toBe('true');
+    dock('dialog').click();
+    dock('right').click();
+    expect(controls.setDock.mock.calls).toEqual([['right']]);
+
+    fixture.componentRef.setInput('dock', 'window');
+    fixture.detectChanges();
+    button('Close Event Inspector').click();
+    expect(controls.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('should keep its history in the session, for the next dock', () => {
+    monitor.publish(bi('theme_changed'));
+    settle();
     fixture.destroy();
+    expect(monitor.observed).toBe(true);
+
+    fixture = TestBed.createComponent(UwtInspectorComponent);
+    fixture.detectChanges();
+    expect(text()).toContain('1 event');
+
+    TestBed.inject(UwtInspectorSession).end();
     expect(monitor.observed).toBe(false);
   });
 });

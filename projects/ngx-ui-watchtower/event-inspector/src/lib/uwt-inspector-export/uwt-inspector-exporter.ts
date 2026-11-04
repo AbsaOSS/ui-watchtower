@@ -71,7 +71,10 @@ export class UwtInspectorExporter {
    */
   async copy(section: UwtInspectorSectionId): Promise<boolean> {
     try {
-      await navigator.clipboard.writeText(this.json(section));
+      // The inspector's own window: in a separate window, the app's
+      // clipboard refuses, as the app's page doesn't have focus.
+      const view = this.document.defaultView ?? window;
+      await view.navigator.clipboard.writeText(this.json(section));
       this.announce(
         `${UWT_INSPECTOR_SECTION_NOUN[section]} events copied as JSON.`
       );

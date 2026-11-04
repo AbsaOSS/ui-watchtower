@@ -3,13 +3,53 @@
   color: var(--cps-text-primary);
 }
 
-.uwt-inspector-dialog {
+// In a pane or window: a header like cps-dialog's, and a body that scrolls.
+:host(.uwt-inspector--framed) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #fff;
+  font-family: 'Source Sans Pro', sans-serif;
+}
+
+.uwt-inspector__header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-left: 0.25rem solid var(--cps-color-surprise);
+  border-bottom: 0.0625rem solid var(--cps-color-line-mid);
+  color: var(--cps-color-text-dark);
+}
+
+.uwt-inspector__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.uwt-inspector__body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.uwt-inspector-dialog__toolbar {
+:host(.uwt-inspector--framed) .uwt-inspector__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.uwt-inspector__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.uwt-inspector__status-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -17,7 +57,7 @@
   gap: 0.5rem 1rem;
 }
 
-.uwt-inspector-dialog__status {
+.uwt-inspector__status {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -27,7 +67,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.uwt-inspector-dialog__dot {
+.uwt-inspector__dot {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: var(--cps-radius-full, 50%);
@@ -47,19 +87,19 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .uwt-inspector-dialog__dot {
+  .uwt-inspector__dot {
     animation: none;
   }
 }
 
-.uwt-inspector-dialog__actions {
+.uwt-inspector__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 1rem;
 }
 
-.uwt-inspector-dialog__paused {
+.uwt-inspector__paused {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -70,19 +110,19 @@
   font-size: 0.8125rem;
 }
 
-.uwt-inspector-dialog__hint {
+.uwt-inspector__hint {
   margin: 0;
   font-size: 0.875rem;
   color: var(--cps-text-secondary);
 }
 
-.uwt-inspector-dialog__sections {
+.uwt-inspector__sections {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.uwt-inspector-dialog__footer {
+.uwt-inspector__footer {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;

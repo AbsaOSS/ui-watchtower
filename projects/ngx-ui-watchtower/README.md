@@ -362,7 +362,8 @@ providers: [provideUwtEventInspector()];
 
 Open it with **⇧⌥⌘8** on macOS or **Ctrl+Alt+Shift+8** on Windows and Linux.
 It lists everything the app sends from that moment on, with search, filters
-and JSON download, and its Transparency slider lets the app show through.
+and JSON download. It opens as a dialog, with a Transparency slider; its Dock
+buttons move it to its own window or a pane on the left, right or bottom.
 
 ## Testing
 

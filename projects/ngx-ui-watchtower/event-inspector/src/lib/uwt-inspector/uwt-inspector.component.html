@@ -1,24 +1,47 @@
-<div class="uwt-inspector-dialog">
-  <div class="uwt-inspector-dialog__toolbar">
-    <p class="uwt-inspector-dialog__status">
-      <span
-        class="uwt-inspector-dialog__dot"
-        [class.uwt-inspector-dialog__dot--paused]="store.paused()"
-        aria-hidden="true"></span>
-      {{ store.paused() ? 'Paused' : 'Capturing' }} since {{ since() }} ·
-      {{ store.total() }} event{{ store.total() === 1 ? '' : 's' }}
-    </p>
-    <div class="uwt-inspector-dialog__actions">
-      <cps-slider
-        label="Transparency"
-        [max]="maxTransparency"
-        [step]="5"
-        width="6rem"
-        [showValue]="true"
-        valueSuffix="%"
-        [value]="transparency()"
-        (valueChanged)="setTransparency($event)">
-      </cps-slider>
+@if (framed()) {
+  <div class="uwt-inspector__header">
+    <h2 class="uwt-inspector__title">Event Inspector</h2>
+    <cps-button
+      icon="close-x-2"
+      ariaLabel="Close Event Inspector"
+      size="small"
+      width="2rem"
+      color="graphite"
+      type="borderless"
+      (clicked)="close()">
+    </cps-button>
+  </div>
+}
+
+<div class="uwt-inspector__body">
+  <div class="uwt-inspector__toolbar">
+    <div class="uwt-inspector__status-row">
+      <p class="uwt-inspector__status">
+        <span
+          class="uwt-inspector__dot"
+          [class.uwt-inspector__dot--paused]="store.paused()"
+          aria-hidden="true"></span>
+        {{ store.paused() ? 'Paused' : 'Capturing' }} since {{ since() }} ·
+        {{ store.total() }} event{{ store.total() === 1 ? '' : 's' }}
+      </p>
+      <uwt-inspector-dock-switcher
+        [dock]="dock()"
+        (dockChange)="setDock($event)">
+      </uwt-inspector-dock-switcher>
+    </div>
+    <div class="uwt-inspector__actions">
+      @if (dock() === 'dialog') {
+        <cps-slider
+          label="Transparency"
+          [max]="maxTransparency"
+          [step]="5"
+          width="6rem"
+          [showValue]="true"
+          valueSuffix="%"
+          [value]="transparency()"
+          (valueChanged)="setTransparency($event)">
+        </cps-slider>
+      }
       <cps-switch
         label="Pause live updates"
         [value]="store.paused()"
@@ -36,7 +59,7 @@
   </div>
 
   @if (store.paused() && store.newWhilePaused() > 0) {
-    <div class="uwt-inspector-dialog__paused" role="status">
+    <div class="uwt-inspector__paused" role="status">
       <span
         >{{ store.newWhilePaused() }} new event{{
           store.newWhilePaused() === 1 ? '' : 's'
@@ -53,13 +76,13 @@
   }
 
   @if (store.total() === 0 && !store.paused()) {
-    <p class="uwt-inspector-dialog__hint">
+    <p class="uwt-inspector__hint">
       Capturing from now. Use the app to generate events; they appear here as
       they are sent.
     </p>
   }
 
-  <div class="uwt-inspector-dialog__sections">
+  <div class="uwt-inspector__sections">
     @for (section of sections; track section) {
       <uwt-inspector-section
         [section]="section"
@@ -68,7 +91,7 @@
     }
   </div>
 
-  <footer class="uwt-inspector-dialog__footer">
+  <footer class="uwt-inspector__footer">
     <p>
       Shows what this app hands to its telemetry destinations, after redaction.
       A destination can still drop an event, for example when RUM samples a
@@ -78,7 +101,7 @@
     <p>
       Contains your session and user ids: avoid sharing your screen while it's
       open, and share downloads only with your team. History is discarded when
-      this window closes.
+      you close it.
       @if (shortcut) {
         Shortcut: <kbd>{{ shortcut }}</kbd
         >.

@@ -6,6 +6,7 @@ import {
   DestroyRef,
   ElementRef,
   inject,
+  input,
   signal
 } from '@angular/core';
 import {
@@ -15,7 +16,10 @@ import {
   CpsSwitchComponent
 } from 'cps-ui-kit';
 import { CpsSliderComponent } from '../cps-slider/cps-slider.component';
-import { UWT_EVENT_INSPECTOR_CONFIG } from '../uwt-inspector.models/uwt-inspector.models';
+import {
+  UWT_EVENT_INSPECTOR_CONFIG,
+  UwtInspectorDock
+} from '../uwt-inspector.models/uwt-inspector.models';
 import {
   UWT_DEFAULT_INSPECTOR_CONFIG,
   UWT_INSPECTOR_SECTIONS,
@@ -32,55 +36,63 @@ import {
   uwtIsApplePlatform,
   uwtShortcutLabel
 } from '../uwt-inspector-shortcut/uwt-inspector-shortcut';
+import { UwtInspectorDockSwitcherComponent } from '../uwt-inspector-dock-switcher/uwt-inspector-dock-switcher.component';
+import { UwtInspectorSession } from '../uwt-inspector-session/uwt-inspector-session';
 import {
-  uwtSafe,
-  uwtSafeVoid
-} from '../uwt-inspector-internal.util/uwt-inspector-internal.util';
+  UWT_INSPECTOR_MAX_TRANSPARENCY,
+  UwtInspectorPreferenceStorage
+} from '../uwt-inspector-preferences/uwt-inspector-preferences';
 
 /** Screen readers hear about new events at most this often, in ms. */
 const ANNOUNCE_EVERY_MS = 10_000;
 
-/** How see-through the window can get, in percent, so it never vanishes. */
-export const UWT_INSPECTOR_MAX_TRANSPARENCY = 70;
-
-/** Where this browser remembers the chosen transparency. */
-export const UWT_INSPECTOR_TRANSPARENCY_KEY =
-  'ngx-ui-watchtower.eventInspector.transparency';
-
 /**
- * The Event Inspector's content, opened by
- * {@link UwtEventInspectorService} inside a non-modal cps-dialog.
- * Capturing is controlled here — pause and clear apply to everything —
- * while each section filters, downloads and copies its own events.
+ * The Event Inspector's content, shown by {@link UwtEventInspectorService}
+ * in a non-modal cps-dialog, a pane or its own window. Capturing is
+ * controlled here — pause and clear apply to everything — while each
+ * section filters, downloads and copies its own events.
  *
- * Owns its {@link UwtInspectorStore}, so the captured history lives
- * exactly as long as this window: it starts empty and is discarded on
- * close. Uses no telemetry service itself, so opening or using it never
- * produces events of its own.
+ * The captured history belongs to the {@link UwtInspectorSession}, so it
+ * survives moving between docks and is discarded on close. Uses no
+ * telemetry service itself, so opening or using it never produces events
+ * of its own.
  */
 @Component({
-  selector: 'uwt-inspector-dialog',
+  selector: 'uwt-inspector',
   imports: [
     CpsButtonComponent,
     CpsSliderComponent,
     CpsSwitchComponent,
+    UwtInspectorDockSwitcherComponent,
     UwtInspectorSectionComponent
   ],
-  providers: [UwtInspectorStore, UwtInspectorExporter],
+  providers: [
+    {
+      provide: UwtInspectorStore,
+      useFactory: () => inject(UwtInspectorSession).store
+    },
+    UwtInspectorExporter
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './uwt-inspector-dialog.component.html',
-  styleUrl: './uwt-inspector-dialog.component.scss'
+  host: { '[class.uwt-inspector--framed]': 'framed()' },
+  templateUrl: './uwt-inspector.component.html',
+  styleUrl: './uwt-inspector.component.scss'
 })
-export class UwtInspectorDialogComponent {
+export class UwtInspectorComponent {
+  /** Where it is shown; a cps-dialog creates it without inputs. */
+  readonly dock = input<UwtInspectorDock>('dialog');
+
   protected readonly store = inject(UwtInspectorStore);
 
   private readonly document = inject(DOCUMENT);
   private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+  private readonly session = inject(UwtInspectorSession);
+  private readonly preferences = inject(UwtInspectorPreferenceStorage);
   private readonly announcer = inject(CPS_LIVE_ANNOUNCER_SERVICE, {
     optional: true
   });
 
-  /** The window's own config: cps-dialog binds its `style` to the window. */
+  /** The dialog's own config: cps-dialog binds its `style` to the window. */
   private readonly dialogConfig = inject(CpsDialogConfig, { optional: true });
 
   private readonly config = {
@@ -88,6 +100,9 @@ export class UwtInspectorDialogComponent {
     shortcuts: UWT_DEFAULT_INSPECTOR_SHORTCUTS,
     ...inject(UWT_EVENT_INSPECTOR_CONFIG, { optional: true })
   };
+
+  /** A pane or window brings no header of its own, so this draws one. */
+  protected readonly framed = computed(() => this.dock() !== 'dialog');
 
   protected readonly sections = UWT_INSPECTOR_SECTIONS;
   protected readonly maxPayloadChars = this.config.maxPayloadCharsInView;
@@ -102,7 +117,9 @@ export class UwtInspectorDialogComponent {
   );
 
   protected readonly maxTransparency = UWT_INSPECTOR_MAX_TRANSPARENCY;
-  protected readonly transparency = signal(this.storedTransparency());
+  protected readonly transparency = signal(
+    this.preferences.read().transparency
+  );
 
   private lastAnnounced = { bi: 0, scenario: 0, logging: 0 };
 
@@ -112,10 +129,9 @@ export class UwtInspectorDialogComponent {
     this.applyTransparency(this.transparency());
   }
 
-  /** Whether keyboard focus is anywhere in the popup, header included. */
+  /** Whether keyboard focus is anywhere in the inspector, header included. */
   containsFocus(): boolean {
-    const dialog = this.dialogElement();
-    return !!dialog && dialog.contains(this.document.activeElement);
+    return this.frame().contains(this.document.activeElement);
   }
 
   /** Moves focus to the search field. */
@@ -123,7 +139,15 @@ export class UwtInspectorDialogComponent {
     const input = this.host.nativeElement.querySelector<HTMLInputElement>(
       '.uwt-inspector-search input'
     );
-    (input ?? this.dialogElement())?.focus();
+    (input ?? this.frame()).focus();
+  }
+
+  protected setDock(dock: UwtInspectorDock): void {
+    this.session.controls?.setDock(dock);
+  }
+
+  protected close(): void {
+    this.session.controls?.close();
   }
 
   protected setPaused(paused: boolean): void {
@@ -141,21 +165,16 @@ export class UwtInspectorDialogComponent {
     this.announce('History cleared. Capturing continues.');
   }
 
-  /** Lets the app show through the window, and remembers the choice. */
+  /** Lets the app show through the dialog, and remembers the choice. */
   protected setTransparency(percent: number): void {
     this.transparency.set(percent);
     this.applyTransparency(percent);
-    uwtSafeVoid('transparency.save', () =>
-      this.document.defaultView?.localStorage.setItem(
-        UWT_INSPECTOR_TRANSPARENCY_KEY,
-        String(percent)
-      )
-    );
+    this.preferences.update({ transparency: percent });
   }
 
   /**
    * A new `style` object, rather than this component's own styles, so the
-   * window's header and frame turn see-through too.
+   * dialog's header and frame turn see-through too. Only a dialog has one.
    */
   private applyTransparency(percent: number): void {
     if (this.dialogConfig) {
@@ -164,21 +183,6 @@ export class UwtInspectorDialogComponent {
         opacity: String((100 - percent) / 100)
       };
     }
-  }
-
-  /** The last choice in this browser, or fully opaque. */
-  private storedTransparency(): number {
-    const stored = uwtSafe(
-      'transparency.read',
-      () =>
-        Number(
-          this.document.defaultView?.localStorage.getItem(
-            UWT_INSPECTOR_TRANSPARENCY_KEY
-          )
-        ),
-      0
-    );
-    return stored >= 0 && stored <= UWT_INSPECTOR_MAX_TRANSPARENCY ? stored : 0;
   }
 
   /** One polite summary of what arrived since the last one, if anything. */
@@ -206,11 +210,16 @@ export class UwtInspectorDialogComponent {
     try {
       this.announcer?.announce(message, 'polite');
     } catch {
-      // Announcements are a courtesy; never let one break the popup.
+      // Announcements are a courtesy; never let one break the inspector.
     }
   }
 
-  private dialogElement(): HTMLElement | null {
-    return this.host.nativeElement.closest<HTMLElement>('[role="dialog"]');
+  /** The dialog or pane around this content, or the content itself. */
+  private frame(): HTMLElement {
+    return (
+      this.host.nativeElement.closest<HTMLElement>(
+        '[role="dialog"], [role="region"]'
+      ) ?? this.host.nativeElement
+    );
   }
 }

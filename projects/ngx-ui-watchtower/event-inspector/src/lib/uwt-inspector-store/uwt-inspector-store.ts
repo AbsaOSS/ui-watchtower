@@ -53,9 +53,10 @@ function perSection<T>(make: () => T): PerSection<T> {
 }
 
 /**
- * The popup's captured history. Provided by the popup itself, so it exists
- * exactly as long as the popup is open: created empty on open, subscribed
- * to {@link UwtTelemetryMonitor} for its lifetime, and discarded on close.
+ * The inspector's captured history. Held by the `UwtInspectorSession`, so
+ * it lasts from opening to closing, whichever docks the inspector moves
+ * between: created empty on open, subscribed to {@link UwtTelemetryMonitor}
+ * for its lifetime, and discarded on close.
  *
  * Events arrive whenever the application sends them; they are batched and
  * reach the screen at most every {@link UWT_INSPECTOR_FLUSH_MS}, so a

@@ -138,7 +138,8 @@ Everything each entry point exports, by role.
 `UwtEventInspectorService`, `UWT_EVENT_INSPECTOR_CONFIG`,
 `UwtEventInspectorConfig`, `UWT_DEFAULT_INSPECTOR_CONFIG`,
 `UwtInspectorShortcut`, `UWT_DEFAULT_INSPECTOR_SHORTCUTS`,
-`UwtInspectorExport`, `UwtInspectorSectionId`, and the filter types
+`UwtInspectorDock`, `UwtInspectorExport`, `UwtInspectorSectionId`, and the
+filter types
 `UwtInspectorFilterState`, `UwtInspectorFieldFilter`,
 `UwtInspectorFilterOperator` — see §12, "Event Inspector".
 
@@ -239,6 +240,14 @@ shell's.
   in its own folder, `event-inspector/src/lib/cps-slider/`, depending only
   on Angular and the kit's public API, so it can move into cps-ui-kit as
   is.
+- **The separate window is drawn by the app.** The inspector renders into
+  the window's document from the app's own Angular application, with that
+  document as its `DOCUMENT` and its own cps-ui-kit notification and
+  announcer services, so tooltips, menus and messages appear in the window.
+  The app's stylesheets are copied in and kept in step, since Angular adds
+  a component's styles when it first renders. One session holds the
+  captured history from opening to closing, so moving between docks — each
+  a fresh view — loses nothing.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
@@ -1119,9 +1128,10 @@ for the session, `cwr_u` for the user id), the library keeps one
 session ids, each with the time it started, for `sessionElapsed`. It is
 written only while the RUM client's cookies are on, and an id stays until
 five newer sessions have replaced it. The Event Inspector adds one more,
-`ngx-ui-watchtower.eventInspector.transparency`, only once someone moves its
-Transparency slider: a number from 0 to 70. Debug flags are read from
-`localStorage`, never written.
+`ngx-ui-watchtower.eventInspector`, once someone moves, resizes or fades it:
+its dock, the dialog's transparency, each pane's size, and the separate
+window's size and position. Debug flags are read from `localStorage`, never
+written.
 
 ### Scanning values for personal data
 
@@ -2053,12 +2063,31 @@ match exactly, held-down repeats are ignored, and AltGr — which many
 European Windows layouts report as Ctrl+Alt — never triggers it. ⌥⌘8 alone
 is macOS Accessibility Zoom, which is why Shift is part of it.
 
-The popup is not modal: it docks on the right at half the screen (at least
-40rem, or nearly all of a small screen) and leaves the app usable, so you
-can watch events arrive. It is draggable, resizable
-and maximizable. With it open, the shortcut brings focus back to
-it from the app, and closes it when focus is already inside. Escape closes it
-too.
+It opens where it was last — a dialog the first time — and never blocks the
+app, so you can watch events arrive. With it open, the shortcut brings focus
+back to it from the app, and closes it when focus is already inside.
+
+#### Where it opens
+
+The **Dock** buttons at its top right move it, like Chrome DevTools' dock
+side, and the choice is remembered in this browser:
+
+| Dock                | What you get                                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dialog (default)    | A non-modal dialog on the right, half the screen wide (at least 40rem, or nearly all of a small screen). Draggable, resizable and maximizable, with a Transparency slider. Escape closes it.                                   |
+| Separate window     | Its own browser window, which it fills: 1200×800 the first time, then wherever it was last. Closing the window closes the inspector, and so does reloading the app.                                                            |
+| Left, right, bottom | A pane beside or below the app, which moves aside to make room. Drag its inner edge, or focus it and use the arrow keys, to resize it between 30rem (12rem at the bottom) and 80% of the screen; each side remembers its size. |
+
+Moving it keeps everything captured, the filters and the pause; pages and
+expanded rows start afresh.
+
+A pane makes room by padding the page's `body` on its side, so content in
+the normal flow moves aside. Elements the app places with `position: fixed`,
+or sizes to `100vw`, stay where they are, and the pane covers their edge.
+
+The separate window has to open from a click or key press — the shortcut and
+the Dock buttons both are — or the browser blocks it. The inspector then
+opens as a dialog, and the console says why.
 
 It works in every environment. To change the keys, turn the shortcut off, or
 limit who can open it:
@@ -2109,9 +2138,10 @@ capturing rather than viewing:
   captured.
 - **Clear** empties the history; capturing continues.
 
-Beside them, **Transparency** lets the app show through the window, so you
-can watch the page and its events together. It goes up to 70%, so the window
-never disappears, and the setting is remembered in this browser.
+As a dialog, it also has **Transparency**, which lets the app show through,
+so you can watch the page and its events together. It goes up to 70%, so the
+dialog never disappears, and the setting is remembered in this browser.
+Panes and the window don't cover the app, so they have none.
 
 Each section keeps the latest 500 events (`maxEventsPerSection`). History is
 discarded when the popup closes.
@@ -2147,8 +2177,10 @@ meta?, label? }`, where `code` is a `KeyboardEvent.code` such as `'Digit8'`
 or `'KeyD'`, and an omitted modifier must be up. Spread
 `UWT_DEFAULT_INSPECTOR_SHORTCUTS` to add one rather than replace them.
 
-`UwtEventInspectorService` opens the popup from code: `open()`,
-`close()`, `toggle()`, and an `isOpen` signal.
+`UwtEventInspectorService` opens it from code: `open()`, `close()`,
+`toggle()`, `setDock(dock)` — a `UwtInspectorDock`: `'dialog'`, `'window'`,
+`'left'`, `'right'` or `'bottom'` — and an `isOpen` signal. `setDock` opens
+it there if it is closed, and remembers the choice like the Dock buttons.
 
 A download is a `UwtInspectorExport`:
 

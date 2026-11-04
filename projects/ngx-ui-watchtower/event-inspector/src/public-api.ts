@@ -7,6 +7,7 @@
 
 export {
   UWT_EVENT_INSPECTOR_CONFIG,
+  UwtInspectorDock,
   UwtInspectorExport,
   UwtInspectorFieldFilter,
   UwtInspectorFilterOperator,

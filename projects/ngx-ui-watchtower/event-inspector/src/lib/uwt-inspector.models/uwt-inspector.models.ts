@@ -9,6 +9,30 @@ import { UwtTelemetryObservedEvent } from '@absaoss-cps/ngx-ui-watchtower';
 export type UwtInspectorSectionId = 'bi' | 'scenario' | 'logging';
 
 /**
+ * Where the Event Inspector opens: a dialog over the app, its own browser
+ * window, or a pane beside or below the app.
+ *
+ * @group Types
+ */
+export type UwtInspectorDock =
+  'dialog' | 'window' | 'left' | 'right' | 'bottom';
+
+/** Every dock, in the order the switcher shows them. */
+export const UWT_INSPECTOR_DOCKS: readonly UwtInspectorDock[] = [
+  'dialog',
+  'window',
+  'left',
+  'bottom',
+  'right'
+];
+
+/** The docks that are panes beside or below the app. */
+export type UwtInspectorPaneSide = Extract<
+  UwtInspectorDock,
+  'left' | 'right' | 'bottom'
+>;
+
+/**
  * A key combination that opens the Event Inspector.
  *
  * Matched on `KeyboardEvent.code` — the physical key — so it works on every

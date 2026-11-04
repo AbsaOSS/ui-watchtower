@@ -1,12 +1,20 @@
 import { PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Subject } from 'rxjs';
-import { CpsDialogService } from 'cps-ui-kit';
+import {
+  UWT_TELEMETRY_IDENTITY,
+  UwtTelemetryMonitor
+} from '@absaoss-cps/ngx-ui-watchtower';
+import { CPS_LIVE_ANNOUNCER_SERVICE, CpsDialogService } from 'cps-ui-kit';
 import {
   UWT_EVENT_INSPECTOR_CONFIG,
   UwtEventInspectorConfig
 } from '../uwt-inspector.models/uwt-inspector.models';
-import { UwtInspectorDialogComponent } from '../uwt-inspector-dialog/uwt-inspector-dialog.component';
+import { UwtInspectorComponent } from '../uwt-inspector/uwt-inspector.component';
+import { UWT_INSPECTOR_PREFERENCES_KEY } from '../uwt-inspector-preferences/uwt-inspector-preferences';
+import { UwtInspectorSession } from '../uwt-inspector-session/uwt-inspector-session';
+import * as windowHost from '../uwt-inspector-window/uwt-inspector-window';
 import { UwtEventInspectorService } from './uwt-event-inspector.service';
 
 /** Stands in for CpsDialogService, recording what was opened. */
@@ -65,7 +73,16 @@ describe('UwtEventInspectorService', () => {
       providers: [
         { provide: CpsDialogService, useValue: dialogs },
         { provide: PLATFORM_ID, useValue: platform },
-        { provide: UWT_EVENT_INSPECTOR_CONFIG, useValue: config }
+        { provide: UWT_EVENT_INSPECTOR_CONFIG, useValue: config },
+        {
+          provide: UWT_TELEMETRY_IDENTITY,
+          useValue: { application: 'shop', environment: 'test', version: '1' }
+        },
+        {
+          provide: CPS_LIVE_ANNOUNCER_SERVICE,
+          useValue: { announce: jest.fn(), clear: jest.fn() }
+        },
+        provideNoopAnimations()
       ]
     });
     return TestBed.inject(UwtEventInspectorService);
@@ -74,7 +91,29 @@ describe('UwtEventInspectorService', () => {
   afterEach(() => {
     TestBed.resetTestingModule();
     jest.restoreAllMocks();
+    localStorage.removeItem(UWT_INSPECTOR_PREFERENCES_KEY);
   });
+
+  const pane = () => document.querySelector('uwt-inspector-pane');
+  const remember = (preferences: object) =>
+    localStorage.setItem(
+      UWT_INSPECTOR_PREFERENCES_KEY,
+      JSON.stringify(preferences)
+    );
+  const stored = () =>
+    JSON.parse(localStorage.getItem(UWT_INSPECTOR_PREFERENCES_KEY) ?? '{}');
+  /** A stand-in window host, recording what the service asked of it. */
+  function fakeWindow() {
+    const host = {
+      focus: jest.fn(),
+      containsFocus: jest.fn(() => false),
+      destroy: jest.fn()
+    };
+    const open = jest
+      .spyOn(windowHost, 'uwtOpenInspectorWindow')
+      .mockReturnValue(host);
+    return { host, open };
+  }
 
   it('should open the popup, non-modal and named, on the default shortcut', () => {
     create().install();
@@ -82,7 +121,7 @@ describe('UwtEventInspectorService', () => {
     const event = press();
 
     expect(dialogs.opened).toHaveLength(1);
-    expect(dialogs.opened[0].component).toBe(UwtInspectorDialogComponent);
+    expect(dialogs.opened[0].component).toBe(UwtInspectorComponent);
     expect(dialogs.opened[0].config).toMatchObject({
       modal: false,
       ariaLabel: 'Event Inspector',
@@ -190,5 +229,96 @@ describe('UwtEventInspectorService', () => {
 
     press();
     expect(dialogs.opened).toHaveLength(0);
+  });
+
+  it('should open where it was last', () => {
+    remember({ dock: 'right' });
+    create().open();
+
+    expect(dialogs.opened).toHaveLength(0);
+    expect(pane()?.classList).toContain('uwt-inspector-pane--right');
+  });
+
+  it('should move between docks, keeping the session, and remember the dock', () => {
+    const service = create();
+    service.open();
+    const store = TestBed.inject(UwtInspectorSession).store;
+
+    service.setDock('left');
+
+    expect(dialogs.close).toHaveBeenCalledTimes(1);
+    expect(pane()?.classList).toContain('uwt-inspector-pane--left');
+    expect(service.isOpen()).toBe(true);
+    expect(TestBed.inject(UwtInspectorSession).store).toBe(store);
+    expect(stored().dock).toBe('left');
+
+    service.close();
+    expect(pane()).toBeNull();
+    expect(service.isOpen()).toBe(false);
+    expect(TestBed.inject(UwtTelemetryMonitor).observed).toBe(false);
+  });
+
+  it('should open a window titled after the app, where it was last', () => {
+    remember({ window: { width: 900, height: 700, left: 10, top: 20 } });
+    const { host, open } = fakeWindow();
+    const service = create();
+
+    service.setDock('window');
+
+    expect(open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Event Inspector · shop',
+        geometry: { width: 900, height: 700, left: 10, top: 20 }
+      })
+    );
+    expect(host.focus).toHaveBeenCalled();
+    expect(dialogs.opened).toHaveLength(0);
+  });
+
+  it('should end the session when the user closes the window', () => {
+    const { host, open } = fakeWindow();
+    const service = create();
+    service.setDock('window');
+    const options = open.mock.calls[0][0];
+
+    options.onGeometry({ width: 800, height: 600, left: 1, top: 2 });
+    options.onClosed();
+
+    expect(service.isOpen()).toBe(false);
+    expect(host.destroy).toHaveBeenCalled();
+    expect(stored().window).toEqual({
+      width: 800,
+      height: 600,
+      left: 1,
+      top: 2
+    });
+  });
+
+  it('should open a dialog, warning once, when the browser blocks the window', () => {
+    jest.spyOn(windowHost, 'uwtOpenInspectorWindow').mockReturnValue(undefined);
+    const warn = jest
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+    const service = create();
+
+    service.setDock('window');
+    service.close();
+    service.setDock('window');
+
+    expect(dialogs.opened).toHaveLength(2);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(stored().dock).toBe('window');
+  });
+
+  it('should end the session when the user closes the dialog, but not on a move', () => {
+    const service = create();
+    service.open();
+    service.setDock('bottom');
+    expect(service.isOpen()).toBe(true);
+
+    service.setDock('dialog');
+    dialogs.destroyed.next();
+    expect(service.isOpen()).toBe(false);
+    expect(pane()).toBeNull();
   });
 });
