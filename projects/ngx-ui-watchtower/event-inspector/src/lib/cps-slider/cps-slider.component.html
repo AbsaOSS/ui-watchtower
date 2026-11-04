@@ -1,0 +1,46 @@
+<div class="cps-slider-container" [class.cps-slider-disabled]="disabled">
+  @if (label) {
+    <label
+      class="cps-slider-label"
+      data-testid="cps-slider-label"
+      [for]="inputId"
+      >{{ label }}</label
+    >
+  }
+  @if (infoTooltip) {
+    <cps-info-circle
+      class="cps-slider-info-circle"
+      data-testid="cps-slider-info-circle"
+      size="xsmall"
+      [tooltipPosition]="infoTooltipPosition"
+      [tooltipContentClass]="infoTooltipClass"
+      [tooltipMaxWidth]="infoTooltipMaxWidth"
+      [tooltipPersistent]="infoTooltipPersistent"
+      [tooltipText]="infoTooltip">
+    </cps-info-circle>
+  }
+  <input
+    type="range"
+    class="cps-slider-input"
+    data-testid="cps-slider-input"
+    [id]="inputId"
+    [min]="min"
+    [max]="max"
+    [step]="step"
+    [value]="value"
+    [disabled]="disabled"
+    [style.width]="cvtWidth"
+    [style.--cps-slider-fill]="fill"
+    [attr.aria-label]="ariaLabel || null"
+    [attr.aria-valuetext]="valueText"
+    (input)="updateValueEvent($event)"
+    (blur)="onTouched()" />
+  @if (showValue) {
+    <span
+      class="cps-slider-value"
+      data-testid="cps-slider-value"
+      aria-hidden="true"
+      >{{ valueText }}</span
+    >
+  }
+</div>

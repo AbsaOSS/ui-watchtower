@@ -9,6 +9,16 @@
       {{ store.total() }} event{{ store.total() === 1 ? '' : 's' }}
     </p>
     <div class="uwt-inspector-dialog__actions">
+      <cps-slider
+        label="Transparency"
+        [max]="maxTransparency"
+        [step]="5"
+        width="6rem"
+        [showValue]="true"
+        valueSuffix="%"
+        [value]="transparency()"
+        (valueChanged)="setTransparency($event)">
+      </cps-slider>
       <cps-switch
         label="Pause live updates"
         [value]="store.paused()"

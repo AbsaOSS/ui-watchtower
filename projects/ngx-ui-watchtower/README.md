@@ -362,7 +362,7 @@ providers: [provideUwtEventInspector()];
 
 Open it with **⇧⌥⌘8** on macOS or **Ctrl+Alt+Shift+8** on Windows and Linux.
 It lists everything the app sends from that moment on, with search, filters
-and JSON download.
+and JSON download, and its Transparency slider lets the app show through.
 
 ## Testing
 

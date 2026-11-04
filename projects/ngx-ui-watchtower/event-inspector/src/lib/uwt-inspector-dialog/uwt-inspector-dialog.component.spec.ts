@@ -5,13 +5,16 @@ import {
   UwtTelemetryMonitor,
   UwtTelemetryPublishInput
 } from '@absaoss-cps/ngx-ui-watchtower';
-import { CPS_LIVE_ANNOUNCER_SERVICE } from 'cps-ui-kit';
+import { CPS_LIVE_ANNOUNCER_SERVICE, CpsDialogConfig } from 'cps-ui-kit';
 import * as exportUtil from '../uwt-inspector-export/uwt-inspector-export';
 import {
   UWT_INSPECTOR_FLUSH_MS,
   UwtInspectorStore
 } from '../uwt-inspector-store/uwt-inspector-store';
-import { UwtInspectorDialogComponent } from './uwt-inspector-dialog.component';
+import {
+  UWT_INSPECTOR_TRANSPARENCY_KEY,
+  UwtInspectorDialogComponent
+} from './uwt-inspector-dialog.component';
 
 const bi = (name: string, theme = 'dark'): UwtTelemetryPublishInput => ({
   kind: 'bi',
@@ -63,6 +66,7 @@ describe('UwtInspectorDialogComponent', () => {
   let fixture: ComponentFixture<UwtInspectorDialogComponent>;
   let monitor: UwtTelemetryMonitor;
   let announce: jest.Mock;
+  let dialogConfig: CpsDialogConfig;
 
   const el = () => fixture.nativeElement as HTMLElement;
   /** The popup's own actions, as its buttons and switch call them. */
@@ -97,6 +101,7 @@ describe('UwtInspectorDialogComponent', () => {
   beforeEach(async () => {
     jest.useFakeTimers();
     announce = jest.fn();
+    dialogConfig = {};
     await TestBed.configureTestingModule({
       imports: [UwtInspectorDialogComponent, NoopAnimationsModule],
       providers: [
@@ -111,7 +116,8 @@ describe('UwtInspectorDialogComponent', () => {
         {
           provide: CPS_LIVE_ANNOUNCER_SERVICE,
           useValue: { announce, clear: jest.fn() }
-        }
+        },
+        { provide: CpsDialogConfig, useValue: dialogConfig }
       ]
     }).compileComponents();
     monitor = TestBed.inject(UwtTelemetryMonitor);
@@ -123,6 +129,7 @@ describe('UwtInspectorDialogComponent', () => {
     fixture.destroy();
     jest.useRealTimers();
     jest.restoreAllMocks();
+    localStorage.removeItem(UWT_INSPECTOR_TRANSPARENCY_KEY);
   });
 
   it('should open empty, with three sections and an explanation', () => {
@@ -333,6 +340,39 @@ describe('UwtInspectorDialogComponent', () => {
     settle();
 
     expect(seen).toHaveLength(0);
+  });
+
+  it('should make the whole window see-through, and remember it', () => {
+    expect(dialogConfig.style).toEqual({ opacity: '1' });
+
+    const slider = el().querySelector('cps-slider input') as HTMLInputElement;
+    slider.value = '30';
+    slider.dispatchEvent(new Event('input'));
+
+    expect(dialogConfig.style).toEqual({ opacity: '0.7' });
+    expect(localStorage.getItem(UWT_INSPECTOR_TRANSPARENCY_KEY)).toBe('30');
+  });
+
+  it('should reopen at the remembered transparency', () => {
+    localStorage.setItem(UWT_INSPECTOR_TRANSPARENCY_KEY, '40');
+    const reopened = TestBed.createComponent(UwtInspectorDialogComponent);
+    reopened.detectChanges();
+
+    expect(dialogConfig.style).toEqual({ opacity: '0.6' });
+    expect(
+      (reopened.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        'cps-slider input'
+      )?.value
+    ).toBe('40');
+    reopened.destroy();
+  });
+
+  it('should open opaque when the remembered value is out of range', () => {
+    localStorage.setItem(UWT_INSPECTOR_TRANSPARENCY_KEY, '95');
+    const reopened = TestBed.createComponent(UwtInspectorDialogComponent);
+
+    expect(dialogConfig.style).toEqual({ opacity: '1' });
+    reopened.destroy();
   });
 
   it('should stop observing when closed', () => {

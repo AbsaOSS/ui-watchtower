@@ -233,6 +233,12 @@ shell's.
   from `node_modules` and it is never compiled into the package. The
   workspace uses cps-ui-kit 21, the lowest version the Event Inspector
   supports, as it uses the lowest supported Angular.
+- **`cps-slider` is staged here for cps-ui-kit.** The kit has no slider, so
+  the Transparency control is a `cps-slider` written to the kit's
+  conventions — inputs, `valueChanged`, forms support, colour variables —
+  in its own folder, `event-inspector/src/lib/cps-slider/`, depending only
+  on Angular and the kit's public API, so it can move into cps-ui-kit as
+  is.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
@@ -1112,7 +1118,9 @@ for the session, `cwr_u` for the user id), the library keeps one
 `localStorage` entry, `ngx-ui-watchtower.sessionStarts`: up to five RUM
 session ids, each with the time it started, for `sessionElapsed`. It is
 written only while the RUM client's cookies are on, and an id stays until
-five newer sessions have replaced it. Debug flags are read from
+five newer sessions have replaced it. The Event Inspector adds one more,
+`ngx-ui-watchtower.eventInspector.transparency`, only once someone moves its
+Transparency slider: a number from 0 to 70. Debug flags are read from
 `localStorage`, never written.
 
 ### Scanning values for personal data
@@ -2100,6 +2108,10 @@ capturing rather than viewing:
 - **Pause live updates** freezes the view while you read; events are still
   captured.
 - **Clear** empties the history; capturing continues.
+
+Beside them, **Transparency** lets the app show through the window, so you
+can watch the page and its events together. It goes up to 70%, so the window
+never disappears, and the setting is remembered in this browser.
 
 Each section keeps the latest 500 events (`maxEventsPerSection`). History is
 discarded when the popup closes.

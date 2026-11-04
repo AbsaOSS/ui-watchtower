@@ -5,13 +5,16 @@ import {
   computed,
   DestroyRef,
   ElementRef,
-  inject
+  inject,
+  signal
 } from '@angular/core';
 import {
   CPS_LIVE_ANNOUNCER_SERVICE,
   CpsButtonComponent,
+  CpsDialogConfig,
   CpsSwitchComponent
 } from 'cps-ui-kit';
+import { CpsSliderComponent } from '../cps-slider/cps-slider.component';
 import { UWT_EVENT_INSPECTOR_CONFIG } from '../uwt-inspector.models/uwt-inspector.models';
 import {
   UWT_DEFAULT_INSPECTOR_CONFIG,
@@ -29,9 +32,20 @@ import {
   uwtIsApplePlatform,
   uwtShortcutLabel
 } from '../uwt-inspector-shortcut/uwt-inspector-shortcut';
+import {
+  uwtSafe,
+  uwtSafeVoid
+} from '../uwt-inspector-internal.util/uwt-inspector-internal.util';
 
 /** Screen readers hear about new events at most this often, in ms. */
 const ANNOUNCE_EVERY_MS = 10_000;
+
+/** How see-through the window can get, in percent, so it never vanishes. */
+export const UWT_INSPECTOR_MAX_TRANSPARENCY = 70;
+
+/** Where this browser remembers the chosen transparency. */
+export const UWT_INSPECTOR_TRANSPARENCY_KEY =
+  'ngx-ui-watchtower.eventInspector.transparency';
 
 /**
  * The Event Inspector's content, opened by
@@ -48,6 +62,7 @@ const ANNOUNCE_EVERY_MS = 10_000;
   selector: 'uwt-inspector-dialog',
   imports: [
     CpsButtonComponent,
+    CpsSliderComponent,
     CpsSwitchComponent,
     UwtInspectorSectionComponent
   ],
@@ -64,6 +79,9 @@ export class UwtInspectorDialogComponent {
   private readonly announcer = inject(CPS_LIVE_ANNOUNCER_SERVICE, {
     optional: true
   });
+
+  /** The window's own config: cps-dialog binds its `style` to the window. */
+  private readonly dialogConfig = inject(CpsDialogConfig, { optional: true });
 
   private readonly config = {
     ...UWT_DEFAULT_INSPECTOR_CONFIG,
@@ -83,11 +101,15 @@ export class UwtInspectorDialogComponent {
     uwtIsApplePlatform(this.document.defaultView?.navigator)
   );
 
+  protected readonly maxTransparency = UWT_INSPECTOR_MAX_TRANSPARENCY;
+  protected readonly transparency = signal(this.storedTransparency());
+
   private lastAnnounced = { bi: 0, scenario: 0, logging: 0 };
 
   constructor() {
     const timer = setInterval(() => this.announceNew(), ANNOUNCE_EVERY_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    this.applyTransparency(this.transparency());
   }
 
   /** Whether keyboard focus is anywhere in the popup, header included. */
@@ -117,6 +139,46 @@ export class UwtInspectorDialogComponent {
     this.store.clear();
     this.lastAnnounced = { bi: 0, scenario: 0, logging: 0 };
     this.announce('History cleared. Capturing continues.');
+  }
+
+  /** Lets the app show through the window, and remembers the choice. */
+  protected setTransparency(percent: number): void {
+    this.transparency.set(percent);
+    this.applyTransparency(percent);
+    uwtSafeVoid('transparency.save', () =>
+      this.document.defaultView?.localStorage.setItem(
+        UWT_INSPECTOR_TRANSPARENCY_KEY,
+        String(percent)
+      )
+    );
+  }
+
+  /**
+   * A new `style` object, rather than this component's own styles, so the
+   * window's header and frame turn see-through too.
+   */
+  private applyTransparency(percent: number): void {
+    if (this.dialogConfig) {
+      this.dialogConfig.style = {
+        ...this.dialogConfig.style,
+        opacity: String((100 - percent) / 100)
+      };
+    }
+  }
+
+  /** The last choice in this browser, or fully opaque. */
+  private storedTransparency(): number {
+    const stored = uwtSafe(
+      'transparency.read',
+      () =>
+        Number(
+          this.document.defaultView?.localStorage.getItem(
+            UWT_INSPECTOR_TRANSPARENCY_KEY
+          )
+        ),
+      0
+    );
+    return stored >= 0 && stored <= UWT_INSPECTOR_MAX_TRANSPARENCY ? stored : 0;
   }
 
   /** One polite summary of what arrived since the last one, if anything. */
