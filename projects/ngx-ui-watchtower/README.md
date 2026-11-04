@@ -365,6 +365,17 @@ It lists everything the app sends from that moment on, with search, filters
 and JSON download. It opens as a dialog, with a Transparency slider; its Dock
 buttons move it to its own window or a pane on the left, right or bottom.
 
+A pane pushes the page aside, but elements fixed to the window stay put. To
+keep them beside the pane, use the size it publishes on `<html>`
+(`--uwt-inspector-inset-left`, `-right` or `-bottom`):
+
+```css
+.app-header {
+  left: var(--uwt-inspector-inset-left, 0px);
+  right: var(--uwt-inspector-inset-right, 0px);
+}
+```
+
 ## Testing
 
 ```ts

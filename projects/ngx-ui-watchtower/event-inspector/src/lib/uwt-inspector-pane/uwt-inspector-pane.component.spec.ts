@@ -68,6 +68,23 @@ describe('UwtInspectorPaneComponent', () => {
     expect(host().querySelector('uwt-inspector')).not.toBeNull();
   });
 
+  it('should publish its size for the app, and take it back when it closes', () => {
+    const inset = (side: string) =>
+      document.documentElement.style.getPropertyValue(
+        `--uwt-inspector-inset-${side}`
+      );
+    open('right');
+    expect(inset('right')).toBe('512px');
+    expect(inset('left')).toBe('');
+    expect(inset('bottom')).toBe('');
+
+    key('ArrowLeft');
+    expect(inset('right')).toBe('544px');
+
+    fixture.destroy();
+    expect(inset('right')).toBe('');
+  });
+
   it('should give the app its padding back when it closes', () => {
     document.body.style.paddingLeft = '7px';
     open('left');

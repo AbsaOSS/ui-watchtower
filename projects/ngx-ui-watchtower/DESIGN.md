@@ -2082,8 +2082,31 @@ Moving it keeps everything captured, the filters and the pause; pages and
 expanded rows start afresh.
 
 A pane makes room by padding the page's `body` on its side, so content in
-the normal flow moves aside. Elements the app places with `position: fixed`,
-or sizes to `100vw`, stay where they are, and the pane covers their edge.
+the normal flow moves aside. A page can't shrink the browser's viewport —
+only the browser can, as DevTools does — so whatever is laid out against the
+window stays where it is: `position: fixed` headers and buttons, `100vw`
+widths and `100vh` heights reach under the pane, and media queries still see
+the whole window.
+
+For those, the pane publishes its size on `<html>` while it is open, in
+pixels: `--uwt-inspector-inset-left`, `--uwt-inspector-inset-right` or
+`--uwt-inspector-inset-bottom`, and leaves the others unset. An app opts in
+where it needs to; the `0px` fallback keeps everything as it was with no pane
+open:
+
+```css
+.app-header {
+  left: var(--uwt-inspector-inset-left, 0px);
+  right: var(--uwt-inspector-inset-right, 0px);
+}
+.help-button {
+  right: calc(1.5rem + var(--uwt-inspector-inset-right, 0px));
+  bottom: calc(1.5rem + var(--uwt-inspector-inset-bottom, 0px));
+}
+.app-shell {
+  height: calc(100vh - var(--uwt-inspector-inset-bottom, 0px));
+}
+```
 
 The separate window has to open from a click or key press — the shortcut and
 the Dock buttons both are — or the browser blocks it. The inspector then

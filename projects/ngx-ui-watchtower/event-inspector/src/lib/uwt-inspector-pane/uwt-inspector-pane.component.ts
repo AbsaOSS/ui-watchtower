@@ -25,9 +25,11 @@ const STEP_REM = 2;
 /**
  * The inspector docked beside or below the app, like Chrome DevTools. It
  * makes room by padding the page's `body` on its side, so content in the
- * normal flow moves aside; the app's `position: fixed` elements stay where
- * they are. Resized by dragging or with the arrow keys on its inner edge,
- * and remembers its size per side.
+ * normal flow moves aside. Elements placed against the window — fixed
+ * headers, `100vh` shells — can't be moved from here, so it also publishes
+ * its size as `--uwt-inspector-inset-left`, `-right` or `-bottom` on
+ * `<html>`, for the app's CSS to use. Resized by dragging or with the arrow
+ * keys on its inner edge, and remembers its size per side.
  */
 @Component({
   selector: 'uwt-inspector-pane',
@@ -60,6 +62,7 @@ export class UwtInspectorPaneComponent implements OnInit, OnDestroy {
 
   private padding = '';
   private paddingBefore = '';
+  private inset = '';
   private dragging = false;
 
   ngOnInit(): void {
@@ -67,6 +70,7 @@ export class UwtInspectorPaneComponent implements OnInit, OnDestroy {
     this.paddingBefore = this.document.body.style.getPropertyValue(
       this.padding
     );
+    this.inset = `--uwt-inspector-inset-${this.side()}`;
     this.resize(
       this.preferences.read().paneSize[this.side()] ?? this.defaultSize()
     );
@@ -74,6 +78,7 @@ export class UwtInspectorPaneComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.document.body.style.setProperty(this.padding, this.paddingBefore);
+    this.document.documentElement.style.removeProperty(this.inset);
   }
 
   /** Sets the size within its limits, and makes room for it. */
@@ -91,6 +96,7 @@ export class UwtInspectorPaneComponent implements OnInit, OnDestroy {
     });
     this.size.set(clamped);
     this.document.body.style.setProperty(this.padding, `${clamped}px`);
+    this.document.documentElement.style.setProperty(this.inset, `${clamped}px`);
   }
 
   protected startDrag(event: PointerEvent): void {
