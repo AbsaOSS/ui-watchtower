@@ -35,18 +35,27 @@
   color: var(--cps-text-secondary);
 }
 
-.uwt-diagnostics-section__time {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+// The table fits the section instead of running past its edge: the columns
+// after Time share the width, and a long value ends in an ellipsis, shown
+// in full in the cell's title and the row's detail.
+:host ::ng-deep .uwt-diagnostics-section__table {
+  width: 100%;
 }
 
-.uwt-diagnostics-section__cell {
-  display: inline-block;
-  max-width: 28rem;
+td {
+  // Lets the table make a cell narrower than its text.
+  max-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  vertical-align: bottom;
+}
+
+.uwt-diagnostics-section__time {
+  // Only as wide as the time itself.
+  width: 1%;
+  max-width: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .uwt-diagnostics-section__forwarded {

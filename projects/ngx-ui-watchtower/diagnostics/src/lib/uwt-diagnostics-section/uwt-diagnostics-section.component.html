@@ -60,9 +60,10 @@
       [rowsPerPageOptions]="[25, 50, 100]"
       [first]="first()"
       (pageChanged)="onPage($event)"
-      [emptyMessage]="emptyMessage()">
+      [emptyMessage]="emptyMessage()"
+      tableStyleClass="uwt-diagnostics-section__table">
       <ng-template #header>
-        <th scope="col">Time</th>
+        <th scope="col" class="uwt-diagnostics-section__time">Time</th>
         @for (column of columns(); track column.key) {
           <th
             scope="col"
@@ -87,15 +88,14 @@
             "
             [class.uwt-diagnostics-section__level--error]="
               column.key === 'level' && row.cells['level'].startsWith('error')
-            ">
+            "
+            [attr.title]="row.cells[column.key] || null">
             @if (column.key === columns()[0].key && row.forwardedFrom) {
               <span class="uwt-diagnostics-section__forwarded"
                 >↪ {{ row.forwardedFrom }}</span
               >
             }
-            <span class="uwt-diagnostics-section__cell">{{
-              row.cells[column.key]
-            }}</span>
+            {{ row.cells[column.key] }}
           </td>
         }
       </ng-template>

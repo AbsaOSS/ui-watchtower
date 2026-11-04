@@ -2045,8 +2045,9 @@ match exactly, held-down repeats are ignored, and AltGr — which many
 European Windows layouts report as Ctrl+Alt — never triggers it. ⌥⌘8 alone
 is macOS Accessibility Zoom, which is why Shift is part of it.
 
-The popup is not modal: it docks on the right at half the screen and leaves
-the app usable, so you can watch events arrive. It is draggable, resizable
+The popup is not modal: it docks on the right at half the screen (at least
+40rem, or nearly all of a small screen) and leaves the app usable, so you
+can watch events arrive. It is draggable, resizable
 and maximizable. With it open, the shortcut brings focus back to
 it from the app, and closes it when focus is already inside. Escape closes it
 too.
@@ -2078,8 +2079,9 @@ provideUwtTelemetryDiagnostics({
 #### What it shows
 
 Three sections — BI telemetry, scenario telemetry and logging — listing
-events newest first, from the moment the popup opens. Expand a row for the
-full payload as JSON.
+events newest first, from the moment the popup opens. The table always fits
+the popup: a long value ends in an ellipsis, and hovering shows it in full.
+Expand a row for the full payload as JSON.
 
 Each section has its own tools, which never affect the other two:
 

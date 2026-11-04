@@ -123,10 +123,11 @@ export class UwtTelemetryDiagnosticsService {
           maximizable: true,
           closeOnEscape: true,
           // Docked right at half the screen, so the application stays
-          // visible and clickable beside it; resizable, and maximizable
-          // for a closer look.
+          // visible and clickable beside it, but never narrower than 40rem
+          // (nearly all of a small screen), so the tables have room;
+          // resizable, and maximizable for a closer look.
           position: 'right',
-          width: 'min(64rem, 50vw)',
+          width: 'clamp(min(40rem, 96vw), 50vw, 64rem)',
           height: '88vh',
           minWidth: 'min(22rem, 96vw)',
           autoFocus: '.uwt-diagnostics-search input'
