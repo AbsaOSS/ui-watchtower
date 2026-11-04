@@ -9,6 +9,7 @@
 export {
   UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_REDACT_CONFIG,
+  UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_IDENTITY
 } from './lib/config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 export type { UwtTelemetryIdentity } from './lib/config/uwt-telemetry-common.config/uwt-telemetry-common.config';
@@ -31,7 +32,8 @@ export {
   withBIEvents,
   withLogging,
   withRedaction,
-  withScenarios
+  withScenarios,
+  withTelemetryEnabled
 } from './lib/providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
 export {
   UWT_LOG_API_PROVIDER,
@@ -118,6 +120,7 @@ export type { UwtTraceScenarioOptions } from './lib/scenario/uwt-scenario-operat
 export { uwtIsDebugEnabled } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
 export type { UwtDebugFlag } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
 export { uwtUuid } from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+export { uwtMarkSessionStart } from './lib/utils/uwt-session-start.util/uwt-session-start.util';
 export {
   UWT_DEFAULT_REDACT_CONFIG,
   UWT_REDACTED,

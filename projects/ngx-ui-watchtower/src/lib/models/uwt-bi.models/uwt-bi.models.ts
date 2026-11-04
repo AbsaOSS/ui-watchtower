@@ -40,13 +40,12 @@ export interface UwtBIEventNames {}
 export type UwtBIEventName = UwtRegistered<UwtBIEventNames>;
 
 /**
- * Correlation fields carried through unchanged onto the emitted
- * {@link UwtBIEvent} — shared by {@link UwtBIEventDetail} and
- * {@link UwtBIEvent} so neither declares its own copy.
+ * Optional correlation detail for a business/UX event, carried through
+ * unchanged onto the emitted {@link UwtBIEvent}.
  *
  * @group Interfaces
  */
-export interface UwtBIEventCorrelation {
+export interface UwtBIEventDetail {
   /** Scenario this event happened inside. Pass {@link UwtScenario.id}. */
   scenarioId?: string;
 
@@ -55,31 +54,17 @@ export interface UwtBIEventCorrelation {
 }
 
 /**
- * Optional correlation detail for a business/UX event.
- *
- * @group Interfaces
- */
-export interface UwtBIEventDetail extends UwtBIEventCorrelation {
-  /**
-   * Overrides the RUM event type for this one event. BI events normally
-   * share one type, with `eventName` as a field. Use this only when an
-   * existing dashboard or metric filter needs a specific event type.
-   */
-  eventType?: string;
-}
-
-/**
  * A discrete business or UX event.
  *
  * Browser, device and page attributes come from the RUM envelope and aren't
  * repeated here — the client already stamps `pageId`/`pageUrl` on every
- * event, so a `route` field would just duplicate that. `application` is
- * carried anyway, for a self-describing record; see {@link UwtScenarioRecord}.
+ * event, so a `route` field would just duplicate that. `application`,
+ * `sessionId` and `userId` are carried anyway, for a self-describing record;
+ * see {@link UwtScenarioRecord}.
  *
  * @group Interfaces
  */
-export interface UwtBIEvent
-  extends UwtBIEventCorrelation, Pick<UwtTelemetryAttribution, 'application'> {
+export interface UwtBIEvent extends UwtBIEventDetail, UwtTelemetryAttribution {
   /**
    * Event name, e.g. `export_clicked`. Declared by the application in
    * {@link UwtBIEventNames} — this library never hardcodes business event

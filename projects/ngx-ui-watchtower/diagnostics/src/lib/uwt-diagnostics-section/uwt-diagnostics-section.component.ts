@@ -11,7 +11,6 @@ import {
   CpsChipComponent,
   CpsButtonComponent,
   CpsExpansionPanelComponent,
-  CpsIconType,
   CpsTableComponent
 } from 'cps-ui-kit';
 import { UwtDiagnosticsSectionId } from '../uwt-diagnostics.models/uwt-diagnostics.models';
@@ -30,7 +29,7 @@ import {
 
 const SECTION_TEXT: Record<
   UwtDiagnosticsSectionId,
-  { title: string; icon: CpsIconType; empty: string }
+  { title: string; icon: string; empty: string }
 > = {
   bi: {
     title: 'BI telemetry',

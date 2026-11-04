@@ -31,6 +31,7 @@ import {
   uwtRedactMetadata,
   uwtScrubString
 } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
+import { uwtSessionElapsed } from '../../utils/uwt-session-start.util/uwt-session-start.util';
 import {
   uwtDeepClone,
   uwtElapsedNow,
@@ -65,6 +66,8 @@ export interface UwtScenarioDeps {
   onSettled: (scenarioId: string, record: UwtScenarioRecord) => void;
   /** Told about every event right after it is handed to the sink. */
   monitor: UwtTelemetryMonitor;
+  /** Telemetry is switched off: the scenario records, times and sends nothing. */
+  inert?: boolean;
 }
 
 /** The two events a scenario sends: its settled record, and a closed step. */
@@ -127,7 +130,7 @@ export class UwtScenario {
   /** See {@link scheduleMarkCleanupFallback}. */
   private markCleanupTimer?: ReturnType<typeof setTimeout>;
 
-  private _elapsed = 0;
+  private _duration = 0;
   private settleOutcome?: UwtScenarioOutcome;
   private settleError?: unknown;
   /** Scrubbed once in {@link settle}, reused by {@link toRecord} — see that method's doc comment. */
@@ -152,11 +155,24 @@ export class UwtScenario {
    */
   private readonly userTimingsEnabled: boolean;
 
+  /** Telemetry is off — see {@link UwtScenarioDeps.inert}. */
+  private readonly inert: boolean;
+
   constructor(
     private readonly options: UwtScenarioOptions,
     private readonly deps: UwtScenarioDeps
   ) {
     this.eventTypes = uwtEventTypes(deps.identity.eventNamespace);
+    this.inert = deps.inert === true;
+    if (this.inert) {
+      // Telemetry is off: no redaction, timers, marks or steps.
+      this.userTimingsEnabled = false;
+      this.metadata = {};
+      this.startedAt = uwtNow();
+      this._startTime = Date.now();
+      this.lastTimingMark = '';
+      return;
+    }
     this.userTimingsEnabled =
       deps.scenarioTelemetryConfig.userTimings ||
       uwtIsDebugEnabled('debugScenario');
@@ -225,14 +241,17 @@ export class UwtScenario {
   }
 
   /**
-   * Duration in milliseconds — how long the scenario has run, or its final
-   * duration once settled.
+   * How long the scenario has taken, in milliseconds: the time so far while
+   * it runs, its final duration once settled.
    *
-   * Named `delta`, not `elapsed`: the record's `elapsed` field means
-   * milliseconds since the page loaded, a different value.
+   * Don't confuse it with the record's `elapsed`, which says when something
+   * happened: milliseconds since the page loaded.
    */
   get delta(): number {
-    return this.isSettled ? this._elapsed : uwtNow() - this.startedAt;
+    if (this.inert) {
+      return 0;
+    }
+    return this.isSettled ? this._duration : uwtNow() - this.startedAt;
   }
 
   /**
@@ -415,10 +434,25 @@ export class UwtScenario {
    *   written at settlement.
    */
   toRecord(): UwtScenarioRecord {
+    if (this.inert) {
+      return {
+        scenarioId: this._id,
+        parentScenarioId: this.options.parentScenarioId,
+        scenarioName: this.options.name,
+        startTime: new Date(this._startTime).toISOString(),
+        delta: 0,
+        elapsed: 0,
+        stepCount: 0,
+        steps: [],
+        application: this.deps.identity.application
+      };
+    }
     const { redact } = this.deps;
     const settled = this.isSettled;
 
     const aggregates = this.collectAggregates();
+    const sessionId = this.sessionId();
+    const sessionElapsed = uwtSessionElapsed(sessionId);
 
     const record: UwtScenarioRecord = {
       scenarioId: this._id,
@@ -430,7 +464,7 @@ export class UwtScenario {
       status: this._status,
       startTime: new Date(this._startTime).toISOString(),
       endTime: settled
-        ? new Date(this._startTime + Math.round(this._elapsed)).toISOString()
+        ? new Date(this._startTime + Math.round(this._duration)).toISOString()
         : undefined,
       delta: Math.round(this.delta),
       elapsed: Math.round(uwtElapsedNow()),
@@ -442,9 +476,13 @@ export class UwtScenario {
         ? uwtDeepClone(this.metadata)
         : undefined,
       application: this.deps.identity.application,
-      sessionId: this.sessionId(),
+      sessionId,
       userId: this.userId()
     };
+
+    if (sessionElapsed !== undefined) {
+      record.sessionElapsed = Math.round(sessionElapsed);
+    }
 
     if (this._stepCount > this.deps.scenarioTelemetryConfig.maxSteps) {
       record.exceededStepsLimit = true;
@@ -483,6 +521,9 @@ export class UwtScenario {
     outcome?: UwtScenarioOutcome,
     error?: unknown
   ): void {
+    if (this.inert) {
+      return;
+    }
     uwtSafeVoid(`scenario.${status}`, () => {
       if (this.isSettled) {
         return;
@@ -490,7 +531,7 @@ export class UwtScenario {
 
       this.clearTimeout();
       this.clearMarkCleanupTimer();
-      this._elapsed = uwtNow() - this.startedAt;
+      this._duration = uwtNow() - this.startedAt;
       this._status = status;
 
       const { message, reason } = outcome ?? {};
@@ -517,8 +558,8 @@ export class UwtScenario {
 
       this.steps.push({
         name: 'scenario-end',
-        startOffset: Math.round(this._elapsed),
-        endOffset: Math.round(this._elapsed),
+        startOffset: Math.round(this._duration),
+        endOffset: Math.round(this._duration),
         stepDelta: 0,
         elapsed: Math.round(uwtElapsedNow()),
         status,
@@ -546,7 +587,7 @@ export class UwtScenario {
       this.deps.onSettled(this._id, record);
       this.emit(
         { kind: 'scenario', payload: record },
-        `${status} in ${Math.round(this._elapsed)}ms`
+        `${status} in ${Math.round(this._duration)}ms`
       );
     });
   }
@@ -572,7 +613,7 @@ export class UwtScenario {
   /** Snapshots the aggregate totals, closing any call still open. */
   private collectAggregates(): UwtScenarioAggregate[] {
     const result: UwtScenarioAggregate[] = [];
-    const now = this.isSettled ? this.startedAt + this._elapsed : uwtNow();
+    const now = this.isSettled ? this.startedAt + this._duration : uwtNow();
 
     for (const [name, entry] of this.aggregates) {
       let total = entry.total;
@@ -821,6 +862,9 @@ export class UwtScenario {
    * @returns this scenario
    */
   private mutate(operation: string, apply: () => void): this {
+    if (this.inert) {
+      return this;
+    }
     uwtSafeVoid(`scenario.${operation}`, () => {
       if (this.isSettled) {
         return;

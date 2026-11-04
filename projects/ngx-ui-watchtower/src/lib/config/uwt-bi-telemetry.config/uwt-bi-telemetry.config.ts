@@ -12,7 +12,7 @@ export interface UwtBITelemetryConfig {
   /**
    * Distinct event keys tracked before expired ones are swept.
    *
-   * Keyed per `eventName|scenarioId|eventType|feature|metadata`, which
+   * Keyed per `eventName|scenarioId|feature|metadata`, which
    * grows unbounded over a long session without this cap.
    */
   dedupMaxKeys: number;

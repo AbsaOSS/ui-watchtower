@@ -1,11 +1,13 @@
-import { PLATFORM_ID } from '@angular/core';
+import { NgZone, PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_REDACT_CONFIG,
+  UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_EVENT_TYPE,
   UWT_TELEMETRY_IDENTITY
 } from '@absaoss-cps/ngx-ui-watchtower';
+import { uwtSessionElapsed } from '../../../../src/lib/utils/uwt-session-start.util/uwt-session-start.util';
 import {
   UWT_RUM_CREDENTIALS_PROVIDER,
   UwtRumBootstrap
@@ -23,6 +25,7 @@ const awsRumInstance = {
   pinUserId: jest.fn(),
   startSession: jest.fn(() => 'rum-session-2'),
   getSessionId: jest.fn(() => 'rum-session-1'),
+  getUserId: jest.fn(() => 'anonymous-id'),
   dispatch: jest.fn(),
   dispatchBeacon: jest.fn(),
   disable: jest.fn()
@@ -75,6 +78,7 @@ describe('UwtRumTelemetrySink', () => {
 
   function configure(options?: {
     platformId?: object;
+    enabled?: boolean;
     loadImpl?: () => Promise<UwtRumBootstrap | null>;
   }): void {
     load = jest.fn(options?.loadImpl ?? (async () => bootstrap()));
@@ -96,6 +100,7 @@ describe('UwtRumTelemetrySink', () => {
         },
         { provide: PLATFORM_ID, useValue: options?.platformId ?? 'browser' },
         { provide: UWT_RUM_CREDENTIALS_PROVIDER, useValue: { load } },
+        { provide: UWT_TELEMETRY_ENABLED, useValue: options?.enabled ?? true },
         UwtRumTelemetrySink
       ]
     });
@@ -112,6 +117,17 @@ describe('UwtRumTelemetrySink', () => {
   });
 
   describe('initialization', () => {
+    it('should neither fetch credentials nor load the SDK when telemetry is off', async () => {
+      configure({ enabled: false });
+
+      await sink.init();
+      sink.record('scenario', {});
+      sink.recordPageView('/customers');
+
+      expect(load).not.toHaveBeenCalled();
+      expect(AwsRumCtor).not.toHaveBeenCalled();
+    });
+
     it('should construct the client with the broker-supplied identity', async () => {
       await sink.init();
 
@@ -425,6 +441,7 @@ describe('UwtRumTelemetrySink', () => {
         environment: 'prod',
         appVersion: '3.0.0'
       };
+      // No `signedIn` yet: the app hasn't said who is signed in.
       expect(awsRumInstance.addSessionAttributes).toHaveBeenCalledWith(
         attributes
       );
@@ -497,7 +514,7 @@ describe('UwtRumTelemetrySink', () => {
 
       await expect(sink.init()).resolves.toBeUndefined();
       expect(warn).toHaveBeenCalledWith(
-        '[ngx-ui-watchtower] RUM init failed, monitoring disabled',
+        '[ngx-ui-watchtower] RUM init failed, retrying',
         expect.objectContaining({
           name: 'Error',
           message: 'broker unreachable'
@@ -520,29 +537,157 @@ describe('UwtRumTelemetrySink', () => {
       expect(awsRumInstance.recordEvent).not.toHaveBeenCalled();
     });
 
-    it('should disable RUM and clear the pre-init buffer, not buffer forever, when init throws', async () => {
-      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-      let rejectLoad!: (error: Error) => void;
-      configure({
-        loadImpl: () =>
-          new Promise<UwtRumBootstrap | null>((_resolve, reject) => {
-            rejectLoad = reject;
-          })
+    describe('when the broker request fails', () => {
+      beforeEach(() => jest.useFakeTimers());
+      afterEach(() => jest.useRealTimers());
+
+      it('should keep buffering and start the client on a later attempt', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        let calls = 0;
+        configure({
+          loadImpl: async () => {
+            if (calls++ === 0) {
+              throw new Error('broker unreachable');
+            }
+            return bootstrap();
+          }
+        });
+
+        await sink.init();
+        sink.record('a', {});
+        expect(AwsRumCtor).not.toHaveBeenCalled();
+
+        await jest.advanceTimersByTimeAsync(30 * 1000);
+
+        expect(load).toHaveBeenCalledTimes(2);
+        expect(AwsRumCtor).toHaveBeenCalledTimes(1);
+        expect(awsRumInstance.recordEvent).toHaveBeenCalledWith(
+          'a',
+          {},
+          undefined
+        );
+        expect(sink.getSessionId()).toBe('rum-session-1');
       });
 
-      const initPromise = sink.init();
-      sink.record('a', {});
+      it('should back off from 1 s to 60 s, warn once, and give up after five minutes', async () => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        // The longest wait each time.
+        jest.spyOn(Math, 'random').mockReturnValue(1);
+        configure({
+          loadImpl: async () => {
+            throw new Error('broker unreachable');
+          }
+        });
 
-      rejectLoad(new Error('broker unreachable'));
-      await initPromise;
+        await sink.init();
+        sink.record('a', {});
+        expect(load).toHaveBeenCalledTimes(1);
 
-      sink.record('b', {});
-      sink.flush();
+        // Retries at 1, 3, 7, 15, 31, 63, 123, 183, 243 and 303 s; the last
+        // one fails past the five minutes, so the sink gives up.
+        const waits = [1, 2, 4, 8, 16, 32, 60, 60, 60, 60];
+        for (const [index, seconds] of waits.entries()) {
+          await jest.advanceTimersByTimeAsync(seconds * 1000 - 1);
+          expect(load).toHaveBeenCalledTimes(index + 1);
+          await jest.advanceTimersByTimeAsync(1);
+          expect(load).toHaveBeenCalledTimes(index + 2);
+        }
 
-      expect(awsRumInstance.recordEvent).not.toHaveBeenCalled();
-      expect(warn).not.toHaveBeenCalledWith(
-        expect.stringContaining('RUM event(s) lost')
-      );
+        await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+        expect(load).toHaveBeenCalledTimes(11);
+        expect(warn.mock.calls.map(([message]) => message)).toEqual([
+          '[ngx-ui-watchtower] RUM init failed, retrying',
+          '[ngx-ui-watchtower] RUM init failed, monitoring disabled'
+        ]);
+
+        sink.record('b', {});
+        sink.flush(true);
+        expect(warn).toHaveBeenCalledTimes(2);
+      });
+
+      it('should wait a random part of the limit, so tabs reloaded together do not retry together', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        jest.spyOn(Math, 'random').mockReturnValue(0.25);
+        configure({
+          loadImpl: async () => {
+            throw new Error('broker unreachable');
+          }
+        });
+
+        await sink.init();
+
+        await jest.advanceTimersByTimeAsync(249);
+        expect(load).toHaveBeenCalledTimes(1);
+        await jest.advanceTimersByTimeAsync(1);
+        expect(load).toHaveBeenCalledTimes(2);
+
+        // A quarter of the doubled 2 s limit.
+        await jest.advanceTimersByTimeAsync(500);
+        expect(load).toHaveBeenCalledTimes(3);
+      });
+
+      it('should start the RUM client outside Angular, so its timers never keep the app from becoming stable', async () => {
+        const outside = jest.spyOn(TestBed.inject(NgZone), 'runOutsideAngular');
+
+        await sink.init();
+
+        expect(outside).toHaveBeenCalledTimes(1);
+        expect(AwsRumCtor).toHaveBeenCalledTimes(1);
+      });
+
+      it('should not retry when the client itself fails to start, since a retry would fail the same way', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        AwsRumCtor.mockImplementationOnce(() => {
+          throw new Error('constructor exploded');
+        });
+
+        await sink.init();
+        await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(AwsRumCtor).toHaveBeenCalledTimes(1);
+      });
+
+      it('should stop retrying once destroyed', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        configure({
+          loadImpl: async () => {
+            throw new Error('broker unreachable');
+          }
+        });
+
+        await sink.init();
+        sink.ngOnDestroy();
+        await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+        expect(load).toHaveBeenCalledTimes(1);
+      });
+
+      it('should not schedule another retry when destroyed while a retry is in flight', async () => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        let rejectRetry!: (error: Error) => void;
+        let calls = 0;
+        configure({
+          loadImpl: () => {
+            if (calls++ === 0) {
+              return Promise.reject(new Error('broker unreachable'));
+            }
+            return new Promise<UwtRumBootstrap | null>((_resolve, reject) => {
+              rejectRetry = reject;
+            });
+          }
+        });
+
+        await sink.init();
+        await jest.advanceTimersByTimeAsync(30 * 1000);
+        expect(load).toHaveBeenCalledTimes(2);
+
+        sink.ngOnDestroy();
+        rejectRetry(new Error('broker unreachable'));
+        await jest.advanceTimersByTimeAsync(10 * 60 * 1000);
+
+        expect(load).toHaveBeenCalledTimes(2);
+      });
     });
 
     it("should not reject init()'s promise even if console.warn itself throws", async () => {
@@ -825,6 +970,157 @@ describe('UwtRumTelemetrySink', () => {
       });
     });
 
+    it('should keep the session on sign-out while nobody is signed in', async () => {
+      await sink.init();
+
+      sink.setUserId(undefined);
+      sink.setUserId('');
+
+      expect(awsRumInstance.startSession).not.toHaveBeenCalled();
+    });
+
+    it('should keep the session for a sign-out before init while nobody is signed in', async () => {
+      sink.setUserId(undefined);
+
+      await sink.init();
+
+      expect(awsRumInstance.startSession).not.toHaveBeenCalled();
+    });
+
+    it('should start one fresh session for a repeated sign-out', async () => {
+      await sink.init();
+      sink.setUserId('user-42');
+
+      sink.setUserId(undefined);
+      sink.setUserId(undefined);
+
+      expect(awsRumInstance.startSession).toHaveBeenCalledTimes(1);
+    });
+
+    /** When the last early send happened, to compare with the change. */
+    const lastDispatch = () =>
+      Math.max(...awsRumInstance.dispatch.mock.invocationCallOrder);
+
+    it('should send what is waiting under the old id before a sign-in', async () => {
+      await sink.init();
+
+      sink.setUserId('user-42');
+
+      // Every batch the client can hold by default: 1000 events, 100 a batch.
+      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(10);
+      expect(lastDispatch()).toBeLessThan(
+        awsRumInstance.pinUserId.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('should send what is waiting under the old id before a sign-out', async () => {
+      await sink.init();
+      sink.setUserId('user-42');
+      awsRumInstance.dispatch.mockClear();
+
+      sink.setUserId(undefined);
+
+      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(10);
+      expect(lastDispatch()).toBeLessThan(
+        awsRumInstance.startSession.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('should send as many batches as the configured client can hold', async () => {
+      configure({
+        loadImpl: async () =>
+          bootstrap({ eventCacheSize: 250, batchLimit: 100 })
+      });
+      await sink.init();
+
+      sink.setUserId('user-42');
+
+      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(3);
+    });
+
+    it('should send one batch, not loop forever, with a batchLimit of 0', async () => {
+      configure({ loadImpl: async () => bootstrap({ batchLimit: 0 }) });
+      await sink.init();
+
+      sink.setUserId('user-42');
+
+      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should send early and pin the new user on a switch, keeping the session', async () => {
+      await sink.init();
+      sink.setUserId('user-42');
+      jest.clearAllMocks();
+      // The client holds the first user's id.
+      awsRumInstance.getUserId.mockReturnValueOnce('user-42');
+
+      sink.setUserId('user-7');
+
+      expect(awsRumInstance.dispatch).toHaveBeenCalledTimes(10);
+      expect(awsRumInstance.pinUserId).toHaveBeenCalledWith('user-7');
+      expect(awsRumInstance.startSession).not.toHaveBeenCalled();
+    });
+
+    it('should leave the client alone when the user does not change', async () => {
+      await sink.init();
+      sink.setUserId('user-42');
+      jest.clearAllMocks();
+
+      sink.setUserId('user-42');
+
+      expect(awsRumInstance.dispatch).not.toHaveBeenCalled();
+      expect(awsRumInstance.pinUserId).not.toHaveBeenCalled();
+    });
+
+    /** The `signedIn` the metadata hook stamps on an event recorded now. */
+    const signedIn = () =>
+      awsRumInstance.setEventMetadataHook.mock.calls[0][0]().signedIn;
+
+    it('should mark events as signed in, and as not after sign-out', async () => {
+      await sink.init();
+
+      sink.setUserId('user-42');
+      expect(signedIn()).toBe(true);
+
+      sink.setUserId(undefined);
+      expect(signedIn()).toBe(false);
+    });
+
+    it('should mark events as signed in for a user set before init', async () => {
+      sink.setUserId('user-42');
+
+      await sink.init();
+
+      expect(signedIn()).toBe(true);
+    });
+
+    it('should mark events as not signed in for a sign-out before init, with nobody signed in', async () => {
+      sink.setUserId(undefined);
+      await sink.init();
+      expect(signedIn()).toBe(false);
+    });
+
+    it("should mark events as not signed in after the app's first sign-out, with nobody signed in", async () => {
+      await sink.init();
+      expect(signedIn()).toBeUndefined();
+
+      sink.setUserId(undefined);
+
+      expect(signedIn()).toBe(false);
+      expect(awsRumInstance.dispatch).not.toHaveBeenCalled();
+    });
+
+    it('should not send early when the client already has the id, as after a reload', async () => {
+      awsRumInstance.getUserId.mockReturnValueOnce('user-42');
+      await sink.init();
+
+      sink.setUserId('user-42');
+
+      expect(awsRumInstance.dispatch).not.toHaveBeenCalled();
+      expect(awsRumInstance.pinUserId).toHaveBeenCalledWith('user-42');
+      expect(signedIn()).toBe(true);
+    });
+
     it('should not re-pin a signed-out user when the client starts later', async () => {
       sink.setUserId('user-42');
       sink.setUserId(undefined);
@@ -832,6 +1128,29 @@ describe('UwtRumTelemetrySink', () => {
       await sink.init();
 
       expect(awsRumInstance.pinUserId).not.toHaveBeenCalled();
+    });
+
+    it('should start a fresh anonymous session once the client starts, for a sign-out made before', async () => {
+      sink.setUserId('user-42');
+      sink.setUserId(undefined);
+      expect(awsRumInstance.startSession).not.toHaveBeenCalled();
+
+      await sink.init();
+
+      expect(awsRumInstance.startSession).toHaveBeenCalledTimes(1);
+      expect(awsRumInstance.startSession).toHaveBeenCalledWith({
+        userId: expect.any(String)
+      });
+    });
+
+    it('should drop a sign-out made before init when someone signs in before the client starts', async () => {
+      sink.setUserId(undefined);
+      sink.setUserId('user-7');
+
+      await sink.init();
+
+      expect(awsRumInstance.startSession).not.toHaveBeenCalled();
+      expect(awsRumInstance.pinUserId).toHaveBeenCalledWith('user-7');
     });
 
     it("should treat '' as sign-out, not as a user id", async () => {
@@ -871,6 +1190,118 @@ describe('UwtRumTelemetrySink', () => {
 
     it('should report no session id before init', () => {
       expect(sink.getSessionId()).toBeUndefined();
+    });
+
+    describe('session start', () => {
+      const SESSION_START = 'com.amazon.rum.session_start_event';
+      let now: jest.SpyInstance<number, []>;
+
+      /** The metadata hook the sink gave the client. */
+      const metadataHook = () =>
+        awsRumInstance.setEventMetadataHook.mock.calls[0][0] as (
+          type: string
+        ) => unknown;
+
+      const clearSessionCookie = () => {
+        document.cookie =
+          'cwr_s=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+      };
+
+      beforeEach(() => {
+        localStorage.clear();
+        clearSessionCookie();
+        now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+        awsRumInstance.getSessionId.mockImplementation(() => 'session-1');
+      });
+
+      afterEach(() => {
+        clearSessionCookie();
+        awsRumInstance.getSessionId.mockImplementation(() => 'rum-session-1');
+      });
+
+      it("should record a session's start when the client records its session_start event", async () => {
+        await sink.init();
+
+        metadataHook()(SESSION_START);
+        now.mockReturnValue(6_000);
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBe(5_000);
+      });
+
+      it('should record nothing for other events', async () => {
+        await sink.init();
+
+        metadataHook()('com.amazon.rum.page_view_event');
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBeUndefined();
+      });
+
+      it('should record the first session when the client started it while being built', async () => {
+        // The landing page view or navigation timing starts the session
+        // inside the constructor, before the hook exists; the client writes
+        // its session cookie then.
+        AwsRumCtor.mockImplementationOnce(() => {
+          document.cookie = 'cwr_s=new-session; path=/';
+          return awsRumInstance;
+        });
+
+        await sink.init();
+        now.mockReturnValue(4_000);
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBe(3_000);
+      });
+
+      it('should not record a session restored from its cookie, whose start it can only know from an earlier page', async () => {
+        document.cookie = 'cwr_s=earlier-session; path=/';
+
+        await sink.init();
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBeUndefined();
+      });
+
+      it('should record nothing while cookies are off, since the session ends with the page', async () => {
+        AwsRumCtor.mockImplementationOnce(() => {
+          document.cookie = 'cwr_s=new-session; path=/';
+          return awsRumInstance;
+        });
+        configure({ loadImpl: async () => bootstrap({ allowCookies: false }) });
+        await sink.init();
+
+        metadataHook()(SESSION_START);
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBeUndefined();
+        expect(localStorage.length).toBe(0);
+      });
+
+      it('should record nothing when session-start events are suppressed, for a session started while the client was built either', async () => {
+        AwsRumCtor.mockImplementationOnce(() => {
+          document.cookie = 'cwr_s=new-session; path=/';
+          return awsRumInstance;
+        });
+        configure({
+          loadImpl: async () => bootstrap({ suppressSessionStartEvent: true })
+        });
+        await sink.init();
+
+        metadataHook()(SESSION_START);
+
+        expect(uwtSessionElapsed('session-1', Date.now())).toBeUndefined();
+        expect(localStorage.length).toBe(0);
+      });
+
+      it('should not recurse when reading the id starts yet another session (a session length of 0)', async () => {
+        await sink.init();
+        awsRumInstance.getSessionId.mockImplementation(() => {
+          metadataHook()(SESSION_START);
+          return 'session-loop';
+        });
+
+        awsRumInstance.getSessionId.mockClear();
+
+        expect(() => metadataHook()(SESSION_START)).not.toThrow();
+        expect(awsRumInstance.getSessionId).toHaveBeenCalledTimes(1);
+        expect(uwtSessionElapsed('session-loop', Date.now())).toBe(0);
+      });
     });
   });
 

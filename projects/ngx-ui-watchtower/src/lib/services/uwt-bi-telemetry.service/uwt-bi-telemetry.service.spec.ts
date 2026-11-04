@@ -190,6 +190,20 @@ describe('UwtBITelemetryService', () => {
       );
     });
 
+    it('should carry the sink session and user, once there are any', () => {
+      sink.userId = undefined;
+      sink.sessionId = undefined;
+      service.track('tab_selected');
+      sink.userId = 'user-1';
+      sink.sessionId = 'session-1';
+      service.track('filter_changed');
+
+      const [before, after] = sink.events.map((e) => e.payload);
+      expect(before.sessionId).toBeUndefined();
+      expect(before.userId).toBeUndefined();
+      expect(after).toMatchObject({ sessionId: 'session-1', userId: 'user-1' });
+    });
+
     it('should not carry a route — the RUM envelope already stamps the page', () => {
       service.track('filter_changed');
 
@@ -329,13 +343,6 @@ describe('UwtBITelemetryService', () => {
       expect(sink.ofType(UWT_TELEMETRY_EVENT_TYPE.bi)).toHaveLength(2);
     });
 
-    it('should not collapse the same event across different event types', () => {
-      service.track('export_clicked', undefined, { eventType: 'com.uwt.a' });
-      service.track('export_clicked', undefined, { eventType: 'com.uwt.b' });
-
-      expect(sink.events).toHaveLength(2);
-    });
-
     it('should allow the event again once the window has passed', () => {
       const nowSpy = jest.spyOn(performance, 'now');
       nowSpy.mockReturnValue(1_000_000);
@@ -404,9 +411,9 @@ describe('UwtBITelemetryService', () => {
       expect(sink.ofType(UWT_TELEMETRY_EVENT_TYPE.bi)).toHaveLength(2);
     });
 
-    it('should not collapse two events whose eventType/feature only collide under naive delimiter joining', () => {
-      service.track('checkout', undefined, { eventType: 'x|y', feature: 'z' });
-      service.track('checkout', undefined, { eventType: 'x', feature: 'y|z' });
+    it('should not collapse two events whose scenarioId/feature only collide under naive delimiter joining', () => {
+      service.track('checkout', undefined, { scenarioId: 'x|y', feature: 'z' });
+      service.track('checkout', undefined, { scenarioId: 'x', feature: 'y|z' });
 
       expect(sink.events).toHaveLength(2);
     });
@@ -664,22 +671,24 @@ describe('UwtBITelemetryService', () => {
       expect(namespacedSink.events[0].eventType).toBe('com.test-app.bi');
     });
 
-    it('should let one event override the type, for a legacy dashboard', () => {
-      service.track(
-        'click',
-        { source: 'toolbar' },
-        {
-          eventType: 'com.test-app.click'
-        }
-      );
+    it('should always use the namespace type, even when a caller still passes an eventType', () => {
+      service.track('click', undefined, {
+        eventType: 'com.test-app.click'
+      } as never);
 
-      expect(sink.events[0].eventType).toBe('com.test-app.click');
+      expect(sink.events[0].eventType).toBe('com.uwt.bi');
       expect(sink.events[0].payload.eventName).toBe('click');
     });
 
-    it('should fall back to the configured type when the override is empty', () => {
-      service.track('click', undefined, { eventType: '' });
-      expect(sink.events[0].eventType).toBe('com.uwt.bi');
+    it('should collapse identical events that differ only in a legacy eventType', () => {
+      service.track('click', undefined, {
+        eventType: 'com.test-app.a'
+      } as never);
+      service.track('click', undefined, {
+        eventType: 'com.test-app.b'
+      } as never);
+
+      expect(sink.events).toHaveLength(1);
     });
   });
 

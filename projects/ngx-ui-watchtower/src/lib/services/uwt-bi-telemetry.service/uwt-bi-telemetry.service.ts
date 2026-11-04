@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import {
   UWT_REDACT_CONFIG,
+  uwtTelemetryEnabled,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_BI_TELEMETRY_CONFIG } from '../../config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
@@ -23,6 +24,7 @@ import {
 } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import {
   uwtNow,
+  uwtSafe,
   uwtSafeVoid
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 
@@ -70,6 +72,8 @@ export class UwtBITelemetryService {
 
   private readonly sink = inject(UwtTelemetrySink);
   private readonly monitor = inject(UwtTelemetryMonitor);
+  private readonly enabled = uwtTelemetryEnabled();
+
   private readonly eventTypes = uwtEventTypes(this.identity.eventNamespace);
   private readonly lastEmittedAt = new Map<string, number>();
 
@@ -80,13 +84,16 @@ export class UwtBITelemetryService {
    *   as declared in {@link UwtBIEventNames}. Treat it as a metric dimension:
    *   keep the cardinality low and never interpolate an identifier into it.
    * @param metadata flat attributes describing the interaction
-   * @param detail optional scenario correlation, feature and event-type override
+   * @param detail optional scenario correlation and feature
    */
   track(
     eventName: UwtBIEventName,
     metadata?: UwtTelemetryMetadata,
     detail?: UwtBIEventDetail
   ): void {
+    if (!this.enabled) {
+      return;
+    }
     uwtSafeVoid('biTelemetry.track', () => {
       if (!eventName) {
         return;
@@ -112,19 +119,27 @@ export class UwtBITelemetryService {
         scenarioId: detail?.scenarioId,
         feature: redactedFeature,
         metadata: redactedMetadata,
-        application: this.identity.application
+        application: this.identity.application,
+        sessionId: uwtSafe(
+          'biTelemetry.getSessionId',
+          () => this.sink.getSessionId(),
+          undefined
+        ),
+        userId: uwtSafe(
+          'biTelemetry.getUserId',
+          () => this.sink.getUserId(),
+          undefined
+        )
       };
 
-      const eventType = detail?.eventType || this.eventTypes.bi;
-
       uwtDebugWrite('debugBI', () =>
-        writeToConsole(eventName, eventType, event)
+        writeToConsole(eventName, this.eventTypes.bi, event)
       );
 
-      this.sink.record(eventType, event);
+      this.sink.record(this.eventTypes.bi, event);
       this.monitor.publish({
         kind: 'bi',
-        eventType,
+        eventType: this.eventTypes.bi,
         payload: event,
         destination: 'sink',
         origin: { forwarded: false }
@@ -140,7 +155,6 @@ export class UwtBITelemetryService {
     const key = JSON.stringify([
       eventName,
       detail?.scenarioId ?? '',
-      detail?.eventType ?? '',
       detail?.feature ?? '',
       this.metadataKey(metadata)
     ]);

@@ -11,6 +11,7 @@ import { UwtLoggerService } from '../../services/uwt-logger.service/uwt-logger.s
 import {
   UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_REDACT_CONFIG,
+  UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_LOG_CONFIG } from '../../config/uwt-log.config/uwt-log.config';
@@ -37,6 +38,7 @@ import {
 import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { UwtTelemetryMonitor } from '../../services/uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 import { UwtTelemetryObservedEvent } from '../../models/uwt-telemetry-monitor.models/uwt-telemetry-monitor.models';
+import { uwtMarkSessionStart } from '../../utils/uwt-session-start.util/uwt-session-start.util';
 
 /**
  * Each realm gets its own injector — the shell and every fragment run in a
@@ -291,6 +293,7 @@ describe('broadcast telemetry across realms', () => {
   beforeEach(() => {
     UwtBroadcastChannelStub.install();
     TestBed.resetTestingModule();
+    localStorage.clear();
 
     shell = createRealm([
       RecordingSink,
@@ -637,6 +640,24 @@ describe('broadcast telemetry across realms', () => {
       });
     });
 
+    it("should place a fragment's scenario on the shell's session timeline", async () => {
+      shellSink.sessionId = 'shell-session-timeline';
+      uwtMarkSessionStart('shell-session-timeline', Date.now() - 60_000);
+      const fragment = createFragment();
+      await UwtBroadcastChannelStub.settle();
+
+      fragment
+        .get(UwtScenarioTelemetryService)
+        .start({ name: 'add-to-cart' })
+        .complete();
+      await UwtBroadcastChannelStub.settle();
+
+      const [record] = shellSink.ofType(UWT_TELEMETRY_EVENT_TYPE.scenario);
+      expect(record.payload.sessionId).toBe('shell-session-timeline');
+      expect(record.payload.sessionElapsed).toBeGreaterThanOrEqual(60_000);
+      expect(record.payload.sessionElapsed).toBeLessThan(70_000);
+    });
+
     it('should let a fragment scenario name a shell scenario as its parent', async () => {
       const fragment = createFragment();
       const scenarioTelemetry = fragment.get(UwtScenarioTelemetryService);
@@ -940,6 +961,31 @@ describe('broadcast telemetry across realms', () => {
         expect.stringContaining('a second telemetry host is active')
       );
 
+      first.ngOnDestroy();
+    });
+
+    it('should still warn about a duplicate after a disabled host in this realm is destroyed', () => {
+      const channel = 'duplicate-detection-disabled-test';
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const providers = [
+        RecordingSink,
+        { provide: UwtTelemetrySink, useExisting: RecordingSink },
+        { provide: UWT_BROADCAST_CHANNEL, useValue: channel },
+        UwtTelemetryBroadcastHost
+      ];
+      const first = createRealm(providers).get(UwtTelemetryBroadcastHost);
+      createRealm([
+        ...providers,
+        { provide: UWT_TELEMETRY_ENABLED, useValue: false }
+      ])
+        .get(UwtTelemetryBroadcastHost)
+        .ngOnDestroy();
+
+      createRealm(providers).get(UwtTelemetryBroadcastHost);
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('a second telemetry host is active')
+      );
       first.ngOnDestroy();
     });
 

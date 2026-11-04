@@ -2,6 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import {
   UWT_REDACT_CONFIG,
+  uwtTelemetryEnabled,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_LOG_CONFIG } from '../../config/uwt-log.config/uwt-log.config';
@@ -32,6 +33,13 @@ import {
   uwtSafeVoid,
   uwtSafeVoidMaybeAsync
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+
+/** Handed out while telemetry is off: every call does nothing. */
+const INERT_LOGGER: UwtLogger = Object.freeze({
+  log: () => undefined,
+  warn: () => undefined,
+  error: () => undefined
+});
 
 /**
  * Structured application logging.
@@ -84,7 +92,10 @@ export class UwtLoggerService implements OnDestroy {
   private readonly apiProvider = inject(UWT_LOG_API_PROVIDER);
   private readonly monitor = inject(UwtTelemetryMonitor);
   private readonly document = inject(DOCUMENT);
-  private readonly isBrowser = uwtIsBrowser();
+  private readonly enabled = uwtTelemetryEnabled();
+
+  /** Page listeners: only in a browser, and only while telemetry is on. */
+  private readonly listensToPage = uwtIsBrowser() && this.enabled;
 
   private readonly onPageHide = () => this.flushProvider();
   private readonly onVisibilityChange = () => {
@@ -103,7 +114,7 @@ export class UwtLoggerService implements OnDestroy {
   private readonly loggers = new Map<UwtLoggerName, UwtLogger>();
 
   constructor() {
-    if (this.isBrowser) {
+    if (this.listensToPage) {
       this.document.defaultView?.addEventListener('pagehide', this.onPageHide);
 
       this.document.addEventListener(
@@ -115,7 +126,7 @@ export class UwtLoggerService implements OnDestroy {
 
   /** @inheritdoc */
   ngOnDestroy(): void {
-    if (this.isBrowser) {
+    if (this.listensToPage) {
       this.document.defaultView?.removeEventListener(
         'pagehide',
         this.onPageHide
@@ -125,7 +136,9 @@ export class UwtLoggerService implements OnDestroy {
         this.onVisibilityChange
       );
     }
-    this.flushProvider();
+    if (this.enabled) {
+      this.flushProvider();
+    }
   }
 
   /**
@@ -150,6 +163,9 @@ export class UwtLoggerService implements OnDestroy {
    * @returns the matching records, or `[]` when none can be read
    */
   async query(filter: UwtLogQuery = {}): Promise<UwtLogRecord[]> {
+    if (!this.enabled) {
+      return [];
+    }
     const pending = uwtSafe(
       'logger.query',
       () => this.apiProvider.query(filter),
@@ -191,6 +207,9 @@ export class UwtLoggerService implements OnDestroy {
    * @returns the logger for that name, created once and reused
    */
   getLogger(name: UwtLoggerName): UwtLogger {
+    if (!this.enabled) {
+      return INERT_LOGGER;
+    }
     const cached = uwtSafe(
       'logger.getLogger',
       () => this.loggers.get(name),

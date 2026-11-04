@@ -119,7 +119,7 @@ Everything each entry point exports, by role.
 | Setup                       | `provideUwtTelemetry`, `withLogging`, `withScenarios`, `withBIEvents`, `withRedaction`, `UwtTelemetryFeature`, `provideUwtTelemetrySink`, `UwtTelemetryLocalSinkMode` (`'broadcast' \| 'noop'`), `provideUwtTelemetryBroadcastHost`, `provideUwtTelemetryDestination` + `UwtTelemetryDestinationOptions`    |
 | Configuration               | `UWT_TELEMETRY_IDENTITY` + `UwtTelemetryIdentity`; `UWT_LOG_CONFIG` + `UwtLogConfig`; `UWT_SCENARIO_TELEMETRY_CONFIG` + `UwtScenarioTelemetryConfig`; `UWT_BI_TELEMETRY_CONFIG` + `UwtBITelemetryConfig`; `UWT_REDACT_CONFIG`; `UWT_DEFAULT_TELEMETRY_CONFIG` (every default)                               |
 | Scenarios                   | `UwtScenarioTelemetryService`, `UwtScenario`, `traceScenario` + `UwtTraceScenarioOptions`; models `UwtScenarioOptions`, `UwtScenarioOutcome`, `UwtScenarioStepDetail`, `UwtScenarioRecord`, `UwtScenarioStep`, `UwtScenarioStepEvent`, `UwtScenarioAggregate`, `UwtScenarioStatus`, `UwtScenarioStepStatus` |
-| BI events                   | `UwtBITelemetryService`; `UwtBIEvent`, `UwtBIEventDetail` (`eventType` override, `scenarioId`, `feature`)                                                                                                                                                                                                   |
+| BI events                   | `UwtBITelemetryService`; `UwtBIEvent`, `UwtBIEventDetail` (`scenarioId`, `feature`)                                                                                                                                                                                                                         |
 | Logging                     | `UwtLoggerService`, `UwtLogger`; `UwtLogDetail`, `UwtLogRecord`, `UwtLogLevel`, `UWT_LOG_LEVEL_ORDER`; `UWT_LOG_API_PROVIDER`, `UwtLogApiProvider`, `UwtLogQuery`; `UwtNoopLogApiProvider`, `UwtBroadcastLogApiProvider`                                                                                    |
 | Name registries             | `UwtScenarioNames` / `UwtScenarioName`, `UwtScenarioSteps` / `UwtStepName`, `UwtBIEventNames` / `UwtBIEventName`, `UwtLoggerNames` / `UwtLoggerName`                                                                                                                                                        |
 | Sinks                       | `UwtTelemetrySink` (abstract), `UwtNoopTelemetrySink`, `UwtBroadcastTelemetrySink`, `UwtTelemetryBroadcastHost`, `UWT_BROADCAST_CHANNEL`, `UWT_DEFAULT_BROADCAST_CHANNEL` (`'ngx-ui-watchtower'`); `uwtClassifyTelemetryEvent` + `UwtTelemetrySinkEvent`, for a sink to tell what it received               |
@@ -177,12 +177,15 @@ the helper and the check. No destination at all still fails with `NG0201`.
 | `setUserId(userId)` / `getUserId()`     | Sign-in and sign-out (`undefined` or `''`) — the destination owns attribution                                     |
 | `flush(beacon?)`                        | `pagehide` (with `beacon`), `visibilitychange` to hidden, and teardown                                            |
 
+A destination that owns its sessions also calls `uwtMarkSessionStart(id)`
+when it starts one, so records can carry `sessionElapsed`. The RUM sink
+does; a destination that doesn't simply leaves the field out.
+
 `uwtClassifyTelemetryEvent(eventType, payload)` tells `record` what it got,
 as a discriminated union — `scenario` (a `UwtScenarioRecord`),
 `scenario-step` (a `UwtScenarioStepEvent`), `bi` (a `UwtBIEvent`) or
-`unknown` (an event-type override). It matches on the event type's ending,
-so it works for any `eventNamespace` and for forwarded events; the broadcast
-host uses it too.
+`unknown` (any other event type). It matches on the event type's ending,
+so it works for any `eventNamespace` and for forwarded events.
 
 What a destination does **not** need to do: redact (payloads arrive already
 redacted), deduplicate BI events, time anything, or guard the library's
@@ -227,7 +230,9 @@ shell's.
   need.
 - **cps-ui-kit comes from npm.** It is an optional peer of the package and a
   dev dependency of the workspace, so the build and the unit tests resolve it
-  from `node_modules` and it is never compiled into the package.
+  from `node_modules` and it is never compiled into the package. The
+  workspace uses cps-ui-kit 21, the lowest version the popup supports, as it
+  uses the lowest supported Angular.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
@@ -391,6 +396,7 @@ interface UwtScenarioRecord {
   endTime?: string; // ISO-8601
   delta: number; // ms — total duration, the headline latency measure
   elapsed: number; // ms since the host page loaded — a timeline position
+  sessionElapsed?: number; // ms since the RUM session started — survives a reload
   stepCount: number;
   steps: UwtScenarioStep[];
   exceededStepsLimit?: boolean; // steps[] truncated at maxSteps
@@ -423,14 +429,33 @@ interface UwtScenarioAggregate {
 ```
 
 - **Durations and positions have different names.** `delta` (and a step's
-  `stepDelta`) is how long something took; `elapsed` is _when_ it happened,
-  in ms since the host page loaded, so events from one session can be lined
-  up against each other. `endTime` is not a second duration — it is
-  `startTime + delta`, there to place a journey on the wall clock. `elapsed`
-  is inexact across a hard reload, since the RUM session cookie
-  (`allowCookies` on by default, 30-minute default session length) survives a
-  reload that resets `performance.timeOrigin`, so one `sessionId` can span an
-  `elapsed` reset.
+  `stepDelta`) is how long something took; `elapsed` and `sessionElapsed`
+  say _when_ it happened. `elapsed` counts from the host page load, so events
+  from one page can be lined up against each other; it restarts on every
+  reload. `sessionElapsed` counts from the start of the RUM session, which
+  survives a reload (`allowCookies` is on by default), so a journey can be
+  placed in the user's whole session. `endTime` is not a second duration —
+  it is `startTime + delta`, there to place a journey on the wall clock.
+- **`sessionElapsed` is measured by the library.** The RUM client keeps no
+  session start time, but records a `session_start` event each time it
+  starts a session — on the first page load, after 30 minutes without an
+  event, on a real sign-out. The RUM sink's metadata hook sees that event and
+  records the moment (`uwtMarkSessionStart`), so the start is exact. The
+  client can also start the first session inside its own constructor — the
+  landing page view, the navigation timing — before the hook exists; the
+  sink then sees the session cookie (`cwr_s`) appear and records that
+  moment instead. The start is kept in `localStorage`, because the session
+  outlives the page: the five most recent session ids with their start
+  times, five because tabs can drift onto different sessions. The field is
+  absent while the start isn't known: with `suppressSessionStartEvent`,
+  with cookies off (the session then ends with the page) or `localStorage`
+  blocked, for a session that began on a page in `pagesToExclude` or before
+  this version was running, and — rarely — when two tabs start sessions at
+  the same instant and one overwrites the other's entry, or when the system
+  clock was set back past the session's start: the start is a wall-clock
+  time, so a negative result is left out rather than sent. Steps carry no copy
+  of their own; a step's position in the session is
+  `sessionElapsed - (elapsed - step.elapsed)`.
 - **Step offsets are relative** to the scenario's own start, so they stay
   small integers inside the payload.
 - **A settled record has at least two steps.** Two zero-duration markers
@@ -496,28 +521,23 @@ interface UwtBIEvent {
   feature?: string;
   metadata?: UwtTelemetryMetadata;
   application: string;
+  sessionId?: string;
+  userId?: string;
 }
 ```
 
-There is no `route` — the RUM envelope's page id already carries the page —
-and no `sessionId`/`userId`, which RUM attaches once per session.
+There is no `route` — the RUM envelope's page id already carries the page.
+`application`, `sessionId` and `userId` are on the event for the same reason
+as on the scenario record: a payload answers "who, which session, which app"
+without the envelope. `sessionId` is absent until the RUM client initializes,
+`userId` until someone signs in.
 
 #### One event type
 
-All BI events share a single event type, with `eventName` carried as a field
-— one schema to query, one extended-metric definition. If an existing
-dashboard is keyed on a specific legacy type, a single event can override it:
-
-```ts
-biTelemetry.track(
-  'click',
-  { source: 'toolbar' },
-  { eventType: 'com.my-app.click' }
-);
-```
-
-Use that only for migration — giving every event its own type is exactly what
-the single-type design avoids.
+All BI events share a single event type, `{ns}.bi`, with `eventName` carried
+as a field — one schema to query, one extended-metric definition. There is no
+per-event override: giving events their own types is exactly what the
+single-type design avoids.
 
 ### Fields deliberately left out
 
@@ -625,8 +645,11 @@ all along — use the named method instead.
 For Observable-driven journeys, the pipeable `traceScenario` operator
 completes or fails the scenario based on how the stream ends. If it is torn
 down some other way first — a superseding `switchMap`, `takeUntilDestroyed()`,
-a manual unsubscribe — it cancels the scenario instead of leaving it to
-settle as a `timeout`.
+a manual unsubscribe — what it records depends on whether a value got
+through. Before any value, it cancels the scenario instead of leaving it to
+settle as a `timeout`. After a value, it completes the scenario, because that
+is how `firstValueFrom`, `take(1)` and `first()` end a stream once they have
+what they need.
 
 ```ts
 import { traceScenario } from '@absaoss-cps/ngx-ui-watchtower';
@@ -661,13 +684,36 @@ this.searchSubject$.pipe(
 ```
 
 How it decides: `traceScenario` settles on `complete` with optional derived
-outcome metadata, and fails with the caught error on `error`. A teardown that reaches neither — a superseding `switchMap`, `takeUntilDestroyed()`,
-a manual unsubscribe — cancels the scenario instead, guarded by `isSettled`
-so it never re-cancels one that already completed or failed (`tap`'s own
-`unsubscribe` hook fires after every teardown, settled or not). Without
-this, a cancelled-by-unsubscription scenario would sit active until its own
-timeout and record as `timeout` rather than the caller-driven abandonment
-it actually was.
+outcome metadata, and fails with the caught error on `error`. A teardown that
+reaches neither — a superseding `switchMap`, `takeUntilDestroyed()`, a manual
+unsubscribe — settles it by whether the stream has emitted:
+
+- **No value yet:** cancels the scenario. Without this, a
+  cancelled-by-unsubscription scenario would sit active until its own timeout
+  and record as `timeout` rather than the caller-driven abandonment it
+  actually was.
+- **After a value:** completes the scenario, with the outcome mapped from the
+  last value. `firstValueFrom`, `take(1)` and `first()` unsubscribe upstream
+  as soon as they have a value, before the source's `complete` arrives, so
+  without this a successful request would record as `abandoned`.
+
+Both are guarded by `isSettled`, so a teardown never re-settles a scenario
+that already completed or failed (`tap`'s own `unsubscribe` hook fires after
+every teardown, settled or not).
+
+For a multi-value stream — polling, progress, a websocket — stopping after a
+value usually means the user gave up, not that the journey succeeded. Opt
+back into cancelling with `valueThenTeardown: 'cancel'`:
+
+```ts
+this.api
+  .pollJobStatus(jobId)
+  .pipe(
+    traceScenario(scenario, { valueThenTeardown: 'cancel' }),
+    takeUntilDestroyed(this.destroyRef)
+  )
+  .subscribe();
+```
 
 ### Measuring what the user waited for
 
@@ -958,7 +1004,7 @@ export class AuthService {
   private sink = inject(UwtTelemetrySink);
 
   onSignIn(user: User) {
-    // An opaque id — never an email, a username or an account number.
+    // An opaque UUID — never an email, a username or an account number.
     this.sink.setUserId(user.id);
   }
 
@@ -971,14 +1017,54 @@ export class AuthService {
 `setUserId('')` signs out too: an empty string identifies nobody, so it is
 never pinned as an id.
 
+RUM accepts only a UUID as a user id (36 hex characters with dashes), so pass
+one — with MSAL, the account's `localAccountId`, not `homeAccountId`. An
+anonymous id is a random UUID too, so to tell the two apart, every event
+carries `signedIn` (`true` or `false`) in its metadata, next to
+`application`. Counting distinct anonymous users is then counting distinct
+user ids where `signedIn` is `false`.
+
+`signedIn` is absent until the app first calls `setUserId`: after a reload,
+the client restores a signed-in user's id from its cookie, and only the app
+knows whether that user is still signed in. So call `setUserId` as early as
+possible — for example in an app initializer, right after MSAL initializes.
+A call made before the RUM client starts leaves no event without `signedIn`.
+
+The client reads the user id when it sends a batch, not when it records an
+event. So when the user changes, the RUM sink sends what's waiting first,
+under the old id, and an event's `signedIn` matches its batch's user id.
+A request holds up to `batchLimit` events, so the sink sends as many as
+the client can hold — `eventCacheSize / batchLimit`, 10 by default; once
+it's empty, the rest send nothing. Only web-vitals candidates (such as LCP)
+stay behind: the client sends those when the page is hidden. The sink skips
+the early send when the client already has the new id, as after a reload.
+If a request fails, the SDK reports it as an unhandled promise rejection,
+as it does for `flush()`.
+
 Sign-out is not just cosmetic. The RUM client's `pinUserId` has no inverse,
 so the RUM sink starts a fresh session with a fresh anonymous id — otherwise
 the client would keep attributing everything to the person who just left,
-which matters most on a shared device. **So the session id changes**, at the
-cost of one `session_start` event and a re-rolled sampling decision.
+which matters most on a shared device. **So the session id changes**, and
+`sessionElapsed` starts again, at the cost of one `session_start` event and a
+re-rolled sampling decision.
 
 The SDK's `startSession` is documented for exactly this case ("sign-in,
 sign-out, kiosk handoff").
+
+Signing out while nobody is signed in does nothing, and so does signing out
+twice. So `setUserId` can follow an auth stream directly —
+`user$.pipe(map((u) => u?.id))` — including its initial `undefined`.
+
+The RUM client keeps a signed-in user's id in its `cwr_u` cookie, for
+`userIdRetentionDays` (default 30). That cookie is shared by every app on the
+hostname — `cookieAttributes.unique` renames only the session cookie. On a
+shared device, a user who closes the tab without signing out leaves their id
+there, and the next visitor starts with it until someone signs in or out.
+Once the app says nobody is signed in, those events carry `signedIn: false`,
+so they never count as that user's signed-in activity. An app where that
+matters can set
+`userIdRetentionDays: 0`: no user cookie at all, and anonymous visitors get
+the nil id (or, after a sign-out, a random one for that page).
 
 In a fragment, this call is forwarded to the shell, so the whole composed
 page agrees on who is signed in.
@@ -1020,6 +1106,14 @@ application's responsibility: pass **opaque** user ids to `setUserId`, choose
 metadata keys responsibly, and keep identifiers out of URLs. Stack traces are
 assumed not to contain personal data, and RUM's own metadata (country,
 browser, device) is treated as non-personal.
+
+**What stays in the browser.** Besides the RUM client's own cookies (`cwr_s`
+for the session, `cwr_u` for the user id), the library keeps one
+`localStorage` entry, `ngx-ui-watchtower.sessionStarts`: up to five RUM
+session ids, each with the time it started, for `sessionElapsed`. It is
+written only while the RUM client's cookies are on, and an id stays until
+five newer sessions have replaced it. Debug flags are read from
+`localStorage`, never written.
 
 ### Scanning values for personal data
 
@@ -1343,6 +1437,19 @@ the sink entirely: the logger still works, without that correlation, and
 | `provideUwtTelemetrySink('noop')`      | Nowhere — everything runs, nothing ships                                                      |
 | `provideUwtTelemetryDestination(X)`    | Your own sink `X` — see §3, "Destinations"                                                    |
 
+### Turning telemetry off
+
+`withTelemetryEnabled(false)` (token `UWT_TELEMETRY_ENABLED`, default `true`)
+makes every service and destination inert, while the providers stay exactly
+as in other environments — so a missing destination or two destinations still
+fail at bootstrap everywhere. `'noop'` alone isn't enough: services would still
+redact, time and listen, and the RUM sink would still fetch credentials and
+load the SDK if anything injected it. The value is read once at bootstrap;
+switching at runtime (consent) is out of scope. `start()` returns a real
+`UwtScenario` in an internal inert state, because its private fields make the
+type nominal; each keeps its own id, since callers key maps and
+`parentScenarioId` by it.
+
 ### AWS credentials
 
 Supply AWS details by implementing `UwtRumCredentialsProvider`:
@@ -1353,7 +1460,8 @@ export class AppRumCredentialsProvider implements UwtRumCredentialsProvider {
   async load(): Promise<UwtRumBootstrap | null> {
     // no-store: this response carries live, temporary AWS credentials.
     const res = await fetch('/rum/init', { cache: 'no-store' });
-    if (!res.ok) return null;
+    // Throw on failure, so the sink retries; null means "don't ship".
+    if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`);
 
     const { enabled, config, credentials } = await res.json();
     return enabled ? { config, credentials } : null;
@@ -1365,6 +1473,30 @@ Returning `null` turns off shipping without disabling the library —
 including from a later refresh, not just the initial load, so a provider can
 revoke telemetry mid-session and the running client is torn down rather than
 left collecting with stale credentials.
+
+Throwing means the request failed, not that telemetry is unwanted. The sink
+tries again, so a passing broker or network outage doesn't leave the rest of
+the page without RUM or a `sessionId`:
+
+- **At startup**, keeping events buffered meanwhile, it waits a random time
+  up to a limit that starts at 1 second and doubles after each failure, up
+  to 60 seconds. The first retry comes fast because the client captures
+  nothing — JS errors, failed HTTP calls — until it exists; the randomness
+  keeps tabs reloaded together during an outage from retrying together. It
+  gives up after five minutes of failures, so a permanent failure — a wrong
+  URL, a 403 — doesn't poll for the life of the page.
+- **On a refresh**, every 30 seconds: the client keeps running on the current
+  credentials meanwhile.
+
+Buffered events reach RUM stamped with the time they are sent, not the time
+they happened; the scenario and BI payloads keep their own times. They also
+take the sign-in state in force when the client starts: their batch's user
+id and their `signedIn` reflect it, not the state when each happened — so an
+event from just before a sign-in goes out as that user, and one from just
+before a sign-out as anonymous. With start-up retries that window can last
+up to five minutes. A bootstrap that succeeds but whose SDK download or
+client start fails is not retried: browsers remember a failed module import,
+and a configuration error would fail the same way.
 
 Returning a bootstrap with `credentials` omitted is a different, valid state:
 an app monitor configured for unauthenticated access — as long as the session
@@ -1386,7 +1518,7 @@ list. A representative sample:
 ```ts
 async load(): Promise<UwtRumBootstrap | null> {
   const res = await fetch('/rum/init');
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`);
   const { enabled, config, credentials } = await res.json();
   if (!enabled) return null;
 
@@ -1467,16 +1599,18 @@ convention, for an application that wants the pre-fallback behavior back.
   silent. Even a broken `console.error` cannot turn a suppressed failure into
   a throw.
 - **Fail-open.** A broker outage, expired credentials or an SDK throw all
-  leave the application behaving exactly as with healthy telemetry. A broker
-  declining a session (`null`) makes the RUM sink a clean no-op rather than a
-  queue that fills forever.
+  leave the application behaving exactly as with healthy telemetry. A failed
+  broker request at startup is retried with backoff for five minutes. A
+  broker declining a session (`null`) makes the RUM sink a clean no-op rather
+  than a queue that fills forever.
 - **SSR-safe.** Every browser-touching path is a no-op on the server.
 - **Cheap.** One RUM event per scenario, not per step. Redaction is a single
   shallow pass over a flat object. Durations use `performance.now()`, which
   wall-clock adjustments and sleeping devices can't skew. Batching, retries
   and dispatch of recorded events are left to the RUM SDK.
 - **Zone-neutral.** Long-lived timers — a scenario's timeout, the
-  mark-cleanup fallback, a fragment's log-query timeout — are scheduled
+  mark-cleanup fallback, a fragment's log-query timeout, the RUM client's
+  dispatch interval and the sink's retry and refresh timers — are scheduled
   outside Angular's zone, so telemetry never keeps the application from
   becoming stable.
 - **Bounded.** A 100-item buffer keeps events, page views and errors recorded
@@ -1501,8 +1635,8 @@ call leaves application code unaffected.
   signal on `UwtRumCredentialsProvider.load()` — tears the client down and
   stops scheduling further refreshes, instead of retrying forever against
   an already-disabled sink still holding a stale, capped event buffer. The
-  very first load honors the identical contract: `performInit()` sets the
-  same `disabled` flag when the broker declines before the client is ever
+  very first load honors the identical contract: `performInit()` sets
+  the same `disabled` flag when the broker declines before the client is ever
   constructed, not only on a later refresh — otherwise every `record()`
   call would buffer into the capped pre-init queue forever instead of
   becoming the clean no-op a deliberately-disabled session should be.
@@ -1660,7 +1794,7 @@ biTelemetry.track(
 
 Identical events within 400ms are collapsed into one, absorbing double-fires
 from a handler bound to both `click` and `keydown`. "Identical" means the same
-name, scenario correlation, event type, feature and metadata content;
+name, scenario correlation, feature and metadata content;
 differing in any one is a distinct event.
 
 ### Logging
@@ -1719,7 +1853,10 @@ export class MyLogBackend implements UwtLogApiProvider {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(record),
-      keepalive: true // survives page unload
+      // Survives page unload. Only while the page is hidden (it may be
+      // closing): browsers reject keepalive requests once all in flight
+      // exceed 64 KiB, so a burst of records would be lost.
+      keepalive: document.visibilityState === 'hidden'
     }).catch(() => undefined);
   }
 
@@ -1747,22 +1884,29 @@ export class MyLogBackend implements UwtLogApiProvider {
   send(record: UwtLogRecord): void {
     this.buffer.push(record);
     if (this.buffer.length >= 25) {
-      this.deliver();
+      this.deliver(false);
     }
   }
 
   /** Called on `pagehide`, on visibilitychange going hidden, and on teardown. Must be synchronous. */
   flush(): void {
-    this.deliver();
+    this.deliver(true);
   }
 
-  private deliver(): void {
+  private deliver(pageHiding: boolean): void {
     if (!this.buffer.length) {
       return;
     }
-    const records = this.buffer;
+    const body = JSON.stringify({ records: this.buffer });
     this.buffer = [];
-    navigator.sendBeacon('/api/logs', JSON.stringify({ records }));
+    // A beacon outlives the page, but the browser refuses it (returns false)
+    // once all in-flight beacons and keepalive requests pass 64 KiB. A plain
+    // request has no such cap: use it while the page is visible. When the
+    // beacon is refused on the way out, the plain request is best effort —
+    // the browser may cancel it as the page unloads.
+    if (!pageHiding || !navigator.sendBeacon('/api/logs', body)) {
+      void fetch('/api/logs', { method: 'POST', body }).catch(() => undefined);
+    }
   }
 
   query(filter: UwtLogQuery): Promise<UwtLogRecord[]> {
@@ -1792,7 +1936,7 @@ export class MyLogBackend implements UwtLogApiProvider {
     void fetch(endpoint, {
       method: 'POST',
       body: JSON.stringify(record),
-      keepalive: true
+      keepalive: document.visibilityState === 'hidden' // see above
     }).catch(() => undefined);
   }
 }
@@ -1880,8 +2024,9 @@ providers: [
 ];
 ```
 
-It is built from cps-ui-kit, so the app needs cps-ui-kit set up as for any
-cps-ui-kit dialog (styles, icons, animations). It supports the light theme
+It is built from cps-ui-kit — 21.32 or later on Angular 21, or 22 — so the
+app needs cps-ui-kit set up as for any cps-ui-kit dialog (styles, icons,
+animations). It supports the light theme
 only, for now: cps-dialog, which frames it, is light-only, and the kit's
 dark theme is not yet complete for the components inside it.
 
@@ -2384,6 +2529,9 @@ Both records then join on `parentScenarioId`.
   specifically so events from one session can be lined up against each
   other; a per-realm value would silently defeat that. Falls back to the
   local realm's own clock if `top` throws (cross-origin, sandboxed).
+- **`sessionElapsed`.** A fragment gets the shell's session id from the
+  identity handshake and that session's start from the shared
+  `localStorage`, so its records sit on the same session timeline.
 - **Durations.** `startedAt` is epoch milliseconds and `uwtEpochToPerf`
   converts using the _local_ `timeOrigin`, so a timestamp taken in the
   shell reads correctly in a fragment despite the iframe having a later
@@ -2542,11 +2690,13 @@ and `location`, but not `top`, `BroadcastChannel` or storage — which is why
 this works there.
 
 **Where the shell owns the fragment's URL** — a plain iframe — a query
-parameter does the same job:
+parameter does the same job. The iframe must be same-origin with the shell,
+like every fragment; a sourceless iframe (`about:blank`, `srcdoc`) qualifies
+but has no URL to carry the parameter, so it reads the `top` global instead.
 
 ```ts
 // shell
-iframe.src = `https://fragment.example.com/?channel=${channelId}`;
+iframe.src = `/fragment/?channel=${channelId}`;
 
 // fragment
 const channelId = new URLSearchParams(window.location.search).get('channel');
@@ -2561,8 +2711,11 @@ With a channel per tab, each tab's election trivially picks itself, and a
 tab's fragments never hear another tab. A duplicated tab loads a fresh
 document, so it gets a fresh id — unlike `sessionStorage`, which Chrome
 copies into the duplicate. A per-tab channel does **not** give each tab its
-own `sessionId`: the RUM session is a cookie shared across the origin's
-tabs, deliberately, since RUM models a session as a user's, not a tab's.
+own `sessionId`: tabs start from the same RUM session cookie, deliberately,
+since RUM models a session as a user's, not a tab's. Each tab reads that
+cookie only when it loads and then keeps its own copy, so tabs drift apart
+once one of them starts a new session — after 30 minutes without an event,
+or on a real sign-out.
 
 ### Known limits
 
@@ -2619,7 +2772,7 @@ whatever the destination.
          this.logger.emit({
            eventName: eventType,
            body: event.payload.eventName,
-           attributes: { ...event.payload.metadata }
+           attributes: { ...event.payload.metadata, ...this.identity() }
          });
        }
      }
@@ -2630,7 +2783,8 @@ whatever the destination.
          startTime: new Date(start),
          attributes: {
            'uwt.scenario.id': record.scenarioId,
-           'uwt.scenario.status': record.status
+           'uwt.scenario.status': record.status,
+           ...this.identity()
          }
        });
        const parent = trace.setSpan(context.active(), root);
@@ -2653,8 +2807,18 @@ whatever the destination.
        this.logger.emit({
          eventName: 'exception',
          severityNumber: SeverityNumber.ERROR,
-         body: error.message
+         body: error.message,
+         attributes: this.identity()
        });
+     }
+
+     // Per record, not a resource attribute: resources are fixed at SDK startup,
+     // and the session changes on sign-out.
+     private identity(): Record<string, string> {
+       return {
+         'session.id': this.sessionId,
+         ...(this.userId ? { 'user.id': this.userId } : {})
+       };
      }
 
      getSessionId() {
@@ -2718,6 +2882,11 @@ whatever the destination.
   linked by `uwt.scenario.id` / `correlationId` — as it is with RUM today.
   Joining them by trace id would need scenarios to start spans in
   `start()`, which is a change to the core, not to the sink.
+- **A session is one page load.** The sink's `sessionId` lives in memory, so a
+  reload or a second tab starts a new session — unlike RUM's cookie session,
+  which tabs share and reloads keep. Expect more, shorter sessions than RUM
+  reports; to match it, keep the id in a cookie with an inactivity expiry. There
+  is no anonymous user id either: until sign-in, only `session.id` is set.
 - **The browser logs SDK is still experimental.** Pin exact versions and
   re-run the tests after every upgrade: a mis-configured processor exports
   nothing, without an error.

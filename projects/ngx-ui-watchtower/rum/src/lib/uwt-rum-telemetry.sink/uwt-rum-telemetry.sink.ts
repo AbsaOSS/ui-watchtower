@@ -1,12 +1,14 @@
 import { DOCUMENT } from '@angular/common';
-import { inject, Injectable, OnDestroy } from '@angular/core';
+import { inject, Injectable, NgZone, OnDestroy } from '@angular/core';
 import type { AwsRum, AwsRumConfig } from 'aws-rum-web';
 import {
   UWT_REDACT_CONFIG,
+  UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_IDENTITY,
   UwtTelemetryError,
   UwtTelemetryMetadata,
   UwtTelemetrySink,
+  uwtMarkSessionStart,
   uwtNormalizeError
 } from '@absaoss-cps/ngx-ui-watchtower';
 import {
@@ -38,10 +40,49 @@ const MAX_TIMEOUT_MS = 2_147_483_647;
 const CREDENTIAL_RETRY_DELAY_MS = 30 * 1000;
 
 /**
+ * Startup retries wait a random time up to a limit that starts at
+ * {@link INIT_RETRY_BASE_MS} and doubles after each failure, up to
+ * {@link INIT_RETRY_MAX_MS}. The first retry comes fast, because the client
+ * captures nothing until it exists; the randomness keeps tabs reloaded
+ * together from retrying together.
+ */
+const INIT_RETRY_BASE_MS = 1000;
+const INIT_RETRY_MAX_MS = 60 * 1000;
+
+/**
+ * How long startup keeps retrying before the sink gives up and runs the page
+ * without RUM. Bounds the retries when the failure is permanent, such as a
+ * wrong URL or a 403.
+ */
+const INIT_RETRY_WINDOW_MS = 5 * 60 * 1000;
+
+/**
+ * The RUM client's defaults for `eventCacheSize` and `batchLimit`, which it
+ * keeps to itself — used only when the app monitor config sets neither.
+ * Together they bound how many batches the client can hold.
+ */
+const SDK_DEFAULT_EVENT_CACHE_SIZE = 1000;
+const SDK_DEFAULT_BATCH_LIMIT = 100;
+
+/**
  * Events retained while the SDK loads. Bounded so a failed init cannot
  * grow the buffer without limit.
  */
 const PRE_INIT_BUFFER_LIMIT = 100;
+
+/** The event the RUM client records each time it starts a session. */
+const SESSION_START_EVENT_TYPE = 'com.amazon.rum.session_start_event';
+
+/**
+ * The RUM client's session cookie: `cwr_s`, or `cwr_s_<app monitor id>` with
+ * `cookieAttributes.unique` (both documented by AWS).
+ */
+function sessionCookieName(bootstrap: UwtRumBootstrap): string {
+  const { config } = bootstrap;
+  return config.cookieAttributes?.unique
+    ? `cwr_s_${config.applicationId}`
+    : 'cwr_s';
+}
 
 /** Metadata keys under this prefix are reserved by the RUM client. */
 const RESERVED_PREFIX = 'aws:';
@@ -102,19 +143,58 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   private readonly redact = inject(UWT_REDACT_CONFIG);
   private readonly credentialsProvider = inject(UWT_RUM_CREDENTIALS_PROVIDER);
   private readonly document = inject(DOCUMENT);
-  private readonly isBrowser = uwtIsBrowser();
+  /**
+   * False on the server and while telemetry is off: the client never starts —
+   * no credentials fetch, no SDK import — and every call is a no-op.
+   */
+  private readonly canStart =
+    uwtIsBrowser() &&
+    (inject(UWT_TELEMETRY_ENABLED, { optional: true }) ?? true);
+
+  private readonly zone = inject(NgZone, { optional: true });
 
   private awsRum: AwsRum | null = null;
+  /**
+   * The pending broker call: a startup retry before the client exists, the
+   * next credential refresh after.
+   */
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private buffer: BufferedItem[] = [];
   private userId?: string;
-  /** Set once a refresh returns null/undefined; distinct from `!awsRum` alone. */
-  private disabled = false;
   /**
-   * Memoized so every caller — `provideUwtTelemetryRumSink()`'s
-   * `APP_INITIALIZER`, {@link ensureInitialized}, and a caller awaiting
-   * `init()` directly — awaits the same underlying work, regardless of who
-   * triggered it first.
+   * Whether a session's start is recorded (`uwtMarkSessionStart`): only when
+   * the client keeps sessions in its cookie, so a session outlives the page,
+   * and the app hasn't suppressed session-start events. Set when the client
+   * starts.
+   */
+  private marksSessionStarts = false;
+  /** Set while {@link markSessionStart} runs, to stop it calling itself. */
+  private markingSession = false;
+  /**
+   * Set once the app has called `setUserId`. Until then, the client's id may
+   * be a signed-in user's, restored from its cookie after a reload, so
+   * events carry no `signedIn`.
+   */
+  private userKnown = false;
+  /** A sign-out arrived before the client existed; applied once it starts. */
+  private signOutPending = false;
+  /** The most batches the client can hold, set when it starts. */
+  private maxBatches = 1;
+  /**
+   * Set once RUM is off for the page — the broker declined, startup gave up,
+   * or a refresh returned null; distinct from `!awsRum` alone.
+   */
+  private disabled = false;
+  /** Broker requests that failed at startup so far. */
+  private initFailures = 0;
+  /** When the first of them failed. */
+  private initFailedAt?: number;
+  /**
+   * The current startup attempt, shared by every caller —
+   * `provideUwtTelemetryRumSink()`'s `APP_INITIALIZER`,
+   * {@link ensureInitialized}, and a caller awaiting `init()` directly. A
+   * retry replaces it, so awaiting `init()` waits for one attempt, not for
+   * RUM to be running.
    */
   private initPromise?: Promise<void>;
   /**
@@ -134,28 +214,45 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * @returns a promise that resolves once initialization has been attempted
    */
   async init(): Promise<void> {
-    if (!this.isBrowser) {
+    if (!this.canStart) {
       return;
     }
     if (!this.initPromise) {
-      this.initPromise = this.performInit();
+      // Outside Angular's zone: the SDK's dispatch interval and this sink's
+      // retry and refresh timers would otherwise keep a zone-based app from
+      // ever becoming stable.
+      this.initPromise = this.zone
+        ? this.zone.runOutsideAngular(() => this.performInit())
+        : this.performInit();
     }
     return this.initPromise;
   }
 
   private async performInit(): Promise<void> {
+    let bootstrap: UwtRumBootstrap | null;
     try {
-      const bootstrap = await this.credentialsProvider.load();
+      bootstrap = await this.credentialsProvider.load();
+    } catch (error) {
+      this.retryInit(error);
+      return;
+    }
+
+    try {
       if (!bootstrap?.config) {
         this.disableAwsRum();
         this.buffer = [];
         return;
       }
 
+      // Not retried if this fails: with native ES modules (Angular's default
+      // build) the browser remembers a failed dynamic import for the page.
       const { AwsRum } = await import('aws-rum-web');
       if (this.destroyed) {
         return;
       }
+
+      const sessionCookie = sessionCookieName(bootstrap);
+      const hadSession = this.hasCookie(sessionCookie);
 
       this.awsRum = new AwsRum(
         bootstrap.config.applicationId,
@@ -163,8 +260,31 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         bootstrap.config.region,
         this.buildRumConfig(bootstrap)
       );
+      const {
+        eventCacheSize = SDK_DEFAULT_EVENT_CACHE_SIZE,
+        batchLimit = SDK_DEFAULT_BATCH_LIMIT
+      } = bootstrap.config;
+      const batches = Math.ceil(eventCacheSize / batchLimit);
+      // A batchLimit of 0 or a non-number would make this unbounded.
+      this.maxBatches = Number.isFinite(batches) && batches > 1 ? batches : 1;
 
+      this.marksSessionStarts =
+        bootstrap.config.allowCookies !== false &&
+        this.document.defaultView?.navigator.cookieEnabled !== false &&
+        bootstrap.config.suppressSessionStartEvent !== true;
       this.applyIdentity();
+      // The client can start the first session inside its constructor — the
+      // landing page view, the navigation timing — before the metadata hook
+      // exists to see its session_start. It writes the session cookie then,
+      // so a cookie that wasn't there a moment ago means a session that
+      // started just now.
+      if (
+        this.marksSessionStarts &&
+        !hadSession &&
+        this.hasCookie(sessionCookie)
+      ) {
+        this.markSessionStart();
+      }
       this.applyCredentials(bootstrap.credentials);
       this.replayBuffer();
     } catch (error) {
@@ -172,6 +292,38 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       this.buffer = [];
       this.reportFailure('RUM init failed, monitoring disabled', error);
     }
+  }
+
+  /**
+   * After a failed broker request at startup: tries again later, keeping
+   * events buffered — the failure is usually a passing network or broker
+   * problem. Gives up after {@link INIT_RETRY_WINDOW_MS}.
+   */
+  private retryInit(error: unknown): void {
+    if (this.destroyed) {
+      return;
+    }
+
+    this.initFailures++;
+    this.initFailedAt ??= Date.now();
+    if (Date.now() - this.initFailedAt >= INIT_RETRY_WINDOW_MS) {
+      this.disableAwsRum();
+      this.buffer = [];
+      this.reportFailure('RUM init failed, monitoring disabled', error);
+      return;
+    }
+
+    if (this.initFailures === 1) {
+      this.reportFailure('RUM init failed, retrying', error);
+    }
+    const limit = Math.min(
+      INIT_RETRY_BASE_MS * 2 ** (this.initFailures - 1),
+      INIT_RETRY_MAX_MS
+    );
+    this.scheduleRetry(() => {
+      this.initPromise = this.performInit();
+      return this.initPromise;
+    }, Math.random() * limit);
   }
 
   /**
@@ -201,7 +353,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
   ): void {
     this.ensureInitialized();
     uwtSafeVoid(operation, () => {
-      if (!this.isBrowser || this.disabled) {
+      if (!this.canStart || this.disabled) {
         return;
       }
 
@@ -253,22 +405,56 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * Signing in pins the id, and works even before `init()` resolves.
    * Signing out starts a fresh session with a new anonymous id (`pinUserId`
    * has no inverse), which emits a `session_start` event and re-rolls
-   * sampling.
+   * sampling. Before `init()` resolves, a sign-out is applied once the
+   * client starts. Signing out while nobody is signed in does nothing.
+   *
+   * Every event carries `signedIn` in its metadata, so a signed-in user's id
+   * can be told from an anonymous one. It is absent until the first call,
+   * so call this as early as possible, e.g. right after the auth library
+   * initializes.
    *
    * @param userId the application's own user identifier, or `undefined`
-   * (or `''`) on sign-out
+   * (or `''`) on sign-out. RUM accepts only a UUID, e.g. MSAL's
+   * `localAccountId`.
    */
   setUserId(userId: string | undefined): void {
     uwtSafeVoid('rum.setUserId', () => {
+      const previous = this.userId;
       this.userId = userId;
+      this.userKnown = true;
 
-      if (userId) {
-        this.awsRum?.pinUserId(userId);
+      const awsRum = this.awsRum;
+      if (!awsRum) {
+        // A sign-in is pinned, a sign-out applied, once the client starts.
+        if (userId || previous) {
+          this.signOutPending = !userId;
+        }
         return;
       }
 
-      this.awsRum?.startSession({ userId: uwtUuid() });
+      if (userId && userId !== previous) {
+        // Unless the client already has this id, as after a reload.
+        if (awsRum.getUserId() !== userId) {
+          this.sendWaiting(awsRum);
+        }
+        awsRum.pinUserId(userId);
+      } else if (!userId && previous) {
+        this.sendWaiting(awsRum);
+        awsRum.startSession({ userId: uwtUuid() });
+      }
     });
+  }
+
+  /**
+   * Sends everything the client holds, under the current user id. The client
+   * reads the id when it sends a batch, not when it records an event, so
+   * events still waiting at a change would otherwise go out under the new id.
+   * Each `dispatch()` sends one batch, and nothing once the client is empty.
+   */
+  private sendWaiting(awsRum: AwsRum): void {
+    for (let batch = 0; batch < this.maxBatches; batch++) {
+      awsRum.dispatch();
+    }
   }
 
   /** @inheritdoc */
@@ -421,10 +607,16 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * Attaches application identity once per session rather than once per event.
    *
    * `addSessionAttributes` covers custom events; the metadata hook stamps
-   * the same attributes onto the client's own built-in events too.
+   * the same attributes onto the client's own built-in events too. The hook
+   * also adds `signedIn`, read when each event is recorded.
    *
    * See {@link UwtRumAppMonitorConfig.sessionAttributes} for how this
    * merges with a consumer-supplied base.
+   *
+   * It also sees the client's own `session_start` event, recorded
+   * each time it starts a session, and records that moment as the
+   * session's start (`uwtMarkSessionStart`) — the client keeps no start time
+   * itself. Only while {@link marksSessionStarts}.
    */
   private applyIdentity(): void {
     if (!this.awsRum) {
@@ -438,11 +630,56 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     };
 
     this.awsRum.addSessionAttributes(attributes);
-    this.awsRum.setEventMetadataHook(() => attributes);
+    this.awsRum.setEventMetadataHook((type) => {
+      if (this.marksSessionStarts && type === SESSION_START_EVENT_TYPE) {
+        this.markSessionStart();
+      }
+      return this.userKnown
+        ? { ...attributes, signedIn: !!this.userId }
+        : attributes;
+    });
 
     if (this.userId) {
       this.awsRum.pinUserId(this.userId);
+    } else if (this.signOutPending) {
+      this.signOutPending = false;
+      this.awsRum.startSession({ userId: uwtUuid() });
     }
+  }
+
+  /**
+   * Records the current session's start as now. Called right after a session
+   * started, so it is current and reading its id doesn't start another one —
+   * except with a session length of 0, where the read starts a new session
+   * whose session_start calls back in here; the guard stops that recursion.
+   */
+  private markSessionStart(): void {
+    if (this.markingSession) {
+      return;
+    }
+    this.markingSession = true;
+    try {
+      uwtSafeVoid('rum.markSessionStart', () => {
+        const sessionId = this.awsRum?.getSessionId();
+        if (sessionId) {
+          uwtMarkSessionStart(sessionId);
+        }
+      });
+    } finally {
+      this.markingSession = false;
+    }
+  }
+
+  /** Whether the page has a cookie with this name; `false` when cookies can't be read. */
+  private hasCookie(name: string): boolean {
+    return uwtSafe(
+      'rum.readCookie',
+      () =>
+        this.document.cookie
+          .split(';')
+          .some((cookie) => cookie.trim().split('=')[0] === name),
+      false
+    );
   }
 
   private applyCredentials(credentials?: UwtRumCredentials): void {
@@ -515,7 +752,11 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     }
   }
 
-  private scheduleRetry(): void {
+  /** Runs `attempt` (by default, a credential refresh) after `delayMs`. */
+  private scheduleRetry(
+    attempt: () => Promise<void> = () => this.refreshCredentials(),
+    delayMs = CREDENTIAL_RETRY_DELAY_MS
+  ): void {
     if (this.destroyed) {
       return;
     }
@@ -525,8 +766,9 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     }
 
     this.refreshTimer = setTimeout(() => {
-      this.refreshCredentials().catch(() => undefined);
-    }, CREDENTIAL_RETRY_DELAY_MS);
+      this.refreshTimer = null;
+      attempt().catch(() => undefined);
+    }, delayMs);
   }
 
   /**

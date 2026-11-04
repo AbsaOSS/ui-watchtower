@@ -26,7 +26,7 @@ npm install @absaoss-cps/ngx-ui-watchtower
 npm install aws-rum-web   # only for the AWS RUM sink
 ```
 
-Requires Angular 22 and RxJS 7.8.
+Requires Angular 21 or 22 and RxJS 7.8.
 
 ## Setup
 
@@ -80,14 +80,17 @@ provideUwtTelemetry(
 
 ### AWS credentials
 
-Fetch them from your backend:
+The RUM sink gets its AWS details from a credentials provider: a class you
+write that fetches them from your backend, registered as
+`UWT_RUM_CREDENTIALS_PROVIDER`. The sink calls its `load()` at startup and
+again shortly before the credentials expire.
 
 ```ts
 @Injectable({ providedIn: 'root' })
 export class MyRumCredentials implements UwtRumCredentialsProvider {
   async load(): Promise<UwtRumBootstrap | null> {
     const res = await fetch('/rum/init', { cache: 'no-store' });
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`); // retried
 
     const { enabled, config, credentials } = await res.json();
     return enabled ? { config, credentials } : null; // null = don't ship
@@ -104,7 +107,10 @@ export class MyLogBackend implements UwtLogApiProvider {
     void fetch('/api/logs', {
       method: 'POST',
       body: JSON.stringify(record),
-      keepalive: true
+      // Only while the page is hidden (it may be closing): browsers reject
+      // keepalive requests once all in flight exceed 64 KiB, so a burst would
+      // be lost.
+      keepalive: document.visibilityState === 'hidden'
     }).catch(() => undefined);
   }
 
@@ -140,6 +146,27 @@ providers: [
 `MyBackendSink` extends `UwtTelemetrySink`; in its `record()`,
 `uwtClassifyTelemetryEvent(eventType, payload)` tells a scenario from a BI
 event. Providing two destinations fails at startup.
+
+### Turning telemetry off
+
+To run telemetry in some environments only, keep the same providers and add
+one switch — a value, or a factory run at startup:
+
+```ts
+provideUwtTelemetry(identity, withTelemetryEnabled(environment.name === 'dev'));
+provideUwtTelemetry(
+  identity,
+  withTelemetryEnabled(() => inject(APP_CONFIG).telemetry)
+);
+```
+
+When off, nothing is sent and nothing runs: no credentials fetch, no RUM SDK
+download, no broadcast channel, no page listeners. Your code doesn't change —
+`start()` still returns a scenario (inert: it records nothing and never
+settles), lookups find nothing, `settled$` never emits, loggers do nothing and
+`query()` resolves `[]`. The switch is read once at startup. It doesn't
+shrink the bundle, but the RUM SDK is loaded on demand, so it's never
+downloaded while telemetry is off.
 
 ## Declare your names
 
@@ -266,9 +293,18 @@ class SupportService {
 ```ts
 const sink = inject(UwtTelemetrySink);
 
-sink.setUserId(user.id); // on sign-in — an opaque id, never an email
+sink.setUserId(user.id); // on sign-in — an opaque UUID, never an email
 sink.setUserId(undefined); // on sign-out
 ```
+
+RUM accepts only a UUID as a user id — with MSAL, use the account's
+`localAccountId`. Anonymous users get a random one, so every event also
+carries `signedIn: true | false` to tell them apart. It's absent until your
+first `setUserId` call, so make that call early, e.g. right after MSAL
+initializes.
+
+Signing out while nobody is signed in does nothing, so it's safe to call
+`setUserId` on every change of your auth state.
 
 ## Privacy
 
@@ -316,7 +352,7 @@ localStorage.setItem('debugBI', 'true');
 localStorage.setItem('debugLogger', 'true'); // or 'checkout,cart' for some loggers
 ```
 
-**In the app** — add the diagnostics popup (needs `cps-ui-kit`):
+**In the app** — add the diagnostics popup (needs `cps-ui-kit` 21.32+ or 22):
 
 ```ts
 import { provideUwtTelemetryDiagnostics } from '@absaoss-cps/ngx-ui-watchtower/diagnostics';
