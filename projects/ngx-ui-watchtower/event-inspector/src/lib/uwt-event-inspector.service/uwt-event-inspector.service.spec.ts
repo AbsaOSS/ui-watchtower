@@ -105,6 +105,7 @@ describe('UwtEventInspectorService', () => {
   /** A stand-in window host, recording what the service asked of it. */
   function fakeWindow() {
     const host = {
+      dock: 'window' as const,
       focus: jest.fn(),
       containsFocus: jest.fn(() => false),
       destroy: jest.fn()
@@ -150,6 +151,7 @@ describe('UwtEventInspectorService', () => {
   it('should bring focus back to an open popup, and close it from inside', () => {
     create().install();
     press();
+    dialogs.instance.focusSearch.mockClear();
 
     dialogs.containsFocus = false;
     press();
@@ -320,5 +322,36 @@ describe('UwtEventInspectorService', () => {
     dialogs.destroyed.next();
     expect(service.isOpen()).toBe(false);
     expect(pane()).toBeNull();
+  });
+
+  it('should move focus into a pane it opens, so the shortcut closes it next', () => {
+    remember({ dock: 'right' });
+    const service = create();
+    service.install();
+
+    press();
+    expect(pane()?.contains(document.activeElement)).toBe(true);
+
+    press();
+    expect(service.isOpen()).toBe(false);
+  });
+
+  it('should leave the inspector as it is when asked for the dock it is in', () => {
+    const service = create();
+    service.setDock('right');
+    const first = pane();
+
+    service.setDock('right');
+
+    expect(pane()).toBe(first);
+    expect(document.querySelectorAll('uwt-inspector-pane')).toHaveLength(1);
+    service.close();
+
+    const { host, open } = fakeWindow();
+    service.setDock('window');
+    service.setDock('window');
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(host.destroy).not.toHaveBeenCalled();
+    expect(host.focus).toHaveBeenCalledTimes(2);
   });
 });

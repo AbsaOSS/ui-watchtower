@@ -2203,7 +2203,8 @@ or `'KeyD'`, and an omitted modifier must be up. Spread
 `UwtEventInspectorService` opens it from code: `open()`, `close()`,
 `toggle()`, `setDock(dock)` — a `UwtInspectorDock`: `'dialog'`, `'window'`,
 `'left'`, `'right'` or `'bottom'` — and an `isOpen` signal. `setDock` opens
-it there if it is closed, and remembers the choice like the Dock buttons.
+it there if it is closed, and remembers the choice like the Dock buttons;
+asked for the dock it is already in, it just focuses it.
 
 A download is a `UwtInspectorExport`:
 

@@ -78,7 +78,7 @@ describe('uwtOpenInspectorWindow', () => {
 
     const host = uwtOpenInspectorWindow(options);
 
-    expect(host).toBeDefined();
+    expect(host?.dock).toBe('window');
     expect(open).toHaveBeenCalledWith(
       '',
       UWT_INSPECTOR_WINDOW_NAME,

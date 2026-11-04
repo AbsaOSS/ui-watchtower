@@ -148,11 +148,15 @@ export class UwtEventInspectorService {
       return;
     }
     this.preferences.update({ dock });
+    if (this.host?.dock === dock) {
+      // Already there: rebuilding would only lose its page and expanded rows.
+      this.open();
+      return;
+    }
     const previous = this.host;
     this.host = undefined;
     uwtSafeVoid('setDock', () => previous?.destroy());
     this.show(dock);
-    uwtSafeVoid('focus', () => this.host?.focus());
   }
 
   /** Closes the inspector, discarding what it captured. */
@@ -197,6 +201,8 @@ export class UwtEventInspectorService {
             : this.openPane(dock);
       this.isOpen.set(true);
     });
+    // A dialog focuses itself once rendered; a pane or window is ready now.
+    uwtSafeVoid('focus', () => this.host?.focus());
   }
 
   /** The user closed it themselves: the dialog's ✕ or Escape, the window. */
@@ -229,6 +235,7 @@ export class UwtEventInspectorService {
       }
     );
     const host: UwtInspectorHost = {
+      dock: 'dialog',
       focus: () => ref.componentInstance?.focusSearch(),
       containsFocus: () => !!ref.componentInstance?.containsFocus(),
       destroy: () => ref.close()
@@ -249,6 +256,7 @@ export class UwtEventInspectorService {
     this.appRef.attachView(ref.hostView);
     ref.changeDetectorRef.detectChanges();
     return {
+      dock: side,
       focus: () => ref.instance.content().focusSearch(),
       containsFocus: () => ref.instance.content().containsFocus(),
       destroy: () => {

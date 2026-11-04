@@ -9,6 +9,8 @@ import { UwtInspectorStore } from '../uwt-inspector-store/uwt-inspector-store';
 
 /** One way of showing the inspector: a dialog, a pane or a window. */
 export interface UwtInspectorHost {
+  /** Where it shows the inspector. */
+  readonly dock: UwtInspectorDock;
   /** Moves focus into the inspector. */
   focus(): void;
   /** Whether keyboard focus is inside the inspector. */

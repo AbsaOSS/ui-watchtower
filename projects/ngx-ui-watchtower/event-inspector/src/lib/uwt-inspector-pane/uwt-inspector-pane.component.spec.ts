@@ -85,6 +85,29 @@ describe('UwtInspectorPaneComponent', () => {
     expect(inset('right')).toBe('');
   });
 
+  it('should return to its chosen size when a squeezed window grows back', () => {
+    const width = (px: number) => {
+      Object.defineProperty(window, 'innerWidth', {
+        value: px,
+        configurable: true,
+        writable: true
+      });
+      window.dispatchEvent(new Event('resize'));
+      fixture.detectChanges();
+    };
+    open('right');
+
+    try {
+      width(600);
+      expect(host().style.width).toBe('480px');
+      width(1024);
+      expect(host().style.width).toBe('512px');
+      expect(stored().paneSize).toBeUndefined();
+    } finally {
+      width(1024);
+    }
+  });
+
   it('should give the app its padding back when it closes', () => {
     document.body.style.paddingLeft = '7px';
     open('left');

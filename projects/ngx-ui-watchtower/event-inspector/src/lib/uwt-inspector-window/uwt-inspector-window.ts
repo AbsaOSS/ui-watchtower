@@ -108,6 +108,7 @@ export function uwtOpenInspectorWindow(
   doc.addEventListener('keydown', options.onKeydown, true);
 
   return {
+    dock: 'window',
     focus: () => {
       popup.focus();
       ref.instance.focusSearch();

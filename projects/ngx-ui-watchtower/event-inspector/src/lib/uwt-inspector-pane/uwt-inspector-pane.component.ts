@@ -43,7 +43,7 @@ const STEP_REM = 2;
     '[class.uwt-inspector-pane--bottom]': "side() === 'bottom'",
     '[style.width.px]': "side() === 'bottom' ? null : size()",
     '[style.height.px]': "side() === 'bottom' ? size() : null",
-    '(window:resize)': 'resize(size())'
+    '(window:resize)': 'resize(chosen)'
   },
   templateUrl: './uwt-inspector-pane.component.html',
   styleUrl: './uwt-inspector-pane.component.scss'
@@ -60,6 +60,9 @@ export class UwtInspectorPaneComponent implements OnInit, OnDestroy {
   protected readonly size = signal(0);
   protected readonly limits = signal({ min: 0, max: 0 });
 
+  /** The size last chosen, which a smaller window squeezes only for a while. */
+  protected chosen = 0;
+
   private padding = '';
   private paddingBefore = '';
   private inset = '';
@@ -71,9 +74,9 @@ export class UwtInspectorPaneComponent implements OnInit, OnDestroy {
       this.padding
     );
     this.inset = `--uwt-inspector-inset-${this.side()}`;
-    this.resize(
-      this.preferences.read().paneSize[this.side()] ?? this.defaultSize()
-    );
+    this.chosen =
+      this.preferences.read().paneSize[this.side()] ?? this.defaultSize();
+    this.resize(this.chosen);
   }
 
   ngOnDestroy(): void {
@@ -114,7 +117,7 @@ export class UwtInspectorPaneComponent implements OnInit, OnDestroy {
     }
     const view = this.document.defaultView;
     const side = this.side();
-    this.resize(
+    this.choose(
       side === 'left'
         ? event.clientX
         : side === 'right'
@@ -144,8 +147,14 @@ export class UwtInspectorPaneComponent implements OnInit, OnDestroy {
     }
     event.preventDefault();
     const step = (event.key === grow[side] ? 1 : -1) * STEP_REM * this.rem();
-    this.resize(this.size() + step);
+    this.choose(this.size() + step);
     this.save();
+  }
+
+  /** Resizes on the user's behalf, and keeps that as the size to return to. */
+  private choose(size: number): void {
+    this.resize(size);
+    this.chosen = this.size();
   }
 
   private save(): void {
