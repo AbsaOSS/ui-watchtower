@@ -352,12 +352,12 @@ localStorage.setItem('debugBI', 'true');
 localStorage.setItem('debugLogger', 'true'); // or 'checkout,cart' for some loggers
 ```
 
-**In the app** — add the diagnostics popup (needs `cps-ui-kit` 21.32+ or 22):
+**In the app** — add the Event Inspector (needs `cps-ui-kit` 21.32+ or 22):
 
 ```ts
-import { provideUwtTelemetryDiagnostics } from '@absaoss-cps/ngx-ui-watchtower/diagnostics';
+import { provideUwtEventInspector } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
 
-providers: [provideUwtTelemetryDiagnostics()];
+providers: [provideUwtEventInspector()];
 ```
 
 Open it with **⇧⌥⌘8** on macOS or **Ctrl+Alt+Shift+8** on Windows and Linux.

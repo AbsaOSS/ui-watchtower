@@ -15,7 +15,7 @@ import {
  *
  * Each hand-off site publishes here immediately *after* the hand-off, with
  * the very object it just sent. Nothing is sent from here: this is an
- * in-memory stream for observers such as the diagnostics popup, never a
+ * in-memory stream for observers such as the Event Inspector, never a
  * second delivery path, so observing it cannot cause an event to be sent
  * twice.
  *

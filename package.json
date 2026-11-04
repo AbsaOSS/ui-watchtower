@@ -10,7 +10,7 @@
     "lint": "eslint \"**/*.ts\" --max-warnings=0",
     "format": "prettier --write \"**/*.{ts,html}\"",
     "format:check": "prettier --check \"**/*.{ts,html}\"",
-    "typecheck": "tsc -p projects/ngx-ui-watchtower/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/tsconfig.spec.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.spec.json --noEmit && tsc -p projects/ngx-ui-watchtower/diagnostics/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/diagnostics/tsconfig.spec.json --noEmit"
+    "typecheck": "tsc -p projects/ngx-ui-watchtower/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/tsconfig.spec.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.spec.json --noEmit && tsc -p projects/ngx-ui-watchtower/event-inspector/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/event-inspector/tsconfig.spec.json --noEmit"
   },
   "private": true,
   "dependencies": {

@@ -1,0 +1,117 @@
+:host {
+  display: block;
+  container-type: inline-size;
+}
+
+.uwt-inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-block: 0.5rem;
+}
+
+.uwt-inspector-section__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem 1rem;
+}
+
+.uwt-inspector-section__filters {
+  flex: 1 1 24rem;
+}
+
+.uwt-inspector-section__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.uwt-inspector-section__notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--cps-text-secondary);
+}
+
+// The table fits the section instead of running past its edge: the columns
+// after Time share the width, and a long value ends in an ellipsis, shown
+// in full in the cell's title and the row's detail.
+:host ::ng-deep .uwt-inspector-section__table {
+  width: 100%;
+}
+
+td {
+  // Lets the table make a cell narrower than its text.
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uwt-inspector-section__time {
+  // Only as wide as the time itself.
+  width: 1%;
+  max-width: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.uwt-inspector-section__forwarded {
+  margin-inline-end: 0.375rem;
+  color: var(--cps-text-secondary);
+  font-size: 0.75rem;
+}
+
+// Level is always written out; colour only supports it.
+.uwt-inspector-section__level--warn {
+  color: var(--cps-state-warn);
+  font-weight: 600;
+}
+
+.uwt-inspector-section__level--error {
+  color: var(--cps-state-error);
+  font-weight: 600;
+}
+
+.uwt-inspector-section__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.25rem;
+}
+
+.uwt-inspector-section__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  font-size: 0.8125rem;
+
+  div {
+    display: flex;
+    gap: 0.375rem;
+  }
+
+  dt {
+    color: var(--cps-text-secondary);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--cps-text-primary);
+  }
+}
+
+.uwt-inspector-section__error {
+  margin: 0;
+  color: var(--cps-state-error);
+  font-size: 0.8125rem;
+}
+
+@container (max-width: 48rem) {
+  .uwt-inspector-section__secondary {
+    display: none;
+  }
+}

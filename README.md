@@ -20,12 +20,12 @@ How it is designed: [projects/ngx-ui-watchtower/DESIGN.md](projects/ngx-ui-watch
 
 ```text
 projects/ngx-ui-watchtower/
-  src/          main entry point — @absaoss-cps/ngx-ui-watchtower
-  rum/          secondary entry point — @absaoss-cps/ngx-ui-watchtower/rum
-  diagnostics/  secondary entry point — @absaoss-cps/ngx-ui-watchtower/diagnostics
-  README.md     usage guide, published to npm
-  DESIGN.md     full design
-  package.json  the published package's manifest
+  src/              main entry point — @absaoss-cps/ngx-ui-watchtower
+  rum/              secondary entry point — @absaoss-cps/ngx-ui-watchtower/rum
+  event-inspector/  secondary entry point — @absaoss-cps/ngx-ui-watchtower/event-inspector
+  README.md         usage guide, published to npm
+  DESIGN.md         full design
+  package.json      the published package's manifest
 ```
 
 ## Getting started
