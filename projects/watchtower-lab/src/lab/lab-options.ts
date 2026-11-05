@@ -6,6 +6,7 @@ import {
   UwtScenarioTelemetryConfig
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { UwtEventInspectorConfig } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
+import { parseJsonObject } from './lab-json';
 
 /** Value transforms a {@link LabConfig} can name. */
 export const LAB_VALUE_TRANSFORMS = {
@@ -78,15 +79,90 @@ export function labOptions(search: string): LabOptions {
   };
 }
 
+/** The query string that starts the lab with `options`. */
+export function labSearch(options: LabOptions): string {
+  const params = new URLSearchParams();
+  if (options.destination !== 'rum') {
+    params.set('destination', options.destination);
+  }
+  if (!options.telemetry) {
+    params.set('telemetry', 'off');
+  }
+  if (options.channel === 'shared') {
+    params.set('channel', 'shared');
+  }
+  if (options.inspector !== 'on') {
+    params.set('inspector', options.inspector);
+  }
+  if (Object.keys(options.config).length > 0) {
+    params.set('config', JSON.stringify(options.config));
+  }
+  const search = params.toString();
+  return search ? `?${search}` : '';
+}
+
+/**
+ * The overlay's redaction settings as the library takes them. A pattern
+ * that isn't a `RegExp` source, or a transform the lab doesn't know, is left
+ * out with a warning, rather than stop the lab from starting.
+ */
+export function labRedaction(
+  redaction: LabConfig['redaction'] = {}
+): Partial<UwtRedactConfig> {
+  const {
+    extraKeyPatterns,
+    extraValuePatterns,
+    extraValueTransforms,
+    ...rest
+  } = redaction;
+  const transforms = list(extraValueTransforms, 'extraValueTransforms');
+  return {
+    ...rest,
+    ...(extraKeyPatterns && {
+      extraKeyPatterns: patterns(extraKeyPatterns, 'extraKeyPatterns', 'i')
+    }),
+    ...(extraValuePatterns && {
+      extraValuePatterns: patterns(extraValuePatterns, 'extraValuePatterns')
+    }),
+    ...(transforms && {
+      extraValueTransforms: transforms.flatMap((name) => {
+        const transform =
+          LAB_VALUE_TRANSFORMS[name as keyof typeof LAB_VALUE_TRANSFORMS];
+        if (!transform) {
+          console.warn(`[lab] ?config= has no value transform "${name}".`);
+        }
+        return transform ? [transform] : [];
+      })
+    })
+  };
+}
+
+function patterns(sources: unknown, field: string, flags?: string): RegExp[] {
+  return (list(sources, field) ?? []).flatMap((source) => {
+    try {
+      return [new RegExp(String(source), flags)];
+    } catch {
+      console.warn(`[lab] ?config= ${field}: "${source}" isn't a RegExp.`);
+      return [];
+    }
+  });
+}
+
+function list(value: unknown, field: string): unknown[] | undefined {
+  if (value === undefined || Array.isArray(value)) {
+    return value;
+  }
+  console.warn(`[lab] ?config= ${field} isn't a list; left out.`);
+  return undefined;
+}
+
 function parseConfig(json: string | null): LabConfig {
   if (!json) {
     return {};
   }
-  try {
-    const config = JSON.parse(json);
-    return config && typeof config === 'object' ? config : {};
-  } catch {
-    console.warn('[lab] ?config= is not JSON; ignored.');
-    return {};
+  const config = parseJsonObject(json);
+  if (!config) {
+    console.warn('[lab] ?config= is not a JSON object; ignored.');
   }
+  return config ?? {};
 }

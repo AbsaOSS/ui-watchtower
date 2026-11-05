@@ -93,6 +93,9 @@ test('the overlay field sets what is laid over the broker config, and refuses wh
   await expect
     .poll(async () => (await backend.state()).brokerConfig)
     .toEqual({ sessionSampleRate: 0 });
+  // After a reload, the field shows the overlay in force.
+  await press(page, 'Reload to apply');
+  await expect(field).toHaveValue('{"sessionSampleRate":0}');
 
   await field.fill('[1, 2]');
   await press(page, 'Set the overlay');

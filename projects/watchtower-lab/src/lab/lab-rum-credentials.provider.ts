@@ -35,8 +35,11 @@ const telemetryOptions = (origin: string): Record<string, object> => ({
  */
 @Injectable({ providedIn: 'root' })
 export class LabRumCredentialsProvider implements UwtRumCredentialsProvider {
+  /** This page's calls, so the broker can tell startup from a refresh. */
+  private calls = 0;
+
   async load(): Promise<UwtRumBootstrap | null> {
-    const response = await fetch('/rum/init');
+    const response = await fetch(`/rum/init?call=${++this.calls}`);
     if (!response.ok) {
       throw new Error(`RUM bootstrap failed: ${response.status}`);
     }

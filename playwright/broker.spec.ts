@@ -30,7 +30,7 @@ test('broker "short-expiry": credentials are refreshed within seconds, without a
   await backend.setBrokerMode('short-expiry');
   let inits = 0;
   page.on('request', (r) => {
-    if (r.url().endsWith('/rum/init')) {
+    if (new URL(r.url()).pathname === '/rum/init') {
       inits++;
     }
   });

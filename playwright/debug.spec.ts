@@ -50,4 +50,10 @@ test('debugLogger with a list prints only those loggers', async ({ page }) => {
       expect.stringMatching(/^\[watchtower-lab\]\[noisy\] A noisy warning/)
     );
   expect(lines.some((l) => l.includes('A lab warning'))).toBe(false);
+
+  // A list isn't "on" for every logger: the Settings switch says so.
+  await navigate(page, 'Settings');
+  await expect(
+    page.getByRole('switch', { name: 'debugLogger' })
+  ).not.toBeChecked();
 });

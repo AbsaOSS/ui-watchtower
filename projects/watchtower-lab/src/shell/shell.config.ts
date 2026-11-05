@@ -27,11 +27,7 @@ import {
   provideUwtTelemetryRumSink
 } from '@absaoss-cps/ngx-ui-watchtower/rum';
 import { provideUwtEventInspector } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
-import {
-  LAB_OPTIONS,
-  LAB_VALUE_TRANSFORMS,
-  LabOptions
-} from '../lab/lab-options';
+import { LAB_OPTIONS, labRedaction, LabOptions } from '../lab/lab-options';
 import { labChannel } from '../lab/lab-channel';
 import { LabCustomSink } from '../lab/lab-custom.sink';
 import { LabLogApiProvider } from '../lab/lab-log-api.provider';
@@ -115,12 +111,6 @@ const routes: Routes = [
  */
 export const shellConfig = (options: LabOptions): ApplicationConfig => {
   const { identity, scenarios, logging, bi, inspector } = options.config;
-  const {
-    extraKeyPatterns,
-    extraValuePatterns,
-    extraValueTransforms,
-    ...redaction
-  } = options.config.redaction ?? {};
 
   return {
     providers: [
@@ -149,18 +139,7 @@ export const shellConfig = (options: LabOptions): ApplicationConfig => {
         withBIEvents(bi),
         withRedaction({
           scanValuePatterns: ['email', 'creditCard', 'ssn', 'ipv4', 'phone'],
-          ...redaction,
-          ...(extraKeyPatterns && {
-            extraKeyPatterns: extraKeyPatterns.map((p) => new RegExp(p, 'i'))
-          }),
-          ...(extraValuePatterns && {
-            extraValuePatterns: extraValuePatterns.map((p) => new RegExp(p))
-          }),
-          ...(extraValueTransforms && {
-            extraValueTransforms: extraValueTransforms.map(
-              (name) => LAB_VALUE_TRANSFORMS[name]
-            )
-          })
+          ...labRedaction(options.config.redaction)
         })
       ),
       options.destination === 'noop'

@@ -33,3 +33,19 @@ test('a custom destination is started once, given every event classified, and RU
   ]);
   expect(rum).toEqual([]);
 });
+
+test('a custom destination still gets the scenario abandoned as the page goes', async ({
+  page,
+  backend
+}) => {
+  await openLab(page, 'lifecycle?destination=custom');
+  await press(page, 'Start a scenario and reload');
+  await expect
+    .poll(
+      async () =>
+        (await backend.custom()).find(
+          (e) => e.payload?.scenarioName === 'lab-abandoned'
+        )?.payload
+    )
+    .toMatchObject({ status: 'abandoned' });
+});

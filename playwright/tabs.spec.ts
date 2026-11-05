@@ -1,8 +1,9 @@
-import { expect, named, openLab, press, test } from './lab';
+import { expect, named, openLab, press, test, watchErrors } from './lab';
 
 test("two tabs: each fragment reaches its own tab's shell, over that tab's channel", async ({
   context,
-  backend
+  backend,
+  errors
 }) => {
   // Both Event Inspectors open as panes, beside their fragments.
   await context.addInitScript(() =>
@@ -12,6 +13,7 @@ test("two tabs: each fragment reaches its own tab's shell, over that tab's chann
     )
   );
   const tabs = [await context.newPage(), await context.newPage()];
+  tabs.forEach((tab) => watchErrors(tab, errors));
   for (const tab of tabs) {
     await openLab(tab, 'web-fragment');
     await expect(tab.locator('web-fragment h1')).toHaveText('lab-fragment');

@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   inject,
+  linkedSignal,
   signal
 } from '@angular/core';
 import { UwtTelemetrySink } from '@absaoss-cps/ngx-ui-watchtower';
@@ -19,6 +20,7 @@ import {
   LabTelemetry,
   LabWire
 } from '../../lab/lab-wire.service';
+import { parseJsonObject } from '../../lab/lab-json';
 
 const BROKER_MODES: { label: string; value: LabBrokerMode }[] = [
   { label: 'ok — RUM records normally', value: 'ok' },
@@ -196,7 +198,8 @@ export class WirePage {
   protected readonly sink = inject(UwtTelemetrySink);
   protected readonly modes = BROKER_MODES;
   protected readonly libraryOnly = signal(true);
-  protected readonly brokerConfigDraft = signal(
+  /** The overlay in force, until edited; replaced if the server's changes. */
+  protected readonly brokerConfigDraft = linkedSignal(() =>
     JSON.stringify(this.wire.brokerConfig())
   );
 
@@ -218,18 +221,11 @@ export class WirePage {
   protected readonly logs = computed(() => this.wire.logs().slice().reverse());
 
   protected async setBrokerConfig(): Promise<void> {
-    let config: unknown;
-    try {
-      config = JSON.parse(this.brokerConfigDraft().trim() || '{}');
-    } catch {
-      config = undefined;
+    const config = parseJsonObject(this.brokerConfigDraft().trim() || '{}');
+    this.brokerConfigError.set(config ? '' : 'Not a JSON object.');
+    if (config) {
+      await this.wire.setBrokerConfig(config);
     }
-    if (!config || typeof config !== 'object' || Array.isArray(config)) {
-      this.brokerConfigError.set('Not a JSON object.');
-      return;
-    }
-    this.brokerConfigError.set('');
-    await this.wire.setBrokerConfig(config as Record<string, unknown>);
   }
 
   protected reload(): void {

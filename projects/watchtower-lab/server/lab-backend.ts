@@ -104,7 +104,8 @@ function parseJson(text: string | undefined): any {
 }
 
 /**
- * What the broker answers, by mode and call: `undefined` for an error,
+ * What the broker answers, by mode and the page's call — its first, at
+ * startup, or a later one, a retry or refresh: `undefined` for an error,
  * `enabled: false` to turn RUM off for the page.
  *
  * - `flaky`: the first two calls fail, as a broker starting up might
@@ -114,7 +115,9 @@ function parseJson(text: string | undefined): any {
  */
 function broker(req: Request) {
   const mode = state.brokerMode;
-  const call = ++state.brokerCalls;
+  state.brokerCalls++;
+  // The page counts its own calls: each load starts again at 1.
+  const call = Number(req.query.call) || 1;
   if (mode === 'fail' || (mode === 'flaky' && call <= 2)) {
     return undefined;
   }
@@ -323,7 +326,10 @@ labBackend
   .route('/__lab/custom')
   .post(
     promised(async (req, res) => {
-      state.custom.push(parseJson(await readBody(req)));
+      const body = parseJson(await readBody(req));
+      state.custom.push(
+        ...(Array.isArray(body) ? body : [body]).filter(Boolean)
+      );
       res.status(204).end();
     })
   )

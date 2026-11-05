@@ -30,11 +30,16 @@ export class LabLogApiProvider implements UwtLogApiProvider {
     this.timer ??= setTimeout(() => this.flush(), 10_000);
   }
 
+  /**
+   * Called by the library as the page is hidden or goes away. Kept alive
+   * either way: WebKit still says `visible` while a reloading page hides, and
+   * cancels a plain request then.
+   */
   flush(): void {
     clearTimeout(this.timer);
     this.timer = undefined;
     if (this.pending.length > 0) {
-      this.post(this.pending);
+      this.post(this.pending, true);
       this.pending = [];
     }
   }
@@ -48,13 +53,13 @@ export class LabLogApiProvider implements UwtLogApiProvider {
     return fetch(`/api/logs?${params}`).then((r) => r.json());
   }
 
-  private post(records: UwtLogRecord[]): void {
+  private post(records: UwtLogRecord[], closing = false): void {
     fetch('/api/logs', {
       method: 'POST',
       body: JSON.stringify(records),
-      // Only while the page is hidden (it may be closing): browsers reject
-      // keepalive requests once all in flight exceed 64 KiB.
-      keepalive: this.document.visibilityState === 'hidden'
+      // Only while the page may be closing: browsers reject keepalive
+      // requests once all in flight exceed 64 KiB.
+      keepalive: closing || this.document.visibilityState === 'hidden'
     }).catch(() => undefined);
   }
 }

@@ -30,8 +30,10 @@ test('clicking again within 400 ms adds nothing; after it, a second event', asyn
   page,
   backend
 }) => {
-  await press(page, 'Track a click');
-  await press(page, 'Track a click');
+  // Two clicks, milliseconds apart.
+  await page
+    .getByRole('button', { name: 'Track a click', exact: true })
+    .dblclick();
   await page.waitForTimeout(600);
   await press(page, 'Track a click');
   // Tracked last, so once this arrives the clicks have had their chance.

@@ -9,6 +9,7 @@ import {
   UwtScenarioTelemetryService
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { CpsButtonComponent, CpsTextareaComponent } from 'cps-ui-kit';
+import { parseJsonObject } from '../../lab/lab-json';
 
 @Component({
   selector: 'lab-logging-page',
@@ -121,18 +122,11 @@ export class LoggingPage {
 
   /** Any filter the log provider takes: logger, correlationId, minLevel… */
   protected async runQuery(): Promise<void> {
-    let filter: unknown;
-    try {
-      filter = JSON.parse(this.filter().trim() || '{}');
-    } catch {
-      filter = undefined;
+    const filter = parseJsonObject(this.filter().trim() || '{}');
+    this.filterError.set(filter ? '' : 'Not a JSON object.');
+    if (filter) {
+      const records = await this.logger.query(filter);
+      this.readout.set(JSON.stringify(records, null, 2));
     }
-    if (!filter || typeof filter !== 'object' || Array.isArray(filter)) {
-      this.filterError.set('Not a JSON object.');
-      return;
-    }
-    this.filterError.set('');
-    const records = await this.logger.query(filter);
-    this.readout.set(JSON.stringify(records, null, 2));
   }
 }

@@ -252,3 +252,34 @@ test('inspector settings: a custom shortcut, a smaller section, a smaller view',
     .click();
   await expect(bi).toContainText(/showing the first 1,?000 characters/);
 });
+
+test('a pattern that is not a RegExp is left out with a warning, and the lab still starts', async ({
+  page,
+  backend
+}) => {
+  const warnings: string[] = [];
+  page.on('console', (m) => m.type() === 'warning' && warnings.push(m.text()));
+  await openLab(page, 'logging', {
+    redaction: { extraKeyPatterns: ['(', '^orderId$'] }
+  });
+  await press(page, 'error, with an Error');
+  expect((await onlyLog(backend)).metadata).toEqual({ orderId: '[redacted]' });
+  expect(warnings).toContainEqual(
+    expect.stringContaining('"(" isn\'t a RegExp')
+  );
+});
+
+test('applying an overlay keeps the other startup options, which in-app links drop', async ({
+  page
+}) => {
+  await openLab(page, 'bi?destination=noop');
+  await navigate(page, 'Settings');
+  await page
+    .getByRole('textbox', { name: '?config= (JSON)' })
+    .fill('{ "bi": { "dedupWindowMs": 0 } }');
+  await press(page, 'Apply and reload');
+
+  await expect(page.locator('.lab-header')).toContainText('config: custom');
+  await expect(page.locator('.lab-header')).toContainText('destination: noop');
+  expect(new URL(page.url()).searchParams.get('destination')).toBe('noop');
+});

@@ -1,8 +1,9 @@
-import { expect, named, openLab, press, test } from './lab';
+import { expect, named, openLab, press, test, watchErrors } from './lab';
 
 test("on a shared channel, one tab's host leads for every tab, and another takes over when it closes", async ({
   context,
-  backend
+  backend,
+  errors
 }) => {
   // Both Event Inspectors open as panes, beside their fragments.
   await context.addInitScript(() =>
@@ -12,6 +13,7 @@ test("on a shared channel, one tab's host leads for every tab, and another takes
     )
   );
   const tabs = [await context.newPage(), await context.newPage()];
+  tabs.forEach((tab) => watchErrors(tab, errors));
   for (const tab of tabs) {
     await openLab(tab, 'web-fragment?channel=shared');
     await expect(tab.locator('web-fragment h1')).toHaveText('lab-fragment');
@@ -26,6 +28,9 @@ test("on a shared channel, one tab's host leads for every tab, and another takes
   await expect(first.locator('uwt-inspector')).toContainText(
     'fragment_button_clicked'
   );
+  await backend.rumUntil((e) => named(e, 'fragment_button_clicked').length > 0);
+  // Past the inspector's 250 ms refresh: the follower would show it by now.
+  await second.waitForTimeout(500);
   await expect(second.locator('uwt-inspector')).not.toContainText(
     'fragment_button_clicked'
   );

@@ -317,7 +317,9 @@ export class ScenariosPage {
     crowd.forEach((scenario) => scenario.cancel());
   }
 
+  /** Never times out: the one before it, if still running, is cancelled. */
   protected startLong(): void {
+    this.long?.cancel();
     this.long = this.scenarios.start({ name: 'lab-long', timeoutMs: 0 });
     this.lookUp();
   }

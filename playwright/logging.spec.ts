@@ -108,3 +108,15 @@ test('a batching log provider is flushed as the page is hidden', async ({
     .poll(async () => (await backend.logs()).length, { timeout: 3000 })
     .toBe(1);
 });
+
+test('a batching log provider is flushed as the page reloads, in every browser', async ({
+  page,
+  backend
+}) => {
+  await openLab(page, 'logging', { lab: { logBatching: true } });
+  await press(page, 'warn');
+  await page.reload();
+  await expect
+    .poll(async () => (await backend.logs()).length, { timeout: 4000 })
+    .toBe(1);
+});

@@ -57,7 +57,9 @@ export class LabBackend {
   }
 
   /** What the lab's custom sink was given, with `?destination=custom`. */
-  async custom(): Promise<{ kind: string; eventType?: string }[]> {
+  async custom(): Promise<
+    { kind: string; eventType?: string; payload?: Record<string, unknown> }[]
+  > {
     return (await this.request.get('/__lab/custom')).json();
   }
 
@@ -128,26 +130,34 @@ export const test = base.extend<{
     { auto: true }
   ],
 
-  // Page and console errors fail the test. A failed request isn't one: the
-  // `fail` broker answers with an error on purpose.
+  // Page and console errors fail the test — a test's other tabs too, once
+  // given to watchErrors.
   errors: [
     async ({ page }, use) => {
       const errors: string[] = [];
-      page.on('pageerror', (e) => errors.push(`page: ${e.message}`));
-      page.on('console', (m) => {
-        if (
-          m.type() === 'error' &&
-          !m.text().startsWith('Failed to load resource')
-        ) {
-          errors.push(`console: ${m.text()}`);
-        }
-      });
+      watchErrors(page, errors);
       await use(errors);
       expect(errors, 'page and console errors').toEqual([]);
     },
     { auto: true }
   ]
 });
+
+/**
+ * Collects `page`'s errors into `errors`. A failed request isn't one: the
+ * `fail` broker answers with an error on purpose.
+ */
+export function watchErrors(page: Page, errors: string[]): void {
+  page.on('pageerror', (e) => errors.push(`page: ${e.message}`));
+  page.on('console', (m) => {
+    if (
+      m.type() === 'error' &&
+      !m.text().startsWith('Failed to load resource')
+    ) {
+      errors.push(`console: ${m.text()}`);
+    }
+  });
+}
 
 export { expect };
 export type { FrameLocator, Locator, Page };

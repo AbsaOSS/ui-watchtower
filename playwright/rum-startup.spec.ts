@@ -103,6 +103,18 @@ test('a refresh answered with null turns RUM off for the page', async ({
   expect(named(await backend.rum(), 'lab_double_fired')).toEqual([]);
 });
 
+test("each page load is the broker's first call: a reload starts RUM again", async ({
+  page,
+  backend
+}) => {
+  await backend.setBrokerMode('null-on-refresh');
+  await openLab(page, 'bi');
+  const first = await sessionStarted(page);
+  await page.reload();
+  await expect(page.locator('html[data-lab-ready]')).toHaveCount(1);
+  expect(await sessionStarted(page)).toBe(first);
+});
+
 test('a refresh without credentials keeps the old ones: events still arrive', async ({
   page,
   backend

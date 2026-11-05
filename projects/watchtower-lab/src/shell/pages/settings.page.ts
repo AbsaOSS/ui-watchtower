@@ -10,7 +10,8 @@ import {
   UWT_LOG_CONFIG,
   UWT_REDACT_CONFIG,
   UWT_SCENARIO_TELEMETRY_CONFIG,
-  UWT_TELEMETRY_IDENTITY
+  UWT_TELEMETRY_IDENTITY,
+  uwtIsDebugEnabled
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { UWT_EVENT_INSPECTOR_CONFIG } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
 import {
@@ -18,6 +19,8 @@ import {
   CpsSwitchComponent,
   CpsTextareaComponent
 } from 'cps-ui-kit';
+import { parseJsonObject } from '../../lab/lab-json';
+import { labSearch } from '../../lab/lab-options';
 import { LAB_OPTIONS } from '../shell.config';
 
 const DEBUG_FLAGS = ['debugScenario', 'debugBI', 'debugLogger'] as const;
@@ -83,10 +86,12 @@ export class SettingsPage {
   protected readonly error = signal('');
 
   private readonly window = inject(DOCUMENT).defaultView!;
-  private readonly config = inject(LAB_OPTIONS).config;
+  private readonly options = inject(LAB_OPTIONS);
 
   protected readonly draft = signal(
-    Object.keys(this.config).length ? JSON.stringify(this.config, null, 2) : ''
+    Object.keys(this.options.config).length
+      ? JSON.stringify(this.options.config, null, 2)
+      : ''
   );
 
   protected readonly debug = signal(this.readDebug());
@@ -105,23 +110,19 @@ export class SettingsPage {
     2
   );
 
-  /** Reloads with `json` as the overlay; none for the lab's own settings. */
+  /**
+   * Reloads with `json` as the overlay — none for the lab's own settings —
+   * keeping the other startup options, which in-app links drop.
+   */
   protected apply(json = this.draft().trim()): void {
-    if (json) {
-      try {
-        JSON.parse(json);
-      } catch {
-        this.error.set('Not JSON.');
-        return;
-      }
+    const config = json ? parseJsonObject(json) : {};
+    if (!config) {
+      this.error.set('Not a JSON object.');
+      return;
     }
-    const url = new URL(this.window.location.href);
-    if (json) {
-      url.searchParams.set('config', json);
-    } else {
-      url.searchParams.delete('config');
-    }
-    this.window.location.assign(url.toString());
+    this.window.location.assign(
+      `${this.window.location.pathname}${labSearch({ ...this.options, config })}`
+    );
   }
 
   protected setDebug(flag: DebugFlag, on: boolean): void {
@@ -137,18 +138,12 @@ export class SettingsPage {
     this.debug.set(this.readDebug());
   }
 
+  /** As the library reads them: a list of logger names is not "on". */
   private readDebug(): Record<DebugFlag, boolean> {
-    const on = (flag: DebugFlag) => {
-      try {
-        return !!this.window.localStorage.getItem(flag);
-      } catch {
-        return false;
-      }
-    };
     return {
-      debugScenario: on('debugScenario'),
-      debugBI: on('debugBI'),
-      debugLogger: on('debugLogger')
+      debugScenario: uwtIsDebugEnabled('debugScenario'),
+      debugBI: uwtIsDebugEnabled('debugBI'),
+      debugLogger: uwtIsDebugEnabled('debugLogger')
     };
   }
 }
