@@ -46,13 +46,14 @@ type KeyInit = ConstructorParameters<typeof KeyboardEvent>[1];
 /** Presses one key on `target`; with none given, the default Shift+E+I. */
 function press(init?: KeyInit, target: Element = document.body): KeyboardEvent {
   if (!init) {
-    press({ code: 'KeyE', shiftKey: true }, target);
-    return press({ code: 'KeyI', shiftKey: true }, target);
+    press({ code: 'KeyE', key: 'E', shiftKey: true }, target);
+    return press({ code: 'KeyI', key: 'I', shiftKey: true }, target);
   }
   const event = new KeyboardEvent('keydown', {
     ...init,
     bubbles: true,
-    cancelable: true
+    cancelable: true,
+    composed: true
   });
   target.dispatchEvent(event);
   return event;
@@ -152,6 +153,19 @@ describe('UwtEventInspectorService', () => {
 
     expect(dialogs.opened).toHaveLength(0);
     field.remove();
+  });
+
+  it('should ignore Shift+E+I typed into a text field inside a shadow root', () => {
+    create().install();
+    const host = document.body.appendChild(document.createElement('div'));
+    const field = host
+      .attachShadow({ mode: 'open' })
+      .appendChild(document.createElement('input'));
+
+    press(undefined, field);
+
+    expect(dialogs.opened).toHaveLength(0);
+    host.remove();
   });
 
   it('should bring focus back to an open popup, and close it from inside', () => {

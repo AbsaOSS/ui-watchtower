@@ -68,6 +68,13 @@ describe('uwtMatchesShortcut', () => {
     ).toBe(true);
   });
 
+  it('should match a key that types nothing in a text field', () => {
+    const field = document.createElement('input');
+    expect(
+      uwtMatchesShortcut(key('F9', {}, 'F9', false, field), { code: 'F9' })
+    ).toBe(true);
+  });
+
   it('should match the physical key, whatever character it produces', () => {
     // On macOS, ⇧⌥8 produces "°" — only the physical key is reliable.
     const mac = { code: 'Digit8', shift: true, alt: true, meta: true };

@@ -35,10 +35,11 @@ export type UwtInspectorPaneSide = Extract<
 /**
  * A key combination that opens the Event Inspector.
  *
- * Matched on `KeyboardEvent.code` — the physical key — so it works on every
- * keyboard layout, and isn't affected by what Option or Shift produce.
- * A modifier left out must be *up*, so extra modifiers never match. One
- * without Ctrl or ⌘ types text, so it doesn't count in a text field.
+ * Matched on `KeyboardEvent.code` — the physical key, named for its place on
+ * a US QWERTY keyboard — so it isn't affected by what Option or Shift
+ * produce. A modifier left out must be *up*, so extra modifiers never match.
+ * Without Ctrl or ⌘, a key that types a character doesn't count in a text
+ * field.
  *
  * @group Interfaces
  */

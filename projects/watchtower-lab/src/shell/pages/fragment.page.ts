@@ -12,10 +12,14 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
         once. Its events show in the Event Inspector marked ↪ lab-fragment;
         signing in or out there applies here too.
       </p>
-      <iframe
-        class="lab-fragment"
-        src="/fragment-frame/"
-        title="Lab fragment"></iframe>
+      <!-- In the browser only, once the shell runs: the frame reads this
+        tab's channel from it as it starts. -->
+      @defer {
+        <iframe
+          class="lab-fragment"
+          src="/fragment-frame/"
+          title="Lab fragment"></iframe>
+      }
     </section>
   `,
   styles: `

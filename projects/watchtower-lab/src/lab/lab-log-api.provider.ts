@@ -22,7 +22,9 @@ export class LabLogApiProvider implements UwtLogApiProvider {
 
   query(filter: UwtLogQuery): Promise<UwtLogRecord[]> {
     const params = new URLSearchParams(
-      Object.entries(filter).map(([key, value]) => [key, String(value)])
+      Object.entries(filter)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => [key, String(value)])
     );
     return fetch(`/api/logs?${params}`).then((r) => r.json());
   }

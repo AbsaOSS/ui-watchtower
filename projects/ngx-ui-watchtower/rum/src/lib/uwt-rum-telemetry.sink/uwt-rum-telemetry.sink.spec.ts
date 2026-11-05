@@ -359,6 +359,17 @@ describe('UwtRumTelemetrySink', () => {
       expect(telemetries[1][1].ignore()).toBe(true);
     });
 
+    it('should not add a second error plugin when the app names it in another case, which RUM accepts', async () => {
+      configure({
+        loadImpl: async () => bootstrap({ telemetries: [['Errors', {}]] })
+      });
+      await sink.init();
+
+      expect(AwsRumCtor.mock.calls[0][3]).toMatchObject({
+        telemetries: [['Errors', {}]]
+      });
+    });
+
     it('should omit every SDK-default-mirroring field entirely when unset, not send it as undefined', async () => {
       await sink.init();
 

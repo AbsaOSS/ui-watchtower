@@ -10,6 +10,8 @@ import { UwtLogRecord } from '@absaoss-cps/ngx-ui-watchtower';
 
 /** One RUM event as the mock dataplane received it, with its batch's user. */
 export interface LabRumEvent {
+  /** RUM's own id for the event. */
+  id: string;
   receivedAt: string;
   batch: number;
   user: { sessionId?: string; userId?: string };

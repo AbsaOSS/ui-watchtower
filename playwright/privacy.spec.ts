@@ -7,7 +7,7 @@ const PERSONAL = [
   'hunter2',
   'eyJhbGci',
   '10.1.2.3',
-  '7946 0958'
+  '555 0123'
 ];
 
 test('personal values never reach RUM or the log backend', async ({

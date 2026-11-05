@@ -26,6 +26,7 @@ interface LogRecord {
 }
 
 interface ReceivedEvent {
+  id: string;
   receivedAt: string;
   batch: number;
   user: Record<string, unknown>;
@@ -46,7 +47,8 @@ const state: {
 
 /**
  * The body as text, gunzipped if RUM compressed it. A page that closes while
- * sending leaves an empty one, which nothing keeps.
+ * sending leaves it empty or cut short; either way it is `''`, which nothing
+ * keeps.
  */
 function readBody(req: Request): Promise<string> {
   return new Promise((resolve) => {
@@ -57,7 +59,12 @@ function readBody(req: Request): Promise<string> {
       const gzip =
         req.headers['content-encoding'] === 'gzip' ||
         (raw[0] === 0x1f && raw[1] === 0x8b);
-      resolve((gzip ? gunzipSync(raw) : raw).toString('utf8'));
+      // Thrown here, outside the promise, an error would stop the server.
+      try {
+        resolve((gzip ? gunzipSync(raw) : raw).toString('utf8'));
+      } catch {
+        resolve('');
+      }
     });
     req.on('error', () => resolve(''));
   });
@@ -114,6 +121,7 @@ function keepBatch(body: string): void {
   state.batches++;
   for (const event of batch.RumEvents ?? []) {
     state.rum.push({
+      id: event.id,
       receivedAt: new Date().toISOString(),
       batch: state.batches,
       user: batch.UserDetails ?? {},

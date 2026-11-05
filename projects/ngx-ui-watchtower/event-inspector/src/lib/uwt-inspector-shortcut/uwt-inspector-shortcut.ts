@@ -22,7 +22,8 @@ export const UWT_DEFAULT_INSPECTOR_SHORTCUTS: readonly UwtInspectorShortcut[] =
  * - Held-down repeats don't count.
  * - AltGr is rejected. On many European Windows layouts it reports as
  *   Ctrl+Alt, and typing an AltGr character must never open the popup.
- * - Without Ctrl or ⌘ it types text, so it doesn't count in a text field.
+ * - Without Ctrl or ⌘, a key that types a character doesn't count in a text
+ *   field, even one inside a shadow root.
  */
 export function uwtMatchesShortcut(
   event: KeyboardEvent,
@@ -38,7 +39,7 @@ export function uwtMatchesShortcut(
   if (event.getModifierState?.('AltGraph')) {
     return false;
   }
-  if (!shortcut.ctrl && !shortcut.meta && isTextField(event.target)) {
+  if (!shortcut.ctrl && !shortcut.meta && typesIntoField(event)) {
     return false;
   }
   return (
@@ -89,9 +90,18 @@ function describeShortcut(s: UwtInspectorShortcut): string {
     .join('+');
 }
 
-/** Where typing goes into the page: an input, a text area or an editor. */
-function isTextField(target: EventTarget | null): boolean {
-  const element = target as HTMLElement | null;
+/**
+ * Whether `event` types a character — or starts one, as a dead key or an
+ * IME does — into an input, a text area or an editor. Inside a shadow root,
+ * `target` is only its host, so the path's first element is read instead.
+ */
+function typesIntoField(event: KeyboardEvent): boolean {
+  const key = event.key ?? '';
+  if (key.length !== 1 && key !== 'Dead' && key !== 'Process') {
+    return false;
+  }
+  const element = (event.composedPath?.()[0] ??
+    event.target) as HTMLElement | null;
   return (
     !!element &&
     (element.isContentEditable ||

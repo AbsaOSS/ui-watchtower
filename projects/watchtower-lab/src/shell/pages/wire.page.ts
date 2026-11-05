@@ -111,7 +111,7 @@ const BROKER_MODES: { label: string; value: LabBrokerMode }[] = [
             </tr>
           </thead>
           <tbody>
-            @for (event of rum(); track $index) {
+            @for (event of rum(); track event.id) {
               <tr>
                 <td>{{ event.receivedAt.slice(11, 19) }}</td>
                 <td>

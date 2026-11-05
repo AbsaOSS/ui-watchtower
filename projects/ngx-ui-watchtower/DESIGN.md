@@ -2056,11 +2056,13 @@ dark theme is not yet complete for the components inside it.
 
 **Shift + E + I** on every platform — hold Shift, press E, then I — for
 Event Inspector. No browser binds it. Keys are matched by physical position
-(`KeyboardEvent.code`), so it works on any layout; Shift must be the only
-modifier, and held-down repeats are ignored.
+(`KeyboardEvent.code`): the keys where E and I sit on a QWERTY keyboard —
+the same on AZERTY and QWERTZ, elsewhere on Dvorak or Colemak. Shift must be
+the only modifier, and held-down repeats are ignored.
 
 It types text, so it is ignored in a text field — typing a capital "EI"
-there never opens it; press it with focus outside the field. Screen readers
+there never opens it, even in a shadow root; press it with focus outside the
+field. Screen readers
 in browse mode keep letter keys for their own navigation; there, open it
 from a button that calls `open()`.
 
@@ -2201,8 +2203,9 @@ A shortcut is a `UwtInspectorShortcut` — `{ code, after?, ctrl?, alt?,
 shift?, meta?, label? }`, where `code` is a `KeyboardEvent.code` such as
 `'Digit8'` or `'KeyD'`, and an omitted modifier must be up. `after` is a key
 pressed just before `code` with the modifiers still held: the default is
-`{ code: 'KeyI', after: 'KeyE', shift: true }`. A shortcut without `ctrl` or
-`meta` types text, so it doesn't count in a text field. AltGr, which many
+`{ code: 'KeyI', after: 'KeyE', shift: true }`. Without `ctrl` or `meta`, a
+key that types a character doesn't count in a text field; one that types
+nothing, such as `F9`, still does. AltGr, which many
 European Windows layouts report as Ctrl+Alt, never matches. Spread
 `UWT_DEFAULT_INSPECTOR_SHORTCUTS` to add one rather than replace them.
 

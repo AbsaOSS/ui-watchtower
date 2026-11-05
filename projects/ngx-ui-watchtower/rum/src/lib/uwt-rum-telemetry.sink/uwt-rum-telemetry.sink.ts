@@ -129,13 +129,14 @@ function omitUndefined<T extends object>(obj: T): Partial<T> {
 /**
  * The app's telemetries, plus RUM's error plugin when they leave it out.
  * `recordError` goes through that plugin — RUM rejects it otherwise — so it
- * is added with its own capture of unhandled errors switched off.
+ * is added with its own capture of unhandled errors switched off. RUM reads
+ * names in any case, and a second one would make it throw.
  */
 function withErrorPlugin(
   telemetries: NonNullable<UwtRumAppMonitorConfig['telemetries']>
 ): UwtRumAppMonitorConfig['telemetries'] {
   const named = (t: (typeof telemetries)[number]) =>
-    Array.isArray(t) ? t[0] : t;
+    String(Array.isArray(t) ? t[0] : t).toLowerCase();
   return telemetries.some((t) => named(t) === 'errors')
     ? telemetries
     : [...telemetries, ['errors', { ignore: () => true }]];
