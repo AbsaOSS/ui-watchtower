@@ -608,6 +608,23 @@ describe('broadcast telemetry across realms', () => {
       expect(event.payload.userId).toBeUndefined();
     });
 
+    it('should show the shell monitor the record as stamped and sent', async () => {
+      const observed: UwtTelemetryObservedEvent[] = [];
+      shell.get(UwtTelemetryMonitor).events$.subscribe((e) => observed.push(e));
+
+      createFragment()
+        .get(UwtTelemetrySink)
+        .record(UWT_TELEMETRY_EVENT_TYPE.bi, {
+          eventName: 'x',
+          sessionId: 'expired-session'
+        });
+      await UwtBroadcastChannelStub.settle();
+
+      expect(observed.find((e) => e.kind === 'bi')?.payload).toMatchObject({
+        sessionId: 'test-session'
+      });
+    });
+
     it("should leave a custom event's payload as it is", async () => {
       createFragment()
         .get(UwtTelemetrySink)

@@ -214,7 +214,8 @@ forwarding a fragment's events and logs — then publishes the same object to
 `UwtTelemetryMonitor`, inside the same fail-open block. So nothing is sent
 twice, and a hand-off that throws is not shown. A fragment's event appears
 once in each popup: as its own in the fragment's, as forwarded in the
-shell's.
+shell's — there with the shell's session and user, as sent (see Identity
+across realms).
 
 ### Packaging and internals
 
