@@ -129,7 +129,11 @@ export class MyLogBackend implements UwtLogApiProvider {
 
 Batching, retries and authentication are up to your backend class. If it
 batches, add a `flush()` method — the library calls it when the page is
-hidden or closed.
+hidden or closed. Send from it with `navigator.sendBeacon` or a `keepalive`
+request every time, not only when the page says it is hidden: Safari still
+says `visible` while a page that is reloading or navigating away hides, and
+cancels a plain request then. For the same reason, the example above can lose
+a record written as the page goes, in Safari.
 
 ### Using a different destination
 

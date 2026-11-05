@@ -1899,7 +1899,9 @@ export class MyLogBackend implements UwtLogApiProvider {
       body: JSON.stringify(record),
       // Survives page unload. Only while the page is hidden (it may be
       // closing): browsers reject keepalive requests once all in flight
-      // exceed 64 KiB, so a burst of records would be lost.
+      // exceed 64 KiB, so a burst of records would be lost. Safari still says
+      // `visible` while a reloading page hides, so a record written then can
+      // be lost there; batching, below, sends those from flush().
       keepalive: document.visibilityState === 'hidden'
     }).catch(() => undefined);
   }
@@ -1962,7 +1964,11 @@ export class MyLogBackend implements UwtLogApiProvider {
 The one moment you cannot catch from inside a provider is the tab closing.
 Implement the optional `flush()`, and the library calls it on `pagehide`, on
 `visibilitychange` going hidden (mobile browsers routinely kill a
-backgrounded tab without `pagehide`) and on teardown.
+backgrounded tab without `pagehide`) and on teardown. Send from it with a
+beacon or `keepalive` every time, as above, rather than only when
+`document.visibilityState` is `'hidden'`: Safari still says `visible` while a
+page that is reloading or navigating away hides, and cancels a plain request
+then.
 
 #### Sending loggers to different destinations
 
