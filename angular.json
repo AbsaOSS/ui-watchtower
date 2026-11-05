@@ -110,6 +110,39 @@
           }
         }
       }
+    },
+    "watchtower-consumer-smoke": {
+      "projectType": "application",
+      "root": "projects/watchtower-consumer-smoke",
+      "sourceRoot": "projects/watchtower-consumer-smoke/src",
+      "prefix": "smoke",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/watchtower-consumer-smoke",
+            "index": "projects/watchtower-consumer-smoke/src/index.html",
+            "browser": "projects/watchtower-consumer-smoke/src/main.ts",
+            "server": "projects/watchtower-consumer-smoke/src/main.server.ts",
+            "outputMode": "static",
+            "tsConfig": "projects/watchtower-consumer-smoke/tsconfig.app.json",
+            "optimization": true,
+            "sourceMap": false,
+            "extractLicenses": false
+          },
+          "configurations": {
+            "rum": {
+              "outputPath": "dist/watchtower-consumer-smoke-rum",
+              "fileReplacements": [
+                {
+                  "replace": "projects/watchtower-consumer-smoke/src/destination.ts",
+                  "with": "projects/watchtower-consumer-smoke/src/destination.rum.ts"
+                }
+              ]
+            }
+          }
+        }
+      }
     }
   }
 }

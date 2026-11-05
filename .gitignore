@@ -6,6 +6,7 @@
 
 # Node
 /node_modules
+/projects/watchtower-consumer-smoke/node_modules
 npm-debug.log
 yarn-error.log
 

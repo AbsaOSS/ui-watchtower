@@ -26,10 +26,11 @@ projects/ngx-ui-watchtower/
   README.md         usage guide, published to npm
   DESIGN.md         full design
   package.json      the published package's manifest
-projects/watchtower-lab/           the Watchtower Lab: a testing app, never published
-  server/                          its server: mock backend, fragment gateway, SSR
-projects/watchtower-lab-fragment/  the lab's fragment: a second app it composes
-playwright/                        the lab's end-to-end suite (Playwright)
+projects/watchtower-lab/             the Watchtower Lab: a testing app, never published
+  server/                            its server: mock backend, fragment gateway, SSR
+projects/watchtower-lab-fragment/    the lab's fragment: a second app it composes
+projects/watchtower-consumer-smoke/  a minimal app that installs the packed library
+playwright/                          the lab's end-to-end suite (Playwright)
 ```
 
 ## Getting started
@@ -60,6 +61,7 @@ The package is built to `dist/ngx-ui-watchtower`.
 | `npm run lab:build`     | Builds the lab's fragment and shell                   |
 | `npm run e2e`           | Builds the lab and runs the Playwright suite          |
 | `npm run e2e:ui`        | Opens the suite in Playwright's UI, on the last build |
+| `npm run smoke`         | Packs the library and builds an app from the tarball  |
 
 ## Watchtower Lab
 
@@ -104,6 +106,16 @@ the mock backend received. It runs the built server on
 http://localhost:4390, beside `npm run lab`. The first time, download the
 browsers with `npx playwright install chromium webkit`.
 
+## Consumer smoke test
+
+Everything above uses the library from source. `npm run smoke` uses it as
+published: it packs the built package, installs the tarball into
+`projects/watchtower-consumer-smoke` — an app with no paths into the source —
+and builds that app for the browser and, prerendering, for the server. It
+checks the tarball's files, that all three entry points resolve with their
+typings, that the page renders on the server, and that an app which never
+imports `/rum` has no `aws-rum-web` in its bundle.
+
 ## Before you push
 
 Run all of them — each catches something the others don't:
@@ -115,6 +127,7 @@ npm run lint
 npm run format:check
 npm run build
 npm run e2e
+npm run smoke
 ```
 
 CI runs the same checks on every pull request and every push to `main`.

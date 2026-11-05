@@ -9,6 +9,7 @@
     "lab:build": "ng build watchtower-lab-fragment && ng build watchtower-lab",
     "e2e": "npm run lab:build && playwright test",
     "e2e:ui": "playwright test --ui",
+    "smoke": "node projects/watchtower-consumer-smoke/smoke.mjs",
     "test": "ng test --project=ngx-ui-watchtower",
     "test:coverage": "ng test --project=ngx-ui-watchtower --coverage --coverage-reporters text-summary --coverage-reporters lcov --json --output-file=./coverage/report.json",
     "lint": "eslint \"**/*.ts\" --max-warnings=0",
