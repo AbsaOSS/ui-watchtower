@@ -91,8 +91,7 @@ export class UwtBroadcastTelemetrySink
   /**
    * The host's session id.
    *
-   * Returns `undefined` until the host answers. Log records written before
-   * that carry no session id but are still correlated by `scenarioId`.
+   * Returns `undefined` until the host answers.
    *
    * @returns the shared session id, when known
    */
