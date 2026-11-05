@@ -1,6 +1,6 @@
 {
   "name": "@absaoss-cps/ngx-ui-watchtower",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Reusable Angular telemetry layer: application logs, scenario health telemetry and business/UX events, with an optional AWS CloudWatch RUM sink.",
   "peerDependencies": {
     "@angular/common": ">=21.0.0 <23.0.0",

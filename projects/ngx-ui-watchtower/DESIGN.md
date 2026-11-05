@@ -1558,6 +1558,27 @@ async load(): Promise<UwtRumBootstrap | null> {
 }
 ```
 
+Settings that need a `RegExp` or a function — `pagesToExclude` above, or
+`urlsToExclude` and `ignore` inside `telemetries` — belong in code like this
+(`addXRayTraceIdHeader` too, unless it is a plain boolean). JSON can't carry
+them, and a string in their place
+would make the SDK throw each time it applies the option — for the page and
+URL filters, on every page view or request.
+
+The sink checks them before loading the SDK and **fails closed**: if any holds
+something else, RUM doesn't start for the page, as with a broker returning
+`null`, and a console warning names each setting and the type it expects
+(never its value) in every environment. Dropping just the bad value would fail
+open instead: the filters and `ignore` decide what is _not_ recorded, so RUM
+would then record pages and URLs the app meant to keep out — personal data in
+a URL among them.
+
+Any optional setting that is `undefined` or `null` — a broker's JSON often
+spells an unset field as `null` — counts as unset: it isn't checked, and the
+default applies. For `allowCookies`, `enableXRay`, `endpoint` and `telemetries`
+that is this library's own default; every other unset field is left out of the
+SDK config, so the SDK's default applies.
+
 ### Per-logger levels
 
 `minLevel` is the floor for everything; `levels` overrides it by name, either
@@ -2482,8 +2503,16 @@ session id and user id, and announces itself at startup so a fragment that
 booted first isn't left waiting. Both ids always travel together, so a
 fragment never holds a fresh session id with a stale user id. In a fragment,
 `getSessionId()` and `getUserId()` return `undefined` for the one task before
-the answer arrives — log records written in that window carry no
-`sessionId`, but are still correlated by `scenarioId`.
+the answer arrives.
+
+A fragment's copy can also lag behind the shell's: the shell's RUM client
+may start after the fragment asked, a session may expire, a user may sign
+out — and the host re-announces only on the fragment's next message. So the
+host stamps its own current session and user on every scenario, BI and log
+record a fragment forwards, and measures a scenario's `sessionElapsed` again
+when the session changed. A forwarded record therefore names the shell's
+session at the moment it arrives — none while the shell's client hasn't
+started. Other event types are recorded as they are.
 
 ### Log records
 
@@ -2617,7 +2646,9 @@ Both records then join on `parentScenarioId`.
   local realm's own clock if `top` throws (cross-origin, sandboxed).
 - **`sessionElapsed`.** A fragment gets the shell's session id from the
   identity handshake and that session's start from the shared
-  `localStorage`, so its records sit on the same session timeline.
+  `localStorage`, so its records sit on the same session timeline. The host
+  measures it again for a record whose session it corrects (Identity across
+  realms).
 - **Durations.** `startedAt` is epoch milliseconds and `uwtEpochToPerf`
   converts using the _local_ `timeOrigin`, so a timestamp taken in the
   shell reads correctly in a fragment despite the iframe having a later
