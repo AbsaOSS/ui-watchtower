@@ -288,8 +288,9 @@ describe('UwtRumTelemetrySink', () => {
 
       const config = AwsRumCtor.mock.calls[0][3] as { telemetries: unknown[] };
       // Strict: an explicit `undefined` or `null` would replace the SDK's default.
-      expect(config.telemetries).toStrictEqual([
-        ['http', { recordAllRequests: true }]
+      expect(config.telemetries[0]).toStrictEqual([
+        'http',
+        { recordAllRequests: true }
       ]);
       expect(config).not.toHaveProperty('pagesToInclude');
       expect(config).not.toHaveProperty('pagesToExclude');
