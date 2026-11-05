@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   computed,
   DestroyRef,
   inject,
@@ -36,9 +37,11 @@ const POLL_MS = 1500;
 /**
  * `fetch` as it was before RUM wrapped it: this module loads before RUM
  * starts. RUM's `http` telemetry records the app's requests, and the lab's
- * own polling would otherwise add an event every 1.5 s, forever.
+ * own polling would otherwise add an event every 1.5 s, forever. The server
+ * never polls.
  */
-const labFetch = window.fetch.bind(window);
+const labFetch =
+  typeof window === 'undefined' ? fetch : window.fetch.bind(window);
 
 /**
  * What actually reached the lab's mock backend: every RUM event the
@@ -65,9 +68,14 @@ export class LabWire {
   );
 
   constructor() {
-    const timer = setInterval(() => this.refresh(), POLL_MS);
-    inject(DestroyRef).onDestroy(() => clearInterval(timer));
-    this.refresh();
+    const destroyRef = inject(DestroyRef);
+    // In the browser only: on the server, a timer would keep the render from
+    // ever finishing.
+    afterNextRender(() => {
+      const timer = setInterval(() => this.refresh(), POLL_MS);
+      destroyRef.onDestroy(() => clearInterval(timer));
+      this.refresh();
+    });
   }
 
   async refresh(): Promise<void> {

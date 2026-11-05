@@ -2,6 +2,7 @@ import {
   APIRequestContext,
   expect,
   FrameLocator,
+  Locator,
   Page,
   test as base
 } from '@playwright/test';
@@ -125,12 +126,16 @@ export const test = base.extend<{
 });
 
 export { expect };
-export type { Page };
+export type { FrameLocator, Locator, Page };
 
-/** Opens a lab page by its address and waits for it, e.g. `'bi?telemetry=off'`. */
+/**
+ * Opens a lab page by its address, e.g. `'bi?telemetry=off'`, and waits until
+ * it has hydrated: the server's page shows before it answers clicks.
+ */
 export async function openLab(page: Page, address: string): Promise<void> {
   await page.goto(`/${address}`);
-  await expect(page.locator('lab-root main h1')).toBeVisible();
+  await expect(page.locator('html[data-lab-ready]')).toHaveCount(1);
+  await expect(page.locator('lab-root main h1').first()).toBeVisible();
 }
 
 /** Waits until RUM has started a session, as the status bar shows; its id. */
@@ -145,12 +150,12 @@ export async function sessionStarted(page: Page): Promise<string> {
 /** Moves to another lab page within the app, keeping its state. */
 export async function navigate(page: Page, label: string): Promise<void> {
   await page.locator('.lab-nav').getByRole('link', { name: label }).click();
-  await expect(page.locator('lab-root main h1')).toHaveText(label);
+  await expect(page.locator('lab-root main h1').first()).toHaveText(label);
 }
 
 /** Presses the lab's button with exactly this label. */
 export async function press(
-  where: Page | FrameLocator,
+  where: Page | FrameLocator | Locator,
   label: string
 ): Promise<void> {
   await where.getByRole('button', { name: label, exact: true }).first().click();

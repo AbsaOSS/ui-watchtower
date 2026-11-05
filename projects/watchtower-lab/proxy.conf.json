@@ -1,6 +1,0 @@
-{
-  "/rum": { "target": "http://localhost:4380" },
-  "/appmonitors": { "target": "http://localhost:4380" },
-  "/api": { "target": "http://localhost:4380" },
-  "/__lab": { "target": "http://localhost:4380" }
-}

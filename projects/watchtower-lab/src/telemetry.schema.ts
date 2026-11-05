@@ -15,7 +15,6 @@ declare module '@absaoss-cps/ngx-ui-watchtower' {
     'lab-abandoned': true;
     'lab-privacy': true;
     'lab-burst': true;
-    'fragment-journey': true;
   }
   interface UwtScenarioSteps {
     fetch: true;
@@ -29,13 +28,11 @@ declare module '@absaoss-cps/ngx-ui-watchtower' {
     lab_feature_used: true;
     lab_privacy_checked: true;
     lab_burst: true;
-    fragment_button_clicked: true;
   }
   interface UwtLoggerNames {
     lab: true;
     noisy: true;
     privacy: true;
-    fragment: true;
   }
 }
 

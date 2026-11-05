@@ -1,0 +1,99 @@
+// What the lab's shell and fragment share. cps-ui-kit's global styles come
+// without their primeicons import: the lab doesn't use PrimeIcons, and the
+// package isn't installed here.
+@use 'cps-ui-kit/styles/colors';
+@use 'cps-ui-kit/styles/fonts';
+@use 'cps-ui-kit/styles/cps-tooltip-style';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.p-scrollbar-measure {
+  position: absolute;
+  top: -9999px;
+  width: 100px;
+  height: 100px;
+  overflow: scroll;
+}
+
+.cps-sr-only {
+  position: absolute;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  margin: -0.0625rem;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+body {
+  margin: 0;
+  background-color: #f4f6f9;
+  color: var(--cps-color-text-dark);
+  font-family: 'Source Sans Pro', sans-serif;
+}
+
+.lab-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 64rem;
+
+  h1 {
+    margin: 0;
+    font-size: 1.6rem;
+  }
+
+  > p {
+    margin: 0;
+    color: var(--cps-text-secondary);
+  }
+}
+
+.lab-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border: 0.0625rem solid var(--cps-color-line-mid);
+  border-radius: 0.5rem;
+  background-color: #fff;
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  p {
+    margin: 0;
+    color: var(--cps-text-secondary);
+    font-size: 0.9rem;
+  }
+}
+
+.lab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lab-readout {
+  max-height: 20rem;
+  margin: 0;
+  padding: 0.75rem;
+  overflow: auto;
+  border-radius: 0.25rem;
+  background-color: #f8fafc;
+  font:
+    0.8rem/1.5 ui-monospace,
+    Menlo,
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+}

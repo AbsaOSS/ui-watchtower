@@ -1,9 +1,13 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withFetch } from '@angular/common/http';
 import {
   ApplicationConfig,
   InjectionToken,
   provideZoneChangeDetection
 } from '@angular/core';
+import {
+  provideClientHydration,
+  withEventReplay
+} from '@angular/platform-browser';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter, Routes } from '@angular/router';
 import {
@@ -22,7 +26,8 @@ import {
   provideUwtTelemetryRumSink
 } from '@absaoss-cps/ngx-ui-watchtower/rum';
 import { provideUwtEventInspector } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
-import { LabOptions, labOptions } from '../lab/lab-options';
+import { LabOptions } from '../lab/lab-options';
+import { LAB_CHANNEL } from '../lab/lab-channel';
 import { LabLogApiProvider } from '../lab/lab-log-api.provider';
 import { LabRumCredentialsProvider } from '../lab/lab-rum-credentials.provider';
 
@@ -61,8 +66,14 @@ export const SHELL_PAGES = [
   },
   {
     path: 'fragment',
-    label: 'Fragment',
+    label: 'Fragment (iframe)',
     load: () => import('./pages/fragment.page').then((m) => m.FragmentPage)
+  },
+  {
+    path: 'web-fragment',
+    label: 'Web Fragment',
+    load: () =>
+      import('./pages/web-fragment.page').then((m) => m.WebFragmentPage)
   },
   {
     path: 'inspector',
@@ -85,18 +96,17 @@ const routes: Routes = [
   { path: '**', redirectTo: 'scenarios' }
 ];
 
-const options = labOptions();
-
 /**
  * The shell: the realm with the real destination. RUM against the lab's
  * mock dataplane (or noop), logs to its mock backend, the broadcast host for
  * the fragment, and the Event Inspector.
  */
-export const shellConfig: ApplicationConfig = {
+export const shellConfig = (options: LabOptions): ApplicationConfig => ({
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
+    provideClientHydration(withEventReplay()),
     provideAnimations(),
-    provideHttpClient(),
+    provideHttpClient(withFetch()),
     provideRouter(routes),
     { provide: LAB_OPTIONS, useValue: options },
     provideUwtTelemetry(
@@ -121,10 +131,10 @@ export const shellConfig: ApplicationConfig = {
       useExisting: LabRumCredentialsProvider
     },
     { provide: UWT_LOG_API_PROVIDER, useExisting: LabLogApiProvider },
-    provideUwtTelemetryBroadcastHost(),
+    provideUwtTelemetryBroadcastHost(LAB_CHANNEL),
     provideUwtEventInspector({
       enabled: options.inspector !== 'off',
       ...(options.inspector === 'noshortcut' && { shortcuts: [] })
     })
   ]
-};
+});

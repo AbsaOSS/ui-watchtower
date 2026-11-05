@@ -13,7 +13,7 @@ export interface LabOptions {
   inspector: 'on' | 'off' | 'noshortcut';
 }
 
-export function labOptions(search = location.search): LabOptions {
+export function labOptions(search: string): LabOptions {
   const params = new URLSearchParams(search);
   const inspector = params.get('inspector');
   return {

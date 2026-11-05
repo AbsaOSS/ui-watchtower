@@ -2439,6 +2439,13 @@ bootstrapApplication(FragmentRoot, {
 | Channel name     | **Must match.** The default (`'ngx-ui-watchtower'`) needs no argument; if the shell passes a custom name, pass the same — `provideUwtTelemetrySink('broadcast', { channelName })` |
 | `application`    | **Should differ** per fragment. The forwarding sink stamps its realm's `application`, `environment` and `appVersion` onto every event, so you can tell fragments apart            |
 
+**An Angular fragment served as a Web Fragment** must load its files by
+absolute URL. Its scripts run in the hidden iframe, whose location is the
+host page's, so a relative `main.js` in its `index.html` resolves against the
+shell's address — and loads the shell's own bundle. Build it with `deployUrl`
+(and `baseHref`) set to the prefix the gateway routes to it, such as
+`/_fragment/cart/`. The Watchtower Lab's fragment is built this way.
+
 A forwarded **error** has no metadata to carry that origin in —
 `recordError` takes none — so the RUM sink folds a differing origin into the
 error's name instead (`[cart] TypeError`).

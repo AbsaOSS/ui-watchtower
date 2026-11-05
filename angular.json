@@ -48,6 +48,8 @@
             "outputPath": "dist/watchtower-lab",
             "index": "projects/watchtower-lab/src/index.html",
             "browser": "projects/watchtower-lab/src/main.ts",
+            "server": "projects/watchtower-lab/src/main.server.ts",
+            "polyfills": ["zone.js"],
             "tsConfig": "projects/watchtower-lab/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "styles": ["projects/watchtower-lab/src/styles.scss"],
@@ -65,15 +67,46 @@
             ],
             "optimization": false,
             "sourceMap": true,
-            "extractLicenses": false
+            "extractLicenses": false,
+            "outputMode": "server",
+            "ssr": {
+              "entry": "projects/watchtower-lab/server/server.ts"
+            },
+            "externalDependencies": ["htmlrewriter"],
+            "security": {
+              "allowedHosts": ["localhost"]
+            }
           }
         },
         "serve": {
           "builder": "@angular/build:dev-server",
           "options": {
             "buildTarget": "watchtower-lab:build",
-            "proxyConfig": "projects/watchtower-lab/proxy.conf.json",
             "port": 4280
+          }
+        }
+      }
+    },
+    "watchtower-lab-fragment": {
+      "projectType": "application",
+      "root": "projects/watchtower-lab-fragment",
+      "sourceRoot": "projects/watchtower-lab-fragment/src",
+      "prefix": "lab",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/watchtower-lab-fragment",
+            "index": "projects/watchtower-lab-fragment/src/index.html",
+            "browser": "projects/watchtower-lab-fragment/src/main.ts",
+            "tsConfig": "projects/watchtower-lab-fragment/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "styles": ["projects/watchtower-lab-fragment/src/styles.scss"],
+            "baseHref": "/_fragment/lab-fragment/",
+            "deployUrl": "/_fragment/lab-fragment/",
+            "optimization": false,
+            "sourceMap": true,
+            "extractLicenses": false
           }
         }
       }

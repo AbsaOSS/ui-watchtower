@@ -5,16 +5,16 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="lab-page">
-      <h1>Fragment</h1>
+      <h1>Fragment (iframe)</h1>
       <p>
-        A second app, in its own iframe and JavaScript realm, with the
+        A second app, in a plain iframe and its own JavaScript realm, with the
         'broadcast' sink: it hands everything to this shell, which records it
         once. Its events show in the Event Inspector marked ↪ lab-fragment;
         signing in or out there applies here too.
       </p>
       <iframe
         class="lab-fragment"
-        src="/fragment-app"
+        src="/fragment-frame/"
         title="Lab fragment"></iframe>
     </section>
   `,

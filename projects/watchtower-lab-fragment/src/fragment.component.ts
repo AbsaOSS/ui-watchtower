@@ -16,7 +16,7 @@ import { CpsButtonComponent } from 'cps-ui-kit';
 const CARLA = '5c8e2f14-1b7d-4a96-9e3c-8d2b7f4a6c10';
 
 @Component({
-  selector: 'lab-root',
+  selector: 'lab-fragment-root',
   imports: [CpsButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

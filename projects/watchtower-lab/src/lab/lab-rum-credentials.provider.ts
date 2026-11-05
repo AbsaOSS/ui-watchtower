@@ -4,11 +4,6 @@ import {
   UwtRumCredentialsProvider
 } from '@absaoss-cps/ngx-ui-watchtower/rum';
 
-/** The page's own origin, as the start of a URL. */
-const sameOrigin = new RegExp(
-  '^' + location.origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/'
-);
-
 /**
  * Options for the RUM telemetries the broker names, which its JSON can't
  * carry:
@@ -20,14 +15,18 @@ const sameOrigin = new RegExp(
  *   reached the dataplane, so each replay batch would change them, and be
  *   recorded, forever.
  */
-const TELEMETRY_OPTIONS: Record<string, object> = {
-  http: { addXRayTraceIdHeader: [sameOrigin] },
+const telemetryOptions = (origin: string): Record<string, object> => ({
+  http: {
+    addXRayTraceIdHeader: [
+      new RegExp('^' + origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/')
+    ]
+  },
   interaction: {
     enableMutationObserver: true,
     events: [{ event: 'click', cssLocator: 'button' }]
   },
   replay: { recordOptions: { blockSelector: '.lab-status, lab-wire-page' } }
-};
+});
 
 /**
  * Asks the lab's mock broker for the app monitor config and credentials, as
@@ -46,9 +45,9 @@ export class LabRumCredentialsProvider implements UwtRumCredentialsProvider {
       return null;
     }
     // Left out by the broker, the library's default applies.
+    const options = telemetryOptions(location.origin);
     const telemetries = (config.telemetries as string[] | undefined)?.map(
-      (name) =>
-        TELEMETRY_OPTIONS[name] ? [name, TELEMETRY_OPTIONS[name]] : name
+      (name) => (options[name] ? [name, options[name]] : name)
     );
     return {
       config: telemetries ? { ...config, telemetries } : config,

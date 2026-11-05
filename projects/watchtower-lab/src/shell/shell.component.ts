@@ -1,7 +1,9 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  DOCUMENT,
   inject,
   signal
 } from '@angular/core';
@@ -119,14 +121,21 @@ export class ShellComponent {
 
   constructor() {
     inject(LabLayout);
-    const timer = setInterval(
-      () =>
-        this.identity.set({
-          sessionId: this.sink.getSessionId(),
-          userId: this.sink.getUserId()
-        }),
-      1000
-    );
-    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    const destroyRef = inject(DestroyRef);
+    const document = inject(DOCUMENT);
+    // In the browser only, like the wire's polling.
+    afterNextRender(() => {
+      // Hydrated: the page now answers clicks. The suite waits for this.
+      document.documentElement.setAttribute('data-lab-ready', '');
+      const timer = setInterval(
+        () =>
+          this.identity.set({
+            sessionId: this.sink.getSessionId(),
+            userId: this.sink.getUserId()
+          }),
+        1000
+      );
+      destroyRef.onDestroy(() => clearInterval(timer));
+    });
   }
 }

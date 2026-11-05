@@ -26,8 +26,10 @@ projects/ngx-ui-watchtower/
   README.md         usage guide, published to npm
   DESIGN.md         full design
   package.json      the published package's manifest
-projects/watchtower-lab/  the Watchtower Lab: a testing app, never published
-playwright/               the lab's end-to-end suite (Playwright)
+projects/watchtower-lab/           the Watchtower Lab: a testing app, never published
+  server/                          its server: mock backend, fragment gateway, SSR
+projects/watchtower-lab-fragment/  the lab's fragment: a second app it composes
+playwright/                        the lab's end-to-end suite (Playwright)
 ```
 
 ## Getting started
@@ -55,24 +57,27 @@ The package is built to `dist/ngx-ui-watchtower`.
 | `npm run format`        | Formats with Prettier                                 |
 | `npm run format:check`  | Checks formatting without writing                     |
 | `npm run lab`           | Starts the Watchtower Lab on http://localhost:4280    |
-| `npm run lab:build`     | Builds the lab, to check it compiles                  |
+| `npm run lab:build`     | Builds the lab's fragment and shell                   |
 | `npm run e2e`           | Builds the lab and runs the Playwright suite          |
 | `npm run e2e:ui`        | Opens the suite in Playwright's UI, on the last build |
 
 ## Watchtower Lab
 
 A testing app for the library, built from its source, so a change shows up
-on save. `npm run lab` starts it with a mock backend on port 4380, which
-stands in for everything the library talks to: the real `aws-rum-web` runs
-against a mock RUM broker and dataplane, fully offline, and logs go to a mock
-log backend.
+on save. `npm run lab` starts it on http://localhost:4280. Its shell is
+rendered on the server, then hydrated. Its server (`server/server.ts`, which
+`ng serve` runs too) also has a mock backend, which stands in for everything
+the library talks to: the real `aws-rum-web` runs against a mock RUM broker
+and dataplane, fully offline, and logs go to a mock log backend.
 
 One page per concern: **Scenarios**, **BI events**, **Logging**,
-**Identity**, **Privacy**, **Lifecycle**, **Fragment** (a second app in an
-iframe, forwarding through the shell), **Event Inspector** (every dock, event
-generators, and the `--uwt-inspector-inset-*` opt-in on the lab's fixed
-header and status bar) and **On the wire**: what the mock backend actually
-received.
+**Identity**, **Privacy**, **Lifecycle**, **Fragment (iframe)** and **Web
+Fragment** (the same second app in a plain iframe, and as a
+[Web Fragment](https://web-fragments.dev) through the server's gateway, each
+forwarding through the shell over the tab's own channel), **Event Inspector**
+(every dock, event generators, and the `--uwt-inspector-inset-*` opt-in on
+the lab's fixed header and status bar) and **On the wire**: what the mock
+backend actually received.
 
 Options, read once at startup like an app's configuration:
 
@@ -92,11 +97,12 @@ The same page sets RUM's own `telemetries`: the library's default, or any of
 ### Automated tests
 
 `npm run e2e` builds the lab and runs the suite in `playwright/` on Chromium
-and WebKit: every lab page, the broker modes, RUM's telemetries, the query
+and WebKit: every lab page, server rendering and hydration, both fragment
+pages and two tabs of one, the broker modes, RUM's telemetries, the query
 options and the Event Inspector's docks and shortcut, checked against what
-the mock backend received. The server it starts serves the built lab with the
-mock backend on http://localhost:4390, so it runs beside `npm run lab`. The
-first time, download the browsers with `npx playwright install chromium webkit`.
+the mock backend received. It runs the built server on
+http://localhost:4390, beside `npm run lab`. The first time, download the
+browsers with `npx playwright install chromium webkit`.
 
 ## Before you push
 

@@ -48,6 +48,8 @@
     { "path": "./projects/ngx-ui-watchtower/rum/tsconfig.spec.json" },
     { "path": "./projects/ngx-ui-watchtower/event-inspector/tsconfig.lib.json" },
     { "path": "./projects/ngx-ui-watchtower/event-inspector/tsconfig.spec.json" },
-    { "path": "./projects/watchtower-lab/tsconfig.app.json" }
+    { "path": "./projects/watchtower-lab/tsconfig.app.json" },
+    { "path": "./projects/watchtower-lab-fragment/tsconfig.app.json" },
+    { "path": "./playwright/tsconfig.json" }
   ]
 }
