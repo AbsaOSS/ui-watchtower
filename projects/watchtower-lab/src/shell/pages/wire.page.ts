@@ -9,7 +9,8 @@ import { UwtTelemetrySink } from '@absaoss-cps/ngx-ui-watchtower';
 import {
   CpsButtonComponent,
   CpsSelectComponent,
-  CpsSwitchComponent
+  CpsSwitchComponent,
+  CpsTextareaComponent
 } from 'cps-ui-kit';
 import {
   LAB_TELEMETRIES,
@@ -26,12 +27,30 @@ const BROKER_MODES: { label: string; value: LabBrokerMode }[] = [
   {
     label: 'short-expiry — credentials refresh within seconds',
     value: 'short-expiry'
+  },
+  { label: 'flaky — fails twice, then answers', value: 'flaky' },
+  {
+    label: 'invalid — a pattern as a string: RUM not started',
+    value: 'invalid'
+  },
+  {
+    label: 'null-on-refresh — RUM off at the first refresh',
+    value: 'null-on-refresh'
+  },
+  {
+    label: 'no-credentials-on-refresh — a refresh without credentials',
+    value: 'no-credentials-on-refresh'
   }
 ];
 
 @Component({
   selector: 'lab-wire-page',
-  imports: [CpsButtonComponent, CpsSelectComponent, CpsSwitchComponent],
+  imports: [
+    CpsButtonComponent,
+    CpsSelectComponent,
+    CpsSwitchComponent,
+    CpsTextareaComponent
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="lab-page">
@@ -76,7 +95,19 @@ const BROKER_MODES: { label: string; value: LabBrokerMode }[] = [
               (valueChanged)="wire.setTelemetries($event)" />
           }
         </div>
+        <cps-textarea
+          label="Laid over the app monitor config (JSON)"
+          placeholder='{ "sessionSampleRate": 0 }'
+          width="26rem"
+          [rows]="3"
+          [value]="brokerConfigDraft()"
+          [error]="brokerConfigError()"
+          (valueChanged)="brokerConfigDraft.set($event)" />
         <div class="lab-actions">
+          <cps-button
+            label="Set the overlay"
+            type="outlined"
+            (clicked)="setBrokerConfig()" />
           <cps-button
             label="Reload to apply"
             type="outlined"
@@ -165,6 +196,11 @@ export class WirePage {
   protected readonly sink = inject(UwtTelemetrySink);
   protected readonly modes = BROKER_MODES;
   protected readonly libraryOnly = signal(true);
+  protected readonly brokerConfigDraft = signal(
+    JSON.stringify(this.wire.brokerConfig())
+  );
+
+  protected readonly brokerConfigError = signal('');
 
   protected readonly telemetryOptions = LAB_TELEMETRIES.map((t) => ({
     label: t,
@@ -180,6 +216,21 @@ export class WirePage {
   );
 
   protected readonly logs = computed(() => this.wire.logs().slice().reverse());
+
+  protected async setBrokerConfig(): Promise<void> {
+    let config: unknown;
+    try {
+      config = JSON.parse(this.brokerConfigDraft().trim() || '{}');
+    } catch {
+      config = undefined;
+    }
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+      this.brokerConfigError.set('Not a JSON object.');
+      return;
+    }
+    this.brokerConfigError.set('');
+    await this.wire.setBrokerConfig(config as Record<string, unknown>);
+  }
 
   protected reload(): void {
     location.reload();

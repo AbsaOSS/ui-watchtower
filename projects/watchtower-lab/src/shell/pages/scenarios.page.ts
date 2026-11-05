@@ -102,6 +102,61 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
         </div>
       </div>
 
+      <div class="lab-card">
+        <h2>The rest of the scenario API</h2>
+        <div class="lab-actions">
+          <cps-button
+            label="Steps with detail"
+            type="outlined"
+            (clicked)="detailed()" />
+          <cps-button
+            label="A parent and a child"
+            type="outlined"
+            (clicked)="family()" />
+          <cps-button
+            label="settle('incomplete')"
+            type="outlined"
+            (clicked)="settleDirectly()" />
+          <cps-button label="51 at once" type="outlined" (clicked)="crowd()" />
+        </div>
+      </div>
+
+      <div class="lab-card">
+        <h2>Active scenarios</h2>
+        <div class="lab-actions">
+          <cps-button
+            label="Start a long one"
+            type="outlined"
+            (clicked)="startLong()" />
+          <cps-button
+            label="Look them up"
+            type="outlined"
+            (clicked)="lookUp()" />
+          <cps-button
+            label="Cancel every active one"
+            type="outlined"
+            (clicked)="cancelActive()" />
+        </div>
+      </div>
+
+      <div class="lab-card">
+        <h2>traceScenario's options</h2>
+        <div class="lab-actions">
+          <cps-button
+            label="outcome, from the response"
+            type="outlined"
+            (clicked)="outcomeFromResponse()" />
+          <cps-button
+            label="cancelOutcome, unsubscribed early"
+            type="outlined"
+            (clicked)="unsubscribedEarly()" />
+          <cps-button
+            label="valueThenTeardown: 'cancel'"
+            type="outlined"
+            (clicked)="valueThenCancel()" />
+        </div>
+      </div>
+
       <pre class="lab-readout">{{ readout() || 'Nothing settled yet.' }}</pre>
     </section>
   `
@@ -113,6 +168,7 @@ export class ScenariosPage {
   private readonly scenarios = inject(UwtScenarioTelemetryService);
   private readonly http = inject(HttpClient);
   private running?: UwtScenario;
+  private long?: UwtScenario;
 
   constructor() {
     this.scenarios.settled$
@@ -169,7 +225,7 @@ export class ScenariosPage {
 
   protected backdated(): void {
     this.scenarios
-      .start({ name: 'lab-backdated', startedAt: performance.now() - 1500 })
+      .start({ name: 'lab-backdated', startedAt: Date.now() - 1500 })
       .complete();
   }
 
@@ -216,5 +272,117 @@ export class ScenariosPage {
   protected completeRunning(): void {
     this.running?.complete();
     this.running = undefined;
+  }
+
+  protected detailed(): void {
+    const scenario = this.scenarios.start({ name: 'lab-detailed' });
+    scenario.step('fetch', { rows: 3 });
+    scenario.endStep({ message: 'Fetched' });
+    scenario.step('validate');
+    scenario.failStep(new Error('Row 2 is invalid'), { reason: 'validation' });
+    scenario.setData({ orders: 2 });
+    scenario.complete({
+      statusCode: 200,
+      message: 'Saved',
+      reason: 'all-valid',
+      metadata: { source: 'lab' }
+    });
+  }
+
+  protected family(): void {
+    const parent = this.scenarios.start({ name: 'lab-parent' });
+    this.scenarios
+      .start({
+        name: 'lab-child',
+        parentScenarioId: parent.id,
+        feature: 'checkout',
+        operation: 'pay',
+        route: '/orders/:id'
+      })
+      .complete();
+    parent.complete();
+  }
+
+  protected settleDirectly(): void {
+    this.scenarios
+      .start({ name: 'lab-settled' })
+      .settle('incomplete', { reason: 'no-results' });
+  }
+
+  /** One past the 50 the library warns about, in development. */
+  protected crowd(): void {
+    const crowd = Array.from({ length: 51 }, () =>
+      this.scenarios.start({ name: 'lab-crowd' })
+    );
+    crowd.forEach((scenario) => scenario.cancel());
+  }
+
+  protected startLong(): void {
+    this.long = this.scenarios.start({ name: 'lab-long', timeoutMs: 0 });
+    this.lookUp();
+  }
+
+  protected lookUp(): void {
+    const id = this.long?.id;
+    this.readout.set(
+      JSON.stringify(
+        {
+          getActive: this.scenarios.getActive().map((s) => s.name),
+          findByName: this.scenarios.findByName('lab-long').map((s) => s.id),
+          find: id ? this.scenarios.find(id)?.name : undefined,
+          findByNameAndId: id
+            ? this.scenarios.findByNameAndId('lab-long', id)?.id
+            : undefined
+        },
+        null,
+        2
+      )
+    );
+  }
+
+  protected cancelActive(): void {
+    for (const scenario of this.scenarios.getActive()) {
+      scenario.cancel();
+    }
+    this.lookUp();
+  }
+
+  protected outcomeFromResponse(): void {
+    this.http
+      .get<{ status: number }>('/api/data')
+      .pipe(
+        traceScenario(this.scenarios.start({ name: 'lab-trace-outcome' }), {
+          outcome: (response) => ({
+            statusCode: response.status,
+            message: 'Data arrived'
+          })
+        })
+      )
+      .subscribe();
+  }
+
+  protected unsubscribedEarly(): void {
+    const subscription = this.http
+      .get('/api/data', { params: { delay: 2000 } })
+      .pipe(
+        traceScenario(this.scenarios.start({ name: 'lab-trace-cancel' }), {
+          cancelOutcome: { reason: 'navigated-away' }
+        })
+      )
+      .subscribe();
+    setTimeout(() => subscription.unsubscribe(), 100);
+  }
+
+  protected valueThenCancel(): void {
+    const values = new Subject<number>();
+    const subscription = values
+      .pipe(
+        traceScenario(this.scenarios.start({ name: 'lab-trace-teardown' }), {
+          valueThenTeardown: 'cancel'
+        })
+      )
+      .subscribe();
+    values.next(1);
+    subscription.unsubscribe();
   }
 }

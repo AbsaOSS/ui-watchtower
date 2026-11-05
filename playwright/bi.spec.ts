@@ -25,3 +25,37 @@ test('two identical events at once arrive as one', async ({
   );
   expect(named(events, 'lab_double_fired')).toHaveLength(1);
 });
+
+test('clicking again within 400 ms adds nothing; after it, a second event', async ({
+  page,
+  backend
+}) => {
+  await press(page, 'Track a click');
+  await press(page, 'Track a click');
+  await page.waitForTimeout(600);
+  await press(page, 'Track a click');
+  // Tracked last, so once this arrives the clicks have had their chance.
+  await press(page, 'Fire twice at once');
+
+  const events = await backend.rumUntil(
+    (e) => named(e, 'lab_double_fired').length > 0
+  );
+  expect(named(events, 'lab_button_clicked')).toHaveLength(2);
+});
+
+test('an event tied to a feature and a scenario carries both', async ({
+  page,
+  backend
+}) => {
+  await press(page, 'Feature, tied to a scenario');
+  const events = await backend.rumUntil(
+    (e) =>
+      named(e, 'lab_feature_used').length > 0 &&
+      named(e, 'lab-happy-path').length > 0
+  );
+  expect(named(events, 'lab_feature_used')[0].details).toMatchObject({
+    feature: 'theme-switcher',
+    scenarioId: named(events, 'lab-happy-path')[0].details.scenarioId,
+    metadata: { theme: 'dark' }
+  });
+});

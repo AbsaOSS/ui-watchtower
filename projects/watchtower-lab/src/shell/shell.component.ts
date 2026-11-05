@@ -36,6 +36,12 @@ import { LAB_OPTIONS, SHELL_PAGES } from './shell.config';
       <span class="lab-chip"
         >rum telemetries: {{ wire.telemetriesLabel() }}</span
       >
+      @if (options.channel === 'shared') {
+        <span class="lab-chip">channel: shared</span>
+      }
+      @if (customConfig) {
+        <span class="lab-chip">config: custom</span>
+      }
       <span class="lab-spacer"></span>
       <span class="lab-user">{{
         identity().userId ? 'Signed in' : 'Signed out'
@@ -110,6 +116,7 @@ import { LAB_OPTIONS, SHELL_PAGES } from './shell.config';
 })
 export class ShellComponent {
   protected readonly options = inject(LAB_OPTIONS);
+  protected readonly customConfig = Object.keys(this.options.config).length > 0;
   protected readonly wire = inject(LabWire);
   protected readonly inspector = inject(UwtEventInspectorService);
   protected readonly pages = SHELL_PAGES;

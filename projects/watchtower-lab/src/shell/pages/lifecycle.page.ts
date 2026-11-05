@@ -3,6 +3,7 @@ import {
   UwtScenarioTelemetryService,
   UwtTelemetrySink
 } from '@absaoss-cps/ngx-ui-watchtower';
+import { UwtRumTelemetrySink } from '@absaoss-cps/ngx-ui-watchtower/rum';
 import { CpsButtonComponent } from 'cps-ui-kit';
 
 @Component({
@@ -35,6 +36,20 @@ import { CpsButtonComponent } from 'cps-ui-kit';
         </div>
       </div>
       <div class="lab-card">
+        <h2>A page view of its own</h2>
+        <p>
+          The RUM sink's recordPageView, for a view the router doesn't see:
+          /lab/virtual-page. Only with the RUM destination.
+        </p>
+        <div class="lab-actions">
+          <cps-button
+            label="Record a page view"
+            type="outlined"
+            [disabled]="!rum"
+            (clicked)="rum?.recordPageView('/lab/virtual-page')" />
+        </div>
+      </div>
+      <div class="lab-card">
         <h2>Hiding the tab</h2>
         <p>
           Switch to another tab, then come back: the sink flushes when the page
@@ -46,6 +61,8 @@ import { CpsButtonComponent } from 'cps-ui-kit';
 })
 export class LifecyclePage {
   protected readonly sink = inject(UwtTelemetrySink);
+  protected readonly rum =
+    this.sink instanceof UwtRumTelemetrySink ? this.sink : undefined;
 
   private readonly scenarios = inject(UwtScenarioTelemetryService);
 

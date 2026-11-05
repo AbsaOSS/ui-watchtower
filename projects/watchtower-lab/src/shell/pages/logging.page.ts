@@ -4,12 +4,15 @@ import {
   inject,
   signal
 } from '@angular/core';
-import { UwtLoggerService } from '@absaoss-cps/ngx-ui-watchtower';
-import { CpsButtonComponent } from 'cps-ui-kit';
+import {
+  UwtLoggerService,
+  UwtScenarioTelemetryService
+} from '@absaoss-cps/ngx-ui-watchtower';
+import { CpsButtonComponent, CpsTextareaComponent } from 'cps-ui-kit';
 
 @Component({
   selector: 'lab-logging-page',
-  imports: [CpsButtonComponent],
+  imports: [CpsButtonComponent, CpsTextareaComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="lab-page">
@@ -41,18 +44,45 @@ import { CpsButtonComponent } from 'cps-ui-kit';
             type="outlined"
             (clicked)="noisy.log('Not written')" />
           <cps-button
-            label="warn"
+            label="warn (written)"
             type="outlined"
             (clicked)="noisy.warn('A noisy warning')" />
         </div>
       </div>
       <div class="lab-card">
+        <h2>Tied to a journey</h2>
+        <p>
+          A warning whose correlationId is a scenario's id: the filter below is
+          set to find it.
+        </p>
+        <div class="lab-actions">
+          <cps-button
+            label="Log inside a scenario"
+            type="outlined"
+            (clicked)="correlated()" />
+        </div>
+      </div>
+      <div class="lab-card">
         <h2>Reading back</h2>
+        <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
+        <cps-textarea
+          ngSkipHydration
+          label="Query filter (JSON)"
+          placeholder='{ "logger": "lab", "minLevel": "warn", "limit": 20 }'
+          width="30rem"
+          [rows]="3"
+          [value]="filter()"
+          [error]="filterError()"
+          (valueChanged)="filter.set($event)" />
         <div class="lab-actions">
           <cps-button
             label="query({ logger: 'lab' })"
             type="outlined"
             (clicked)="query()" />
+          <cps-button
+            label="Run the query"
+            type="outlined"
+            (clicked)="runQuery()" />
         </div>
       </div>
       <pre class="lab-readout">{{ readout() || 'No query yet.' }}</pre>
@@ -61,10 +91,13 @@ import { CpsButtonComponent } from 'cps-ui-kit';
 })
 export class LoggingPage {
   protected readonly readout = signal('');
+  protected readonly filter = signal('');
+  protected readonly filterError = signal('');
 
   private readonly logger = inject(UwtLoggerService);
   protected readonly lab = this.logger.getLogger('lab');
   protected readonly noisy = this.logger.getLogger('noisy');
+  private readonly scenarios = inject(UwtScenarioTelemetryService);
 
   protected error(): void {
     this.lab.error('Saving the order failed', {
@@ -76,6 +109,30 @@ export class LoggingPage {
 
   protected async query(): Promise<void> {
     const records = await this.logger.query({ logger: 'lab', limit: 20 });
+    this.readout.set(JSON.stringify(records, null, 2));
+  }
+
+  protected correlated(): void {
+    const scenario = this.scenarios.start({ name: 'lab-correlated' });
+    this.lab.warn('Inside a journey', { correlationId: scenario.id });
+    scenario.complete();
+    this.filter.set(JSON.stringify({ correlationId: scenario.id }));
+  }
+
+  /** Any filter the log provider takes: logger, correlationId, minLevel… */
+  protected async runQuery(): Promise<void> {
+    let filter: unknown;
+    try {
+      filter = JSON.parse(this.filter().trim() || '{}');
+    } catch {
+      filter = undefined;
+    }
+    if (!filter || typeof filter !== 'object' || Array.isArray(filter)) {
+      this.filterError.set('Not a JSON object.');
+      return;
+    }
+    this.filterError.set('');
+    const records = await this.logger.query(filter);
     this.readout.set(JSON.stringify(records, null, 2));
   }
 }

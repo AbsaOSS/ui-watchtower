@@ -23,9 +23,20 @@ export interface LogRecord {
   logger: string;
   level: string;
   message: string;
+  context?: string;
+  metadata?: Record<string, unknown>;
+  error?: { name: string; message: string; stack?: string };
 }
 
-export type BrokerMode = 'ok' | 'null' | 'fail' | 'short-expiry';
+export type BrokerMode =
+  | 'ok'
+  | 'null'
+  | 'fail'
+  | 'short-expiry'
+  | 'flaky'
+  | 'invalid'
+  | 'null-on-refresh'
+  | 'no-credentials-on-refresh';
 export type Telemetry =
   'errors' | 'performance' | 'interaction' | 'http' | 'replay';
 
@@ -45,8 +56,15 @@ export class LabBackend {
     return (await this.request.get('/__lab/logs')).json();
   }
 
+  /** What the lab's custom sink was given, with `?destination=custom`. */
+  async custom(): Promise<{ kind: string; eventType?: string }[]> {
+    return (await this.request.get('/__lab/custom')).json();
+  }
+
   async state(): Promise<{
     brokerMode: BrokerMode;
+    brokerCalls: number;
+    brokerConfig: Record<string, unknown>;
     telemetries: Telemetry[] | null;
   }> {
     return (await this.request.get('/__lab/state')).json();
@@ -73,6 +91,11 @@ export class LabBackend {
     await this.request.post('/__lab/broker-mode', { data: { mode } });
   }
 
+  /** Laid over the broker's app monitor config. */
+  async setBrokerConfig(config: Record<string, unknown>): Promise<void> {
+    await this.request.post('/__lab/broker-config', { data: { config } });
+  }
+
   /** RUM's own telemetries the broker names; `null` for the library's default. */
   async setTelemetries(telemetries: Telemetry[] | null): Promise<void> {
     await this.request.post('/__lab/telemetries', { data: { telemetries } });
@@ -97,6 +120,7 @@ export const test = base.extend<{
     async ({ request }, use) => {
       const backend = new LabBackend(request);
       await backend.setBrokerMode('ok');
+      await backend.setBrokerConfig({});
       await backend.setTelemetries(null);
       await backend.reset();
       await use(backend);
@@ -129,11 +153,19 @@ export { expect };
 export type { FrameLocator, Locator, Page };
 
 /**
- * Opens a lab page by its address, e.g. `'bi?telemetry=off'`, and waits until
- * it has hydrated: the server's page shows before it answers clicks.
+ * Opens a lab page by its address, e.g. `'bi?telemetry=off'`, with `config` as
+ * its `?config=` overlay, and waits until it has hydrated: the server's page
+ * shows before it answers clicks.
  */
-export async function openLab(page: Page, address: string): Promise<void> {
-  await page.goto(`/${address}`);
+export async function openLab(
+  page: Page,
+  address: string,
+  config?: object
+): Promise<void> {
+  const overlay = config
+    ? `${address.includes('?') ? '&' : '?'}config=${encodeURIComponent(JSON.stringify(config))}`
+    : '';
+  await page.goto(`/${address}${overlay}`);
   await expect(page.locator('html[data-lab-ready]')).toHaveCount(1);
   await expect(page.locator('lab-root main h1').first()).toBeVisible();
 }

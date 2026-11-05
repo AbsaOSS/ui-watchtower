@@ -35,6 +35,17 @@ test('opens from the header as a dialog, with the mark and the transparency slid
   await expect(dialog.locator('cps-slider')).toBeVisible();
 });
 
+test('the Dialog button moves it from a pane to the dialog', async ({
+  page
+}) => {
+  await press(page, 'Right pane');
+  await expect(page.locator('uwt-inspector-pane')).toBeVisible();
+
+  await press(page, 'Dialog');
+  await expect(page.locator('.cps-dialog uwt-inspector')).toBeVisible();
+  await expect(page.locator('uwt-inspector-pane')).toHaveCount(0);
+});
+
 test('Shift+E+I opens it, brings focus back, and closes it from inside — never while typing', async ({
   page
 }) => {
@@ -159,4 +170,38 @@ test('lists what is sent, keeping the newest 500 events per section', async ({
   await expect(page.locator('uwt-inspector')).toContainText(
     /BI telemetry · 500 · last [\d:]{8} · oldest \d+ dropped/
   );
+});
+
+test('sorts each kind into its section, and shows any shape — an unrecognised type, odd values, a huge payload cut short', async ({
+  page
+}) => {
+  const section = (title: string) =>
+    page.locator('uwt-inspector-section').filter({ hasText: title });
+  const bi = section('BI telemetry');
+
+  await press(page, 'Right pane');
+  await press(page, 'One of each kind');
+  await press(page, 'An unknown event type');
+  await press(page, 'Odd shapes');
+
+  await expect(section('Scenario telemetry')).toContainText('lab-happy-path');
+  await expect(section('Logging')).toContainText(
+    'A warning, from the Event Inspector page'
+  );
+  await expect(section('Logging')).toContainText('error → RUM');
+  await expect(bi).toContainText('com.example.custom (unrecognised type)');
+
+  const expand = (eventName: string) =>
+    bi
+      .locator('tbody tr', { hasText: eventName })
+      .getByRole('button', { name: 'Expand row' })
+      .click();
+
+  await expand('lab_odd_shapes');
+  await expect(bi).toContainText('Zürich · 東京 · 🚀');
+  await expect(bi.locator('.uwt-inspector-section__error')).toHaveCount(0);
+
+  await press(page, 'A 300,000-character payload');
+  await expand('lab_huge_payload');
+  await expect(bi).toContainText('Large payload: showing the first');
 });

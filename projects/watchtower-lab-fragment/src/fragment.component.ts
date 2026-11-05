@@ -33,6 +33,7 @@ const CARLA = '5c8e2f14-1b7d-4a96-9e3c-8d2b7f4a6c10';
           type="outlined"
           (clicked)="scenario()" />
         <cps-button label="Log a warning" type="outlined" (clicked)="warn()" />
+        <cps-button label="Log an error" type="outlined" (clicked)="error()" />
         <cps-button
           label="Query its logs"
           type="outlined"
@@ -97,6 +98,14 @@ export class FragmentComponent {
   protected warn(): void {
     this.logger.warn('A warning from the fragment');
     this.readout.set('Warning sent to the shell, for its log backend.');
+  }
+
+  /** Mirrored to RUM: the shell records it, named for this fragment. */
+  protected error(): void {
+    this.logger.error('The fragment failed', {
+      error: new Error('Fragment boom')
+    });
+    this.readout.set('Error sent to the shell, and mirrored to RUM there.');
   }
 
   protected async query(): Promise<void> {

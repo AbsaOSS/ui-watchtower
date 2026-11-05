@@ -13,6 +13,8 @@ const serverRoutes: ServerRoute[] = [
   // cps-ui-kit's cps-select creates a ResizeObserver in its constructor,
   // which a server doesn't have: "On the wire" renders in the browser.
   { path: 'wire', renderMode: RenderMode.Client },
+  // Its effective settings are the browser's, from the query string.
+  { path: 'settings', renderMode: RenderMode.Client },
   { path: '**', renderMode: RenderMode.Server }
 ];
 

@@ -9,12 +9,23 @@
 //   GET  /api/logs?…            answers the log provider's query()
 //   GET  /api/data?delay&status a slow or failing endpoint, for HTTP scenarios
 //   GET  /__lab/rum, /__lab/logs, /__lab/state
-//   POST /__lab/reset, /__lab/broker-mode, /__lab/telemetries    test hooks
+//   GET, POST /__lab/custom     what the lab's custom sink was given
+//   POST /__lab/reset, /__lab/broker-mode, /__lab/telemetries,
+//        /__lab/broker-config                                   test hooks
 import { Request, Router } from 'express';
 import { promised } from './promised';
 import { gunzipSync } from 'node:zlib';
 
-const BROKER_MODES = ['ok', 'null', 'fail', 'short-expiry'];
+const BROKER_MODES = [
+  'ok',
+  'null',
+  'fail',
+  'short-expiry',
+  'flaky',
+  'invalid',
+  'null-on-refresh',
+  'no-credentials-on-refresh'
+];
 const TELEMETRIES = ['errors', 'performance', 'interaction', 'http', 'replay'];
 const LEVELS: Record<string, number> = { log: 0, warn: 1, error: 2 };
 
@@ -36,14 +47,27 @@ interface ReceivedEvent {
 }
 
 // `telemetries: null` leaves them out of the broker's answer: the library's
-// default applies.
+// default applies. `brokerConfig` is laid over the answer's config, and
+// `brokerCalls` counts `/rum/init` calls since the mode was set.
 const state: {
   brokerMode: string;
+  brokerCalls: number;
+  brokerConfig: Record<string, unknown>;
   telemetries: string[] | null;
   batches: number;
   rum: ReceivedEvent[];
   logs: LogRecord[];
-} = { brokerMode: 'ok', telemetries: null, batches: 0, rum: [], logs: [] };
+  custom: unknown[];
+} = {
+  brokerMode: 'ok',
+  brokerCalls: 0,
+  brokerConfig: {},
+  telemetries: null,
+  batches: 0,
+  rum: [],
+  logs: [],
+  custom: []
+};
 
 /**
  * The body as text, gunzipped if RUM compressed it. A page that closes while
@@ -79,12 +103,34 @@ function parseJson(text: string | undefined): any {
   }
 }
 
-/** What the broker answers, by mode. `null` disables RUM for the page. */
+/**
+ * What the broker answers, by mode and call: `undefined` for an error,
+ * `enabled: false` to turn RUM off for the page.
+ *
+ * - `flaky`: the first two calls fail, as a broker starting up might
+ * - `invalid`: `pagesToExclude` as strings, which JSON makes of patterns
+ * - `null-on-refresh`, `no-credentials-on-refresh`: short-lived credentials,
+ *   then a refresh answered with `null`, or without credentials
+ */
 function broker(req: Request) {
+  const mode = state.brokerMode;
+  const call = ++state.brokerCalls;
+  if (mode === 'fail' || (mode === 'flaky' && call <= 2)) {
+    return undefined;
+  }
+  const refreshing = call > 1;
+  if (mode === 'null' || (mode === 'null-on-refresh' && refreshing)) {
+    return { enabled: false };
+  }
+  const shortLived = [
+    'short-expiry',
+    'null-on-refresh',
+    'no-credentials-on-refresh'
+  ].includes(mode);
   const origin = `${req.protocol}://${req.get('x-forwarded-host') ?? req.get('host')}`;
-  const minutes = state.brokerMode === 'short-expiry' ? 5 + 5 / 60 : 60;
+  const minutes = shortLived ? 5 + 5 / 60 : 60;
   return {
-    enabled: state.brokerMode !== 'null',
+    enabled: true,
     config: {
       applicationId: '00000000-0000-4000-8000-00000000a1ab',
       applicationVersion: '1.0.0',
@@ -99,17 +145,26 @@ function broker(req: Request) {
       sessionEventLimit: 0,
       dispatchInterval: 2000,
       allowCookies: true,
+      // The lab is plain http: WebKit drops a Secure cookie even on
+      // localhost, and with it the session and its start.
+      cookieAttributes: { secure: false },
       // Names only: the lab's credentials provider adds their options.
-      ...(state.telemetries ? { telemetries: state.telemetries } : {})
+      ...(state.telemetries ? { telemetries: state.telemetries } : {}),
+      ...(mode === 'invalid' ? { pagesToExclude: ['^/private'] } : {}),
+      ...state.brokerConfig
     },
     // Never used to sign — signing is off — but the sink schedules its
-    // refresh from their expiry, which short-expiry relies on.
-    credentials: {
-      accessKeyId: 'LAB-FAKE-KEY',
-      secretAccessKey: 'lab-fake-secret',
-      sessionToken: 'lab-fake-token',
-      expiration: new Date(Date.now() + minutes * 60_000).toISOString()
-    }
+    // refresh from their expiry, which the short-lived modes rely on.
+    ...(mode === 'no-credentials-on-refresh' && refreshing
+      ? {}
+      : {
+          credentials: {
+            accessKeyId: 'LAB-FAKE-KEY',
+            secretAccessKey: 'lab-fake-secret',
+            sessionToken: 'lab-fake-token',
+            expiration: new Date(Date.now() + minutes * 60_000).toISOString()
+          }
+        })
   };
 }
 
@@ -153,10 +208,13 @@ function queryLogs(query: Request['query']): LogRecord[] {
 export const labBackend = Router();
 
 labBackend.get('/rum/init', (req, res) => {
-  if (state.brokerMode === 'fail') {
-    res.status(500).json({ error: 'broker unavailable (lab mode: fail)' });
+  const answer = broker(req);
+  if (answer) {
+    res.json(answer);
   } else {
-    res.json(broker(req));
+    res
+      .status(500)
+      .json({ error: `broker unavailable (lab mode: ${state.brokerMode})` });
   }
 });
 
@@ -202,13 +260,15 @@ labBackend.get('/__lab/logs', (_req, res) => {
 labBackend.get('/__lab/state', (_req, res) => {
   res.json({
     brokerMode: state.brokerMode,
+    brokerCalls: state.brokerCalls,
+    brokerConfig: state.brokerConfig,
     modes: BROKER_MODES,
     telemetries: state.telemetries
   });
 });
 
 labBackend.post('/__lab/reset', (_req, res) => {
-  Object.assign(state, { batches: 0, rum: [], logs: [] });
+  Object.assign(state, { batches: 0, rum: [], logs: [], custom: [] });
   res.status(204).end();
 });
 
@@ -222,7 +282,7 @@ labBackend.post(
         .json({ error: `mode must be one of ${BROKER_MODES.join(', ')}` });
       return;
     }
-    state.brokerMode = mode;
+    Object.assign(state, { brokerMode: mode, brokerCalls: 0 });
     res.json({ brokerMode: mode });
   })
 );
@@ -245,3 +305,28 @@ labBackend.post(
     res.json({ telemetries });
   })
 );
+
+labBackend.post(
+  '/__lab/broker-config',
+  promised(async (req, res) => {
+    const config = parseJson(await readBody(req))?.config;
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+      res.status(400).json({ error: 'config must be an object' });
+      return;
+    }
+    state.brokerConfig = config;
+    res.json({ config });
+  })
+);
+
+labBackend
+  .route('/__lab/custom')
+  .post(
+    promised(async (req, res) => {
+      state.custom.push(parseJson(await readBody(req)));
+      res.status(204).end();
+    })
+  )
+  .get((_req, res) => {
+    res.json(state.custom);
+  });

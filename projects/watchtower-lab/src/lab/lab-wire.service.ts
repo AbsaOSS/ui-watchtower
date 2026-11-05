@@ -20,7 +20,15 @@ export interface LabRumEvent {
   details: Record<string, unknown>;
 }
 
-export type LabBrokerMode = 'ok' | 'null' | 'fail' | 'short-expiry';
+export type LabBrokerMode =
+  | 'ok'
+  | 'null'
+  | 'fail'
+  | 'short-expiry'
+  | 'flaky'
+  | 'invalid'
+  | 'null-on-refresh'
+  | 'no-credentials-on-refresh';
 
 /** RUM's own telemetries, as the mock broker names them. */
 export const LAB_TELEMETRIES = [
@@ -56,6 +64,8 @@ export class LabWire {
   readonly rum = signal<readonly LabRumEvent[]>([]);
   readonly logs = signal<readonly UwtLogRecord[]>([]);
   readonly brokerMode = signal<LabBrokerMode>('ok');
+  /** Laid over the broker's app monitor config. */
+  readonly brokerConfig = signal<Record<string, unknown>>({});
   /** RUM telemetries the broker names; `null` for the library's default. */
   readonly telemetries = signal<readonly LabTelemetry[] | null>(null);
 
@@ -91,6 +101,7 @@ export class LabWire {
       this.rum.set(rum.events);
       this.logs.set(logs);
       this.brokerMode.set(state.brokerMode);
+      this.brokerConfig.set(state.brokerConfig);
       this.telemetries.set(state.telemetries);
     } catch {
       // The mock backend isn't running: `npm run lab` starts it.
@@ -110,6 +121,16 @@ export class LabWire {
       body: JSON.stringify({ mode })
     });
     this.brokerMode.set(mode);
+  }
+
+  /** Laid over the broker's next answer; reload to apply it. */
+  async setBrokerConfig(config: Record<string, unknown>): Promise<void> {
+    await labFetch('/__lab/broker-config', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ config })
+    });
+    this.brokerConfig.set(config);
   }
 
   /** The broker names these in its next answer; reload to apply them. */

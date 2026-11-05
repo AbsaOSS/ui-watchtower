@@ -4,6 +4,10 @@ test('the server renders the page, and sends no telemetry itself', async ({
   request,
   backend
 }) => {
+  // The previous test's page may still be sending its last beacon.
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await backend.reset();
+
   const html = await (await request.get('/bi')).text();
 
   expect(html).toMatch(/<h1[^>]*>BI events<\/h1>/);

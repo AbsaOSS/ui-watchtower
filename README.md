@@ -78,33 +78,67 @@ Fragment** (the same second app in a plain iframe, and as a
 [Web Fragment](https://web-fragments.dev) through the server's gateway, each
 forwarding through the shell over the tab's own channel), **Event Inspector**
 (every dock, event generators, and the `--uwt-inspector-inset-*` opt-in on
-the lab's fixed header and status bar) and **On the wire**: what the mock
-backend actually received.
+the lab's fixed header and status bar), **On the wire**: what the mock
+backend actually received, and **Settings**: the library's settings in
+effect, a `?config=` overlay to edit, and the debug flags.
 
 Options, read once at startup like an app's configuration:
 
-| Query                   | Effect                                   |
-| ----------------------- | ---------------------------------------- |
-| `?destination=noop`     | The noop destination instead of RUM      |
-| `?telemetry=off`        | `withTelemetryEnabled(false)`            |
-| `?inspector=off`        | The Event Inspector disabled             |
-| `?inspector=noshortcut` | The Event Inspector without its shortcut |
+| Query                   | Effect                                                                                        |
+| ----------------------- | --------------------------------------------------------------------------------------------- |
+| `?destination=noop`     | The noop destination instead of RUM                                                           |
+| `?destination=custom`   | The lab's own sink, through `provideUwtTelemetryDestination`                                  |
+| `?telemetry=off`        | Telemetry off, through `withTelemetryEnabled`'s factory form                                  |
+| `?channel=shared`       | The shell on the default broadcast channel, shared by every tab: their hosts elect one leader |
+| `?inspector=off`        | The Event Inspector disabled                                                                  |
+| `?inspector=noshortcut` | The Event Inspector without its shortcut                                                      |
+| `?config=<JSON>`        | Library settings laid over the lab's own                                                      |
+
+`?config=` takes `identity` (`eventNamespace`), `scenarios`, `logging`, `bi`,
+`redaction` and `inspector`, each as its `with…` function or
+`provideUwtEventInspector` takes it, in JSON: a pattern is a `RegExp` source,
+and the one value transform is `mask-order-ids`. One more, `lab`, is the
+lab's own: `{ "logBatching": true }` makes its log provider batch, and send
+when the library flushes it. For example
+`?config={"scenarios":{"emitLifecycleEvents":true}}`.
 
 The mock RUM broker's answer is set on the **On the wire** page, then applied
-by reloading: `ok`, `null` (RUM off for the page), `fail` (the broker errors;
-the app carries on) or `short-expiry` (credentials refresh within seconds).
-The same page sets RUM's own `telemetries`: the library's default, or any of
-`errors`, `performance`, `interaction`, `http` and `replay`, down to none.
+by reloading:
+
+| Mode                        | The broker                                                   |
+| --------------------------- | ------------------------------------------------------------ |
+| `ok`                        | Answers normally                                             |
+| `null`                      | Turns RUM off for the page                                   |
+| `fail`                      | Errors; the app carries on                                   |
+| `short-expiry`              | Gives credentials that are refreshed within seconds          |
+| `flaky`                     | Fails twice, then answers: the sink retries, then catches up |
+| `invalid`                   | Sends a pattern as a string: the sink doesn't start RUM      |
+| `null-on-refresh`           | Turns RUM off at the first refresh                           |
+| `no-credentials-on-refresh` | Refreshes without credentials: the sink keeps the old ones   |
+
+The same page sets RUM's own `telemetries` (the library's default, or any of
+`errors`, `performance`, `interaction`, `http` and `replay`, down to none),
+and a JSON object laid over the broker's app monitor config, such as
+`{ "sessionSampleRate": 0 }`.
 
 ### Automated tests
 
 `npm run e2e` builds the lab and runs the suite in `playwright/` on Chromium
-and WebKit: every lab page, server rendering and hydration, both fragment
-pages and two tabs of one, the broker modes, RUM's telemetries, the query
-options and the Event Inspector's docks and shortcut, checked against what
-the mock backend received. It runs the built server on
-http://localhost:4390, beside `npm run lab`. The first time, download the
-browsers with `npx playwright install chromium webkit`.
+and WebKit, checking what the mock backend received against what each page
+sends. It covers every control on every lab page: the whole scenario API and
+`traceScenario`, BI events, logging and log queries, identity, redaction,
+flushing, server rendering and hydration, both fragment pages, two tabs on
+their own channels or one shared, a custom destination, every broker mode
+and RUM's start-up and refresh, RUM's telemetries, the library's settings
+through `?config=`, the debug flags, and the Event Inspector's docks,
+shortcut, pause, search, filters, export, paging and resizing. Internal edge
+cases — timers longer than 24 days, giving up after five minutes, no Web
+Locks or storage, message validation, start-up errors — are left to the unit
+tests.
+
+It runs the built server on http://localhost:4390, beside `npm run lab`. The
+first time, download the browsers with
+`npx playwright install chromium webkit`.
 
 ## Consumer smoke test
 

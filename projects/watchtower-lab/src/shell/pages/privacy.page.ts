@@ -1,20 +1,26 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal
 } from '@angular/core';
 import {
+  UWT_REDACT_CONFIG,
   UwtBITelemetryService,
   UwtLoggerService,
-  UwtScenarioTelemetryService
+  UwtScenarioTelemetryService,
+  uwtNormalizeError,
+  uwtRedactMetadata,
+  uwtScrubString
 } from '@absaoss-cps/ngx-ui-watchtower';
-import { CpsButtonComponent } from 'cps-ui-kit';
+import { CpsButtonComponent, CpsTextareaComponent } from 'cps-ui-kit';
 
 /** Values that must never leave the browser as they are. */
 const PERSONAL = {
   email: 'anna.smith@example.com',
-  note: 'card 4111 1111 1111 1111, phone +27 82 555 0123',
+  note: 'card 4111 1111 1111 1111, phone +27 82 555 0123, SSN 123-45-6789',
   ip: '10.1.2.3',
   password: 'hunter2',
   authToken: 'eyJhbGciOiJIUzI1NiJ9.lab'
@@ -22,7 +28,7 @@ const PERSONAL = {
 
 @Component({
   selector: 'lab-privacy-page',
-  imports: [CpsButtonComponent],
+  imports: [CpsButtonComponent, CpsTextareaComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="lab-page">
@@ -47,6 +53,45 @@ const PERSONAL = {
         </div>
       </div>
       <p>{{ sent() }}</p>
+
+      <div class="lab-card">
+        <h2>Errors of any shape</h2>
+        <p>
+          Logged as errors: a string is scrubbed, an object is reduced to its
+          type, and an HTTP error keeps its status but not its URL's query.
+        </p>
+        <div class="lab-actions">
+          <cps-button
+            label="An error as a string"
+            type="outlined"
+            (clicked)="errorAs('string')" />
+          <cps-button
+            label="An error as a plain object"
+            type="outlined"
+            (clicked)="errorAs('object')" />
+          <cps-button
+            label="An HttpErrorResponse"
+            type="outlined"
+            (clicked)="errorAs('http')" />
+        </div>
+      </div>
+
+      <div class="lab-card">
+        <h2>Scrub anything</h2>
+        <p>
+          What the library makes of any text, with this app's redaction
+          settings: as a string, as metadata, and as an error's message.
+        </p>
+        <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
+        <cps-textarea
+          ngSkipHydration
+          label="Text to scrub"
+          width="30rem"
+          [rows]="3"
+          [value]="text()"
+          (valueChanged)="text.set($event)" />
+        <pre class="lab-readout lab-scrubbed">{{ scrubbed() }}</pre>
+      </div>
     </section>
   `
 })
@@ -57,6 +102,30 @@ export class PrivacyPage {
   private readonly biTelemetry = inject(UwtBITelemetryService);
   private readonly scenarios = inject(UwtScenarioTelemetryService);
   private readonly logger = inject(UwtLoggerService).getLogger('privacy');
+  private readonly redaction = inject(UWT_REDACT_CONFIG);
+
+  protected readonly text = signal(
+    `Mail ${PERSONAL.email} from https://shop.example/orders?token=abc`
+  );
+
+  protected readonly scrubbed = computed(() => {
+    const text = this.text();
+    return JSON.stringify(
+      {
+        uwtScrubString: uwtScrubString(text, this.redaction),
+        uwtRedactMetadata: uwtRedactMetadata(
+          { note: text, password: text },
+          this.redaction
+        ),
+        uwtNormalizeError: uwtNormalizeError(new Error(text), {
+          ...this.redaction,
+          includeStack: false
+        })
+      },
+      null,
+      2
+    );
+  });
 
   protected bi(): void {
     this.biTelemetry.track('lab_privacy_checked', PERSONAL);
@@ -75,5 +144,19 @@ export class PrivacyPage {
       .start({ name: 'lab-privacy', metadata: { email: PERSONAL.email } })
       .fail({ error: new Error(`Lookup failed for ${PERSONAL.email}`) });
     this.sent.set('Sent as the failed lab-privacy scenario.');
+  }
+
+  protected errorAs(shape: 'string' | 'object' | 'http'): void {
+    const error = {
+      string: `Lookup failed for ${PERSONAL.email}`,
+      object: { code: 42, customer: PERSONAL.email },
+      http: new HttpErrorResponse({
+        status: 404,
+        statusText: 'Not Found',
+        url: `https://shop.example/api/customers?email=${PERSONAL.email}`
+      })
+    }[shape];
+    this.logger.error(`The ${shape} error`, { error });
+    this.sent.set(`Logged the ${shape} error.`);
   }
 }

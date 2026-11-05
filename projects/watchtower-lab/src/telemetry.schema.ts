@@ -15,6 +15,16 @@ declare module '@absaoss-cps/ngx-ui-watchtower' {
     'lab-abandoned': true;
     'lab-privacy': true;
     'lab-burst': true;
+    'lab-detailed': true;
+    'lab-parent': true;
+    'lab-child': true;
+    'lab-settled': true;
+    'lab-crowd': true;
+    'lab-long': true;
+    'lab-trace-outcome': true;
+    'lab-trace-cancel': true;
+    'lab-trace-teardown': true;
+    'lab-correlated': true;
   }
   interface UwtScenarioSteps {
     fetch: true;

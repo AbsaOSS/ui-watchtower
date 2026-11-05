@@ -10,6 +10,8 @@ import {
   test
 } from './lab';
 
+const CARLA = '5c8e2f14-1b7d-4a96-9e3c-8d2b7f4a6c10';
+
 /** The same fragment build, composed into the shell two ways. */
 const COMPOSITIONS: {
   name: string;
@@ -60,6 +62,7 @@ for (const { name, path, fragment: locate } of COMPOSITIONS) {
     const clicked = named(events, 'fragment_button_clicked');
     expect(clicked).toHaveLength(1);
     expect(clicked[0].details.application).toBe('lab-fragment');
+    expect(named(events, 'fragment-journey')[0].details.status).toBe('success');
     await expect(fragment.locator('p').first()).toContainText(
       clicked[0].user.sessionId!.slice(0, 8)
     );
@@ -69,9 +72,40 @@ for (const { name, path, fragment: locate } of COMPOSITIONS) {
       .toContain('lab-fragment');
     await press(fragment, 'Query its logs');
     await expect(fragment.locator('.lab-readout')).toContainText(
-      'answered by the shell'
+      /[1-9]\d* record\(s\), answered by the shell/
     );
 
     await expect(page.locator('uwt-inspector')).toContainText('↪ lab-fragment');
+
+    // Its errors are mirrored to RUM by the shell, named for the fragment.
+    await press(fragment, 'Log an error');
+    await backend.rumUntil((e) =>
+      e.some(
+        (event) =>
+          event.type === 'com.amazon.rum.js_error_event' &&
+          JSON.stringify(event.details).includes('[lab-fragment] Error')
+      )
+    );
+
+    // Signing in or out in the fragment applies to the shell.
+    await press(fragment, 'Sign in as Carla');
+    await expect(page.locator('.lab-status')).toContainText(CARLA);
+    await press(fragment, 'Sign out');
+    await expect(page.locator('.lab-status')).not.toContainText(CARLA);
   });
 }
+
+test('the fragment on its own, with no shell, carries on and sends nothing', async ({
+  page,
+  backend
+}) => {
+  await page.goto('/fragment-frame/');
+  await expect(page.locator('h1')).toHaveText('lab-fragment');
+  await press(page, 'Track a BI event');
+  await press(page, 'Log a warning');
+
+  await page.waitForTimeout(2000);
+  await expect(page.locator('p').first()).toContainText('Session — · user —');
+  expect(await backend.rum()).toEqual([]);
+  expect(await backend.logs()).toEqual([]);
+});

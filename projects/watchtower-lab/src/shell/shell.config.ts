@@ -1,7 +1,7 @@
 import { provideHttpClient, withFetch } from '@angular/common/http';
 import {
   ApplicationConfig,
-  InjectionToken,
+  inject,
   provideZoneChangeDetection
 } from '@angular/core';
 import {
@@ -14,6 +14,7 @@ import {
   UWT_LOG_API_PROVIDER,
   provideUwtTelemetry,
   provideUwtTelemetryBroadcastHost,
+  provideUwtTelemetryDestination,
   provideUwtTelemetrySink,
   withBIEvents,
   withLogging,
@@ -26,12 +27,17 @@ import {
   provideUwtTelemetryRumSink
 } from '@absaoss-cps/ngx-ui-watchtower/rum';
 import { provideUwtEventInspector } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
-import { LabOptions } from '../lab/lab-options';
-import { LAB_CHANNEL } from '../lab/lab-channel';
+import {
+  LAB_OPTIONS,
+  LAB_VALUE_TRANSFORMS,
+  LabOptions
+} from '../lab/lab-options';
+import { labChannel } from '../lab/lab-channel';
+import { LabCustomSink } from '../lab/lab-custom.sink';
 import { LabLogApiProvider } from '../lab/lab-log-api.provider';
 import { LabRumCredentialsProvider } from '../lab/lab-rum-credentials.provider';
 
-export const LAB_OPTIONS = new InjectionToken<LabOptions>('LAB_OPTIONS');
+export { LAB_OPTIONS };
 
 export const SHELL_PAGES = [
   {
@@ -84,6 +90,11 @@ export const SHELL_PAGES = [
     path: 'wire',
     label: 'On the wire',
     load: () => import('./pages/wire.page').then((m) => m.WirePage)
+  },
+  {
+    path: 'settings',
+    label: 'Settings',
+    load: () => import('./pages/settings.page').then((m) => m.SettingsPage)
   }
 ];
 
@@ -98,43 +109,80 @@ const routes: Routes = [
 
 /**
  * The shell: the realm with the real destination. RUM against the lab's
- * mock dataplane (or noop), logs to its mock backend, the broadcast host for
- * the fragment, and the Event Inspector.
+ * mock dataplane (or noop, or the lab's own sink), logs to its mock backend, the broadcast host for
+ * the fragment, and the Event Inspector. A `?config=` overlay replaces the
+ * lab's own settings, one by one.
  */
-export const shellConfig = (options: LabOptions): ApplicationConfig => ({
-  providers: [
-    provideZoneChangeDetection({ eventCoalescing: true }),
-    provideClientHydration(withEventReplay()),
-    provideAnimations(),
-    provideHttpClient(withFetch()),
-    provideRouter(routes),
-    { provide: LAB_OPTIONS, useValue: options },
-    provideUwtTelemetry(
-      { application: 'watchtower-lab', environment: 'lab', version: '1.0.0' },
-      withTelemetryEnabled(options.telemetry),
-      withLogging({
-        minLevel: 'log',
-        levels: { noisy: 'warn' },
-        mirrorErrorsToRum: true
-      }),
-      withScenarios({ defaultTimeoutMs: 30_000 }),
-      withBIEvents(),
-      withRedaction({
-        scanValuePatterns: ['email', 'creditCard', 'ssn', 'ipv4', 'phone']
+export const shellConfig = (options: LabOptions): ApplicationConfig => {
+  const { identity, scenarios, logging, bi, inspector } = options.config;
+  const {
+    extraKeyPatterns,
+    extraValuePatterns,
+    extraValueTransforms,
+    ...redaction
+  } = options.config.redaction ?? {};
+
+  return {
+    providers: [
+      provideZoneChangeDetection({ eventCoalescing: true }),
+      provideClientHydration(withEventReplay()),
+      provideAnimations(),
+      provideHttpClient(withFetch()),
+      provideRouter(routes),
+      { provide: LAB_OPTIONS, useValue: options },
+      provideUwtTelemetry(
+        {
+          application: 'watchtower-lab',
+          environment: 'lab',
+          version: '1.0.0',
+          ...identity
+        },
+        // The factory form, read once at startup in an injection context.
+        withTelemetryEnabled(() => inject(LAB_OPTIONS).telemetry),
+        withLogging({
+          minLevel: 'log',
+          levels: { noisy: 'warn' },
+          mirrorErrorsToRum: true,
+          ...logging
+        }),
+        withScenarios({ defaultTimeoutMs: 30_000, ...scenarios }),
+        withBIEvents(bi),
+        withRedaction({
+          scanValuePatterns: ['email', 'creditCard', 'ssn', 'ipv4', 'phone'],
+          ...redaction,
+          ...(extraKeyPatterns && {
+            extraKeyPatterns: extraKeyPatterns.map((p) => new RegExp(p, 'i'))
+          }),
+          ...(extraValuePatterns && {
+            extraValuePatterns: extraValuePatterns.map((p) => new RegExp(p))
+          }),
+          ...(extraValueTransforms && {
+            extraValueTransforms: extraValueTransforms.map(
+              (name) => LAB_VALUE_TRANSFORMS[name]
+            )
+          })
+        })
+      ),
+      options.destination === 'noop'
+        ? provideUwtTelemetrySink('noop')
+        : options.destination === 'custom'
+          ? provideUwtTelemetryDestination(LabCustomSink, {
+              init: (sink) => sink.init()
+            })
+          : provideUwtTelemetryRumSink(),
+      {
+        provide: UWT_RUM_CREDENTIALS_PROVIDER,
+        useExisting: LabRumCredentialsProvider
+      },
+      { provide: UWT_LOG_API_PROVIDER, useExisting: LabLogApiProvider },
+      provideUwtTelemetryBroadcastHost(
+        labChannel(options.channel === 'shared')
+      ),
+      provideUwtEventInspector({
+        enabled: options.inspector !== 'off',
+        ...(options.inspector === 'noshortcut' && { shortcuts: [] }),
+        ...inspector
       })
-    ),
-    options.destination === 'noop'
-      ? provideUwtTelemetrySink('noop')
-      : provideUwtTelemetryRumSink(),
-    {
-      provide: UWT_RUM_CREDENTIALS_PROVIDER,
-      useExisting: LabRumCredentialsProvider
-    },
-    { provide: UWT_LOG_API_PROVIDER, useExisting: LabLogApiProvider },
-    provideUwtTelemetryBroadcastHost(LAB_CHANNEL),
-    provideUwtEventInspector({
-      enabled: options.inspector !== 'off',
-      ...(options.inspector === 'noshortcut' && { shortcuts: [] })
-    })
-  ]
-});
+    ]
+  };
+};
