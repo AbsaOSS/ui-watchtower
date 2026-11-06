@@ -66,9 +66,9 @@ test('eventNamespace renames the event types, and the inspector still sorts them
         event.details.eventName === 'lab_button_clicked'
     )
   );
-  await expect(
-    page.locator('uwt-inspector-section').filter({ hasText: 'BI telemetry' })
-  ).toContainText('lab_button_clicked');
+  await expect(page.locator('uwt-inspector-timeline')).toContainText(
+    'lab_button_clicked'
+  );
 });
 
 test('scenario settings: step events, user timings, and a step limit', async ({
@@ -240,17 +240,16 @@ test('inspector settings: a custom shortcut, a smaller section, a smaller view',
   await expect(inspector).toContainText('Shortcut: F9');
 
   await press(page, 'A burst of 600 BI events');
-  await expect(inspector).toContainText(/BI telemetry · 10 ·/);
+  await expect(inspector).toContainText('10 events · 590 oldest dropped');
+  await expect(inspector.locator('cps-button-toggle')).toContainText('BI 10');
 
   await press(page, 'A 300,000-character payload');
-  const bi = page
-    .locator('uwt-inspector-section')
-    .filter({ hasText: 'BI telemetry' });
-  await bi
+  const timeline = page.locator('uwt-inspector-timeline');
+  await timeline
     .locator('tbody tr', { hasText: 'lab_huge_payload' })
     .getByRole('button', { name: 'Expand row' })
     .click();
-  await expect(bi).toContainText(/showing the first 1,?000 characters/);
+  await expect(timeline).toContainText(/showing the first 1,?000 characters/);
 });
 
 test('a pattern that is not a RegExp is left out with a warning, and the lab still starts', async ({

@@ -36,6 +36,12 @@
   font-weight: 700;
 }
 
+// cps-dialog spreads its header out, which centres the title between the
+// drag handle and the buttons; the panes and the window keep it left.
+::ng-deep .uwt-inspector-dialog .cps-dialog-header-left {
+  margin-inline: 0.5rem auto;
+}
+
 .uwt-inspector__body {
   display: flex;
   flex-direction: column;
@@ -120,12 +126,6 @@
   margin: 0;
   font-size: 0.875rem;
   color: var(--cps-text-secondary);
-}
-
-.uwt-inspector__sections {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
 }
 
 .uwt-inspector__footer {

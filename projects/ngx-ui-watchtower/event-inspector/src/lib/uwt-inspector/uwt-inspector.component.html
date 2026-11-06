@@ -33,9 +33,13 @@
           Capturing since {{ since() }} ·
         }
         {{ store.total() }} event{{ store.total() === 1 ? '' : 's' }}
+        @if (dropped() > 0) {
+          · {{ dropped() }} oldest dropped
+        }
       </p>
       <uwt-inspector-dock-switcher
         [dock]="dock()"
+        [panes]="panesFit()"
         (dockChange)="setDock($event)">
       </uwt-inspector-dock-switcher>
     </div>
@@ -92,14 +96,8 @@
     </p>
   }
 
-  <div class="uwt-inspector__sections">
-    @for (section of sections; track section) {
-      <uwt-inspector-section
-        [section]="section"
-        [maxPayloadChars]="maxPayloadChars">
-      </uwt-inspector-section>
-    }
-  </div>
+  <uwt-inspector-timeline [maxPayloadChars]="maxPayloadChars">
+  </uwt-inspector-timeline>
 
   <div class="uwt-inspector__footer">
     <p>

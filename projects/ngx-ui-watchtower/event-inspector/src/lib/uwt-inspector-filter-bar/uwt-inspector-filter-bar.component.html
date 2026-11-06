@@ -2,7 +2,7 @@
   <div class="uwt-inspector-filter-bar__row">
     <cps-input
       class="uwt-inspector-filter-bar__search uwt-inspector-search"
-      [ariaLabel]="'Search ' + sectionName() + ' events'"
+      ariaLabel="Search events"
       placeholder="Search all fields"
       prefixIcon="search"
       [clearable]="true"
@@ -15,13 +15,12 @@
       size="small"
       icon="filter-funnel"
       label="Add filter"
-      [ariaLabel]="'Add filter, ' + sectionName()"
       [ariaExpanded]="builderOpen()"
       (clicked)="builderOpen.set(!builderOpen())">
     </cps-button>
     <cps-info-circle
       tooltipMaxWidth="20rem"
-      tooltipText="Search matches any field's value or name, ignoring case. A filter compares one field, such as metadata.theme. Use steps[].name to match any item of a list, or steps[2].name for one. All filters must match. Filters apply to this section only; its download always contains everything it captured.">
+      tooltipText="Search matches any field's value or name, ignoring case. A filter compares one field, such as metadata.theme. Use steps[].name to match any item of a list, or steps[2].name for one. All filters must match. Export always contains every event captured of the kind shown, whatever the filters.">
     </cps-info-circle>
   </div>
 
@@ -29,7 +28,7 @@
     <div
       class="uwt-inspector-filter-bar__builder"
       role="group"
-      [attr.aria-label]="'New filter for ' + sectionName()"
+      aria-label="New filter"
       (keydown.enter)="add()">
       <cps-autocomplete
         class="uwt-inspector-filter-bar__path"
@@ -72,16 +71,14 @@
   @if (chips().length > 0 || anyActive()) {
     <div class="uwt-inspector-filter-bar__active">
       <span class="uwt-inspector-filter-bar__label">Filters:</span>
-      <ul
-        class="uwt-inspector-filter-bar__chips"
-        [attr.aria-label]="'Active filters for ' + sectionName()">
+      <ul class="uwt-inspector-filter-bar__chips" aria-label="Active filters">
         @for (chip of chips(); track chip.id) {
           <li>
             <cps-chip
               [label]="chip.text"
               [closable]="true"
               [closeButtonAriaLabel]="'Remove filter ' + chip.text"
-              (closed)="store.removeFilter(section(), chip.id)">
+              (closed)="store.removeFilter(chip.id)">
             </cps-chip>
           </li>
         }
@@ -90,7 +87,6 @@
         type="borderless"
         size="xsmall"
         label="Clear filters"
-        [ariaLabel]="'Clear filters for ' + sectionName()"
         (clicked)="clearAll()">
       </cps-button>
     </div>

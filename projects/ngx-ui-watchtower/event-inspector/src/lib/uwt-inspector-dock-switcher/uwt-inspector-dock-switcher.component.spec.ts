@@ -31,6 +31,16 @@ describe('UwtInspectorDockSwitcherComponent', () => {
     ).toEqual([false, false, false, false, true]);
   });
 
+  it('should offer only the dialog and the window without room for a pane', () => {
+    fixture.componentRef.setInput('panes', false);
+    fixture.detectChanges();
+
+    expect(buttons().map((b) => b.getAttribute('data-dock'))).toEqual([
+      'dialog',
+      'window'
+    ]);
+  });
+
   it('should ask for another dock, and ignore the current one', () => {
     buttons()[4].click();
     buttons()[1].click();

@@ -12,6 +12,7 @@ export {
   UwtInspectorFieldFilter,
   UwtInspectorFilterOperator,
   UwtInspectorFilterState,
+  UwtInspectorKindFilter,
   UwtInspectorSectionId,
   UwtInspectorShortcut,
   UwtEventInspectorConfig

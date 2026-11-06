@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import {
@@ -90,13 +91,47 @@ describe('UwtInspectorComponent', () => {
     }
     return found;
   };
+  /** A button found by its visible text. */
+  const labelled = (label: string) => {
+    const found = Array.from(el().querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === label
+    );
+    if (!found) {
+      throw new Error(`No button labelled "${label}"`);
+    }
+    return found;
+  };
   const text = () => el().textContent?.replace(/\s+/g, ' ') ?? '';
-  const titles = () =>
+  const kindOptions = () =>
     Array.from(
-      el().querySelectorAll('[data-testid="cps-expansion-panel-title"]')
-    ).map((t) => t.textContent?.trim());
+      el().querySelectorAll<HTMLInputElement>('cps-button-toggle input')
+    );
+  const kinds = () => kindOptions().map((i) => i.getAttribute('aria-label'));
   const bodyRows = () =>
-    el().querySelectorAll('td.uwt-inspector-section__time').length;
+    el().querySelectorAll('td.uwt-inspector-timeline__time').length;
+  /** Each shown row's Kind cell, newest first. */
+  const rowKinds = () =>
+    Array.from(
+      el().querySelectorAll('td.uwt-inspector-timeline__time + td')
+    ).map((td) => td.textContent?.trim());
+
+  /** Shows one kind, as choosing it in the kind toggle does. */
+  function showKind(label: string): void {
+    kindOptions()
+      .find((i) => i.getAttribute('aria-label')?.startsWith(`${label} `))
+      ?.click();
+    fixture.detectChanges();
+  }
+
+  /** Opens the Export menu and chooses one of its items. */
+  function exportAs(item: 'Copy JSON' | 'Download JSON'): void {
+    labelled('Export').click();
+    fixture.detectChanges();
+    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+      .find((i) => i.textContent?.includes(item))
+      ?.click();
+    fixture.detectChanges();
+  }
 
   function settle(): void {
     jest.advanceTimersByTime(UWT_INSPECTOR_FLUSH_MS);
@@ -143,38 +178,63 @@ describe('UwtInspectorComponent', () => {
     localStorage.removeItem(UWT_INSPECTOR_PREFERENCES_KEY);
   });
 
-  it('should open empty, with three sections and an explanation', () => {
-    expect(titles()).toEqual([
-      'BI telemetry · no events yet',
-      'Scenario telemetry · no events yet',
-      'Logging · no events yet'
-    ]);
+  it('should open empty, with every kind at nought and an explanation', () => {
+    expect(kinds()).toEqual(['All 0', 'BI 0', 'Scenarios 0', 'Logs 0']);
     expect(text()).toContain('Capturing from now.');
-    expect(text()).toContain('No BI events since this window opened.');
+    expect(text()).toContain('No events yet.');
   });
 
-  it('should show events live, in the right section, with the right columns', () => {
+  it('should show every kind live in one timeline, newest first', () => {
     monitor.publish(bi('theme_changed'));
     monitor.publish(scenario);
     monitor.publish(warn);
     settle();
 
-    expect(bodyRows()).toBe(3);
-    expect(titles()[0]).toMatch(/^BI telemetry · 1 · last \d\d:\d\d:\d\d$/);
+    expect(rowKinds()).toEqual(['Log', 'Scenario', 'BI']);
+    expect(kinds()).toEqual(['All 3', 'BI 1', 'Scenarios 1', 'Logs 1']);
     expect(text()).toContain('theme_changed');
     expect(text()).toContain('theme=dark');
     expect(text()).toContain('load-dashboard');
-    expect(text()).toContain('42 ms');
-    expect(text()).toContain('Careful now');
+    expect(text()).toContain('success · 42 ms · 1 step');
+    expect(text()).toContain('warn · Careful now');
     expect(text()).toContain('3 events');
   });
 
-  it('should mark the newest rows as new', () => {
+  it('should colour a status or level, with the word still written', () => {
+    monitor.publish(scenario);
+    monitor.publish(warn);
+    settle();
+
+    expect(
+      el().querySelector('.uwt-inspector-timeline__tone--success')?.textContent
+    ).toContain('success');
+    expect(
+      el().querySelector('.uwt-inspector-timeline__tone--warn')?.textContent
+    ).toContain('warn');
+  });
+
+  it('should mark the newest rows as new, for eyes and for screen readers', () => {
     monitor.publish(bi('a'));
     settle();
-    expect(
-      el().querySelector('td.uwt-inspector-section__time cps-chip')
-    ).not.toBeNull();
+    const fresh = el().querySelector('td.uwt-inspector-timeline__fresh');
+    expect(fresh?.querySelector('.cps-sr-only')?.textContent).toBe('New: ');
+
+    jest.advanceTimersByTime(3000);
+    fixture.detectChanges();
+    expect(el().querySelector('td.uwt-inspector-timeline__fresh')).toBeNull();
+  });
+
+  it('should count, list and say what is shown when only one kind is', () => {
+    monitor.publish(bi('theme_changed'));
+    monitor.publish(warn);
+    settle();
+
+    showKind('Logs');
+    expect(rowKinds()).toEqual(['Log']);
+
+    showKind('Scenarios');
+    expect(bodyRows()).toBe(0);
+    expect(text()).toContain('No scenario events yet.');
   });
 
   it('should show the full payload when a row is expanded', () => {
@@ -195,35 +255,36 @@ describe('UwtInspectorComponent', () => {
     expect(text()).toContain('telemetry sink');
   });
 
-  it('should filter one section without touching the others', () => {
+  it('should search every kind with one field, counting matches per kind', () => {
     monitor.publish(bi('theme_changed', 'dark'));
     monitor.publish(bi('sidebar_toggled', 'light'));
     monitor.publish(warn);
     settle();
 
-    const search = el().querySelector(
-      'input[aria-label="Search BI telemetry events"]'
-    ) as HTMLInputElement;
-    search.value = 'dark';
-    search.dispatchEvent(new Event('input'));
+    const searches = el().querySelectorAll<HTMLInputElement>(
+      '.uwt-inspector-search input'
+    );
+    expect(searches).toHaveLength(1);
+    expect(searches[0].getAttribute('aria-label')).toBe('Search events');
+    searches[0].value = 'dark';
+    searches[0].dispatchEvent(new Event('input'));
     jest.advanceTimersByTime(200);
     fixture.detectChanges();
 
-    expect(titles()[0]).toMatch(/^BI telemetry · 1 of 2/);
-    // Logging has its own filters, still empty.
-    expect(titles()[2]).toMatch(/^Logging · 1 · /);
-    expect(text()).toContain('Careful now');
+    expect(bodyRows()).toBe(1);
+    expect(kinds()).toEqual(['All 1', 'BI 1', 'Scenarios 0', 'Logs 0']);
+
+    showKind('Logs');
+    expect(text()).toContain('No log events match the filters.');
   });
 
-  it('should give each section its own search field', () => {
-    const labels = Array.from(
-      el().querySelectorAll('.uwt-inspector-search input')
-    ).map((i) => i.getAttribute('aria-label'));
-    expect(labels).toEqual([
-      'Search BI telemetry events',
-      'Search Scenario telemetry events',
-      'Search Logging events'
-    ]);
+  it('should count the oldest events dropped to stay within the limit', () => {
+    fixture.debugElement.injector
+      .get(UwtInspectorStore)
+      .dropped.set({ bi: 2, scenario: 0, logging: 1 });
+    fixture.detectChanges();
+
+    expect(text()).toContain('0 events · 3 oldest dropped');
   });
 
   it('should clear history and keep capturing', () => {
@@ -274,7 +335,7 @@ describe('UwtInspectorComponent', () => {
     expect(text()).not.toContain('Paused at');
   });
 
-  it("should download a section's own events, whatever its filters", () => {
+  it('should export every event of the kind shown, whatever the filters', () => {
     const download = jest
       .spyOn(exportUtil, 'uwtDownloadJson')
       .mockImplementation(() => undefined);
@@ -282,53 +343,82 @@ describe('UwtInspectorComponent', () => {
     monitor.publish(bi('b'));
     monitor.publish(warn);
     settle();
-    // A BI filter hiding one event must not remove it from BI's download.
+    // A search hiding every event must not remove any from the export.
     fixture.debugElement.injector
       .get(UwtInspectorStore)
-      .setText('bi', 'nothing matches this');
+      .setText('nothing matches this');
     fixture.detectChanges();
 
-    button('Download JSON, BI telemetry').click();
+    exportAs('Download JSON');
 
     expect(download).toHaveBeenCalledTimes(1);
     const [, filename, json] = download.mock.calls[0];
     expect(filename).toMatch(
-      /^ngx-ui-watchtower-events-app-bi-\d{8}-\d{6}\.json$/
+      /^ngx-ui-watchtower-events-app-all-\d{8}-\d{6}\.json$/
     );
     const doc = JSON.parse(json);
     expect(doc).toMatchObject({
       format: 'ngx-ui-watchtower-event-inspector',
-      section: 'bi',
+      formatVersion: 2,
+      section: 'all',
       app: { application: 'app' },
-      count: { captured: 2, droppedOldest: 0 },
+      count: { captured: 3, droppedOldest: 0 },
       activeFilters: { text: 'nothing matches this' }
     });
     expect(doc.events.map((e: { kind: string }) => e.kind)).toEqual([
       'bi',
-      'bi'
+      'bi',
+      'log'
     ]);
 
-    button('Download JSON, Logging').click();
+    showKind('Logs');
+    exportAs('Download JSON');
     const logging = JSON.parse(download.mock.calls[1][2]);
+    expect(download.mock.calls[1][1]).toContain('-logging-');
     expect(logging.section).toBe('logging');
     expect(logging.events.map((e: { kind: string }) => e.kind)).toEqual([
       'log'
     ]);
   });
 
-  it("should copy a section's own events as JSON", async () => {
+  it('should say in the Export menu what it holds', async () => {
+    monitor.publish(bi('a'));
+    monitor.publish(warn);
+    settle();
+    showKind('BI');
+
+    labelled('Export').click();
+    fixture.detectChanges();
+    // The menu reports itself shown once its animation starts.
+    await jest.advanceTimersByTimeAsync(0);
+    fixture.detectChanges();
+
+    expect(
+      document.querySelector('[role="menu"]')?.getAttribute('aria-label')
+    ).toBe('1 BI event, with session and user ids');
+    expect(labelled('Export').getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('should copy the kind shown as JSON, and say so on the button', async () => {
     const writeText = jest.fn((_text: string) => Promise.resolve());
     Object.assign(navigator, { clipboard: { writeText } });
     monitor.publish(bi('a'));
     monitor.publish(warn);
     settle();
 
-    button('Copy JSON, Logging').click();
-    await Promise.resolve();
+    showKind('Logs');
+    exportAs('Copy JSON');
+    await jest.advanceTimersByTimeAsync(0);
+    fixture.detectChanges();
 
     const doc = JSON.parse(writeText.mock.calls[0][0]);
     expect(doc.section).toBe('logging');
     expect(doc.events).toHaveLength(1);
+    expect(labelled('Copied')).toBeTruthy();
+    expect(announce).toHaveBeenCalledWith(
+      '1 log event copied as JSON.',
+      'polite'
+    );
   });
 
   it('should announce new arrivals politely, at most every ten seconds', () => {
@@ -360,8 +450,9 @@ describe('UwtInspectorComponent', () => {
     jest
       .spyOn(exportUtil, 'uwtDownloadJson')
       .mockImplementation(() => undefined);
-    button('Download JSON, BI telemetry').click();
-    button('Download JSON, Logging').click();
+    exportAs('Download JSON');
+    showKind('Logs');
+    exportAs('Download JSON');
     settle();
 
     expect(seen).toHaveLength(0);
@@ -450,7 +541,11 @@ describe('UwtInspectorComponent', () => {
   });
 
   it('should ask to move to another dock, or to close', () => {
-    const controls = { setDock: jest.fn(), close: jest.fn() };
+    const controls = {
+      setDock: jest.fn(),
+      close: jest.fn(),
+      panesFit: signal(true)
+    };
     TestBed.inject(UwtInspectorSession).controls = controls;
     const dock = (name: string) =>
       el().querySelector<HTMLButtonElement>(`button[data-dock="${name}"]`)!;
@@ -464,6 +559,23 @@ describe('UwtInspectorComponent', () => {
     fixture.detectChanges();
     button('Close Event Inspector').click();
     expect(controls.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('should offer no pane when the app has no room for one', () => {
+    TestBed.inject(UwtInspectorSession).controls = {
+      setDock: jest.fn(),
+      close: jest.fn(),
+      panesFit: signal(false)
+    };
+    const narrow = TestBed.createComponent(UwtInspectorComponent);
+    narrow.detectChanges();
+
+    expect(
+      Array.from(
+        (narrow.nativeElement as HTMLElement).querySelectorAll('[data-dock]')
+      ).map((b) => b.getAttribute('data-dock'))
+    ).toEqual(['dialog', 'window']);
+    narrow.destroy();
   });
 
   it('should keep its history in the session, for the next dock', () => {

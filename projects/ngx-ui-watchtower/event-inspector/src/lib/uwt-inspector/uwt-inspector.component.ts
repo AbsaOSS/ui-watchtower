@@ -29,12 +29,12 @@ import {
   UWT_INSPECTOR_SECTIONS,
   UwtInspectorStore
 } from '../uwt-inspector-store/uwt-inspector-store';
-import { UwtInspectorSectionComponent } from '../uwt-inspector-section/uwt-inspector-section.component';
+import { UwtInspectorTimelineComponent } from '../uwt-inspector-timeline/uwt-inspector-timeline.component';
 import {
   UWT_INSPECTOR_SECTION_NOUN,
   UwtInspectorExporter
 } from '../uwt-inspector-export/uwt-inspector-exporter';
-import { uwtInspectorTime } from '../uwt-inspector-section/uwt-inspector-columns';
+import { uwtInspectorTime } from '../uwt-inspector-timeline/uwt-inspector-rows';
 import {
   UWT_DEFAULT_INSPECTOR_SHORTCUTS,
   uwtIsApplePlatform,
@@ -54,8 +54,8 @@ const ANNOUNCE_EVERY_MS = 10_000;
 /**
  * The Event Inspector's content, shown by {@link UwtEventInspectorService}
  * in a non-modal cps-dialog, a pane or its own window. Capturing is
- * controlled here — pause and clear apply to everything — while each
- * section filters, downloads and copies its own events.
+ * controlled here — pause and clear apply to everything — while the
+ * timeline below shows, filters and exports the events.
  *
  * The captured history belongs to the {@link UwtInspectorSession}, so it
  * survives moving between docks and is discarded on close. Uses no
@@ -70,7 +70,7 @@ const ANNOUNCE_EVERY_MS = 10_000;
     CpsSwitchComponent,
     UwtInspectorDockSwitcherComponent,
     UwtInspectorLogoComponent,
-    UwtInspectorSectionComponent
+    UwtInspectorTimelineComponent
   ],
   providers: [
     {
@@ -111,12 +111,21 @@ export class UwtInspectorComponent {
   /** A pane or window brings no header of its own, so this draws one. */
   protected readonly framed = computed(() => this.dock() !== 'dialog');
 
-  protected readonly sections = UWT_INSPECTOR_SECTIONS;
+  /** Whether the app's window has room for a pane. */
+  protected readonly panesFit =
+    this.session.controls?.panesFit ?? signal(true).asReadonly();
+
   protected readonly maxPayloadChars = this.config.maxPayloadCharsInView;
 
   protected readonly since = computed(() =>
     uwtInspectorTime(this.store.startedAt()).slice(0, 8)
   );
+
+  /** The oldest events dropped to stay within each kind's limit. */
+  protected readonly dropped = computed(() => {
+    const dropped = this.store.dropped();
+    return UWT_INSPECTOR_SECTIONS.reduce((n, id) => n + dropped[id], 0);
+  });
 
   protected readonly pausedAt = computed(() => {
     const at = this.store.pausedAt();

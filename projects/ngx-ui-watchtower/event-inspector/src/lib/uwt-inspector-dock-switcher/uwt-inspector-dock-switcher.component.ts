@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   input,
   output
 } from '@angular/core';
@@ -21,7 +22,8 @@ const DOCK_LABEL: Record<UwtInspectorDock, string> = {
 /**
  * Moves the inspector between docks, like Chrome DevTools' dock side: one
  * icon per dock, the current one pressed. cps-ui-kit has no dock icons, so
- * they are drawn here.
+ * they are drawn here. Without room for a pane, only the dialog and the
+ * window are offered.
  */
 @Component({
   selector: 'uwt-inspector-dock-switcher',
@@ -32,12 +34,15 @@ const DOCK_LABEL: Record<UwtInspectorDock, string> = {
 })
 export class UwtInspectorDockSwitcherComponent {
   readonly dock = input.required<UwtInspectorDock>();
+  /** Whether the panes are offered; not on a narrow screen. */
+  readonly panes = input(true);
   readonly dockChange = output<UwtInspectorDock>();
 
-  protected readonly options = UWT_INSPECTOR_DOCKS.map((dock) => ({
-    dock,
-    label: DOCK_LABEL[dock]
-  }));
+  protected readonly options = computed(() =>
+    UWT_INSPECTOR_DOCKS.filter(
+      (dock) => this.panes() || dock === 'dialog' || dock === 'window'
+    ).map((dock) => ({ dock, label: DOCK_LABEL[dock] }))
+  );
 
   protected choose(dock: UwtInspectorDock): void {
     if (dock !== this.dock()) {

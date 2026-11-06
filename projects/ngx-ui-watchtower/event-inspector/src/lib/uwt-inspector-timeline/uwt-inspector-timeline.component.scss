@@ -1,0 +1,160 @@
+:host {
+  display: block;
+  container-type: inline-size;
+}
+
+.uwt-inspector-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+// Export sits by the kind toggle, as it exports the kind shown. On the
+// left, its menu has room to open: in a separate window the overlay is
+// placed against the app's window, so it can't flip back from the edge.
+.uwt-inspector-timeline__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.uwt-inspector-timeline__notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--cps-text-secondary);
+}
+
+// The table fits the timeline: the columns take the widths set below, a
+// long value ends in an ellipsis (in full in its title and the row's
+// detail), and an open row's payload wraps rather than widening the table.
+// Not a fixed layout: the open row spans 100 columns, which would squeeze
+// the real ones.
+:host ::ng-deep .uwt-inspector-timeline__table {
+  width: 100%;
+}
+
+td {
+  // Lets the table make a cell narrower than its text.
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uwt-inspector-timeline__time {
+  width: 7rem;
+  max-width: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.uwt-inspector-timeline__kind {
+  width: 5.5rem;
+}
+
+.uwt-inspector-timeline__name {
+  width: 25%;
+}
+
+.uwt-inspector-timeline__secondary {
+  width: 8rem;
+}
+
+.uwt-inspector-timeline__forwarded {
+  margin-inline-end: 0.375rem;
+  color: var(--cps-text-secondary);
+  font-size: 0.75rem;
+}
+
+// A new row is tinted, fading over the time it counts as new. The table
+// draws the row, so the tint goes on its cells.
+:host ::ng-deep tr:has(> .uwt-inspector-timeline__fresh) > td {
+  animation: uwt-inspector-fresh 3s ease-in forwards;
+}
+
+@keyframes uwt-inspector-fresh {
+  from {
+    background-color: var(--cps-color-calm-highlighten);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host ::ng-deep tr:has(> .uwt-inspector-timeline__fresh) > td {
+    animation: none;
+    background-color: var(--cps-color-calm-highlighten);
+  }
+}
+
+// The status or level is always written out; colour only supports it.
+// Shades dark enough to read as text: success 5.1:1, warn 5.6:1 on white.
+.uwt-inspector-timeline__tone--success {
+  color: var(--cps-color-success-darken2);
+}
+
+.uwt-inspector-timeline__tone--warn {
+  color: var(--cps-color-warn-darken3);
+  font-weight: 600;
+}
+
+.uwt-inspector-timeline__tone--error {
+  color: var(--cps-state-error);
+  font-weight: 600;
+}
+
+.uwt-inspector-timeline__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0.25rem;
+}
+
+.uwt-inspector-timeline__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  font-size: 0.8125rem;
+
+  div {
+    display: flex;
+    gap: 0.375rem;
+  }
+
+  dt {
+    color: var(--cps-text-secondary);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--cps-text-primary);
+  }
+}
+
+.uwt-inspector-timeline__error {
+  margin: 0;
+  color: var(--cps-state-error);
+  font-size: 0.8125rem;
+}
+
+// Only with room to spare, so the details keep theirs.
+@container (max-width: 64rem) {
+  .uwt-inspector-timeline__secondary {
+    display: none;
+  }
+}
+
+// A phone: the milliseconds go, leaving the name and details more room.
+@container (max-width: 30rem) {
+  .uwt-inspector-timeline__time {
+    width: 4.5rem;
+  }
+
+  .uwt-inspector-timeline__ms {
+    display: none;
+  }
+}

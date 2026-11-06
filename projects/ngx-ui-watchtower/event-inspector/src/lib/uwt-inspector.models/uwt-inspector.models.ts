@@ -2,11 +2,21 @@ import { InjectionToken } from '@angular/core';
 import { UwtTelemetryObservedEvent } from '@absaoss-cps/ngx-ui-watchtower';
 
 /**
- * The three sections of the Event Inspector.
+ * The kinds of event the Event Inspector tells apart: BI events (with any
+ * forwarded event of a type it doesn't recognise), scenarios and their
+ * steps, and logs (with errors mirrored to RUM).
  *
  * @group Types
  */
 export type UwtInspectorSectionId = 'bi' | 'scenario' | 'logging';
+
+/**
+ * What the Event Inspector's timeline shows, and exports: every kind, or
+ * one.
+ *
+ * @group Types
+ */
+export type UwtInspectorKindFilter = 'all' | UwtInspectorSectionId;
 
 /**
  * Where the Event Inspector opens: a dialog over the app, its own browser
@@ -80,7 +90,10 @@ export interface UwtEventInspectorConfig {
    */
   shortcuts: readonly UwtInspectorShortcut[];
 
-  /** Events kept per section; the oldest are dropped beyond this. */
+  /**
+   * Events kept per kind (BI, scenarios, logs); the oldest of that kind are
+   * dropped beyond this, so a burst of one kind never pushes out another.
+   */
   maxEventsPerSection: number;
 
   /**
@@ -145,18 +158,22 @@ export interface UwtInspectorFilterState {
 }
 
 /**
- * A downloaded JSON file: one section's captured events.
+ * An exported JSON file: the captured events of the kind shown, or of
+ * every kind (`section: 'all'`).
  *
- * `events` holds every event captured in that section, oldest first,
- * regardless of the filters on screen. `activeFilters` records that
- * section's filters, for context; they were not applied to `events`.
+ * `events` holds every event captured of that kind, oldest first,
+ * regardless of the search and filters on screen. `activeFilters` records
+ * them, for context; they were not applied to `events`.
+ *
+ * Version 2 exports the timeline; version 1 exported one of three sections
+ * and never had `'all'`.
  *
  * @group Interfaces
  */
 export interface UwtInspectorExport {
   format: 'ngx-ui-watchtower-event-inspector';
-  formatVersion: 1;
-  section: UwtInspectorSectionId;
+  formatVersion: 2;
+  section: UwtInspectorKindFilter;
   exportedAt: string;
   capture: { startedAt: string; endedAt: string; paused: boolean };
   app: {

@@ -125,7 +125,8 @@ describe('UwtEventInspectorService', () => {
     expect(dialogs.opened[0].config).toMatchObject({
       modal: false,
       ariaLabel: 'Event Inspector',
-      closeOnEscape: true
+      closeOnEscape: true,
+      styleClass: 'uwt-inspector-dialog'
     });
     expect(event.defaultPrevented).toBe(true);
     expect(TestBed.inject(UwtEventInspectorService).isOpen()).toBe(true);
@@ -373,5 +374,76 @@ describe('UwtEventInspectorService', () => {
     expect(open).toHaveBeenCalledTimes(1);
     expect(host.destroy).not.toHaveBeenCalled();
     expect(host.focus).toHaveBeenCalledTimes(2);
+  });
+
+  describe('on a screen too narrow for a pane', () => {
+    let change: ((event: { matches: boolean }) => void) | undefined;
+    /** Whether the app's window is narrower than 640px right now. */
+    let narrow = false;
+
+    /** The app's window, as `matchMedia` reports it: `narrow` when asked. */
+    function screenIsNarrow(matches: boolean): void {
+      narrow = matches;
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: jest.fn((query: string) => ({
+          get matches() {
+            return narrow;
+          },
+          media: query,
+          addEventListener: (_: string, listener: typeof change) =>
+            (change = listener),
+          removeEventListener: jest.fn()
+        }))
+      });
+    }
+
+    const original = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
+    afterEach(() => {
+      if (original) {
+        Object.defineProperty(window, 'matchMedia', original);
+      } else {
+        delete (window as { matchMedia?: unknown }).matchMedia;
+      }
+      change = undefined;
+    });
+
+    it('should open a remembered pane as a dialog, keeping the pane for later', () => {
+      screenIsNarrow(true);
+      remember({ dock: 'right' });
+      const service = create();
+
+      service.open();
+
+      expect(pane()).toBeNull();
+      expect(dialogs.opened).toHaveLength(1);
+      expect(stored().dock).toBe('right');
+      service.close();
+    });
+
+    it('should go by the width when it opens, before a resize is reported', () => {
+      screenIsNarrow(false);
+      remember({ dock: 'right' });
+      const service = create();
+
+      narrow = true; // no change event yet
+      service.open();
+
+      expect(pane()).toBeNull();
+      expect(dialogs.opened).toHaveLength(1);
+      service.close();
+    });
+
+    it('should tell the inspector whether a pane fits, as the window is resized', () => {
+      screenIsNarrow(false);
+      create();
+      const controls = TestBed.inject(UwtInspectorSession).controls;
+      expect(window.matchMedia).toHaveBeenCalledWith('(width < 640px)');
+      expect(controls?.panesFit()).toBe(true);
+
+      change?.({ matches: true });
+      expect(controls?.panesFit()).toBe(false);
+    });
   });
 });

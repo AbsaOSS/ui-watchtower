@@ -371,9 +371,11 @@ providers: [provideUwtEventInspector()];
 ```
 
 Open it with **Shift+E+I** (hold Shift, press E, then I), outside a text field.
-It lists everything the app sends from that moment on, with search, filters
-and JSON download. It opens as a dialog, with a Transparency slider; its Dock
-buttons move it to its own window or a pane on the left, right or bottom.
+It lists everything the app sends from that moment on in one timeline, newest
+first, showing every kind or just BI, scenarios or logs, with search, filters
+and JSON export. It opens as a dialog, with a Transparency slider; its Dock
+buttons move it to its own window or a pane on the left, right or bottom (on a
+screen at least 640px wide).
 
 A pane pushes the page aside, but elements fixed to the window stay put. To
 keep them beside the pane, use the size it publishes on `<html>`

@@ -46,7 +46,7 @@ const context = {
 };
 
 describe('uwtBuildInspectorExport', () => {
-  it("should contain every one of the section's events in hand-off order, whatever the filters", () => {
+  it('should contain every event given, in hand-off order, whatever the filters', () => {
     const doc = uwtBuildInspectorExport([bi(3), bi(1), bi(2)], context);
 
     expect(doc.events.map((e) => e.sequence)).toEqual([1, 2, 3]);
@@ -59,7 +59,7 @@ describe('uwtBuildInspectorExport', () => {
 
     expect(doc).toMatchObject({
       format: 'ngx-ui-watchtower-event-inspector',
-      formatVersion: 1,
+      formatVersion: 2,
       section: 'bi',
       exportedAt: '2026-01-01T10:05:00.000Z',
       capture: {
@@ -104,10 +104,14 @@ describe('uwtSafeStringify', () => {
 });
 
 describe('uwtInspectorFilename', () => {
-  it('should name the app, section and time, and nothing identifying', () => {
-    expect(
-      uwtInspectorFilename('my app/x', 'logging', new Date(2026, 0, 2, 3, 4, 5))
-    ).toBe('ngx-ui-watchtower-events-my-app-x-logging-20260102-030405.json');
+  it('should name the app, kind and time, and nothing identifying', () => {
+    const at = new Date(2026, 0, 2, 3, 4, 5);
+    expect(uwtInspectorFilename('my app/x', 'logging', at)).toBe(
+      'ngx-ui-watchtower-events-my-app-x-logging-20260102-030405.json'
+    );
+    expect(uwtInspectorFilename('shop', 'all', at)).toBe(
+      'ngx-ui-watchtower-events-shop-all-20260102-030405.json'
+    );
   });
 });
 

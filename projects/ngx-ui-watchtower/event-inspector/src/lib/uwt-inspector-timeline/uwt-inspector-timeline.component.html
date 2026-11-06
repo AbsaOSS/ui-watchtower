@@ -1,0 +1,171 @@
+<div class="uwt-inspector-timeline">
+  <div class="uwt-inspector-timeline__tools">
+    <cps-button-toggle
+      class="uwt-inspector-timeline__kinds"
+      ariaLabel="Kind of event"
+      [options]="kindOptions()"
+      [equalWidths]="false"
+      [value]="store.kind()"
+      (valueChanged)="setKind($event)">
+    </cps-button-toggle>
+    <cps-button
+      type="outlined"
+      size="small"
+      icon="download"
+      [label]="
+        copyState() === 'copied'
+          ? 'Copied'
+          : copyState() === 'failed'
+            ? 'Copy failed'
+            : 'Export'
+      "
+      ariaHaspopup="menu"
+      [ariaExpanded]="exportOpen()"
+      (clicked)="toggleExport(exportMenu, $event)">
+    </cps-button>
+    <cps-menu
+      #exportMenu
+      [header]="exportHeader()"
+      [items]="exportItems"
+      [withArrow]="false"
+      (menuShown)="exportOpen.set(true)"
+      (menuHidden)="exportOpen.set(false)">
+    </cps-menu>
+  </div>
+
+  <uwt-inspector-filter-bar></uwt-inspector-filter-bar>
+
+  @if (unseenNew() > 0) {
+    <div class="uwt-inspector-timeline__notice">
+      <span>{{ unseenNew() }} new at the top of the list.</span>
+      <cps-button
+        type="borderless"
+        size="xsmall"
+        label="Go to newest"
+        (clicked)="goToNewest()">
+      </cps-button>
+    </div>
+  }
+
+  <cps-table
+    [data]="rows()"
+    dataKey="sequence"
+    [hasToolbar]="false"
+    size="small"
+    [striped]="true"
+    [paginator]="true"
+    [alwaysShowPaginator]="false"
+    [rows]="25"
+    [rowsPerPageOptions]="[25, 50, 100]"
+    [first]="first()"
+    (pageChanged)="onPage($event)"
+    [emptyMessage]="emptyMessage()"
+    tableStyleClass="uwt-inspector-timeline__table">
+    <ng-template #header>
+      <th scope="col" class="uwt-inspector-timeline__time">Time</th>
+      <th scope="col" class="uwt-inspector-timeline__kind">Kind</th>
+      <th scope="col" class="uwt-inspector-timeline__name">Name</th>
+      <th scope="col">Details</th>
+      <th scope="col" class="uwt-inspector-timeline__secondary">Event type</th>
+      <th scope="col" class="uwt-inspector-timeline__secondary">Id</th>
+    </ng-template>
+
+    <ng-template let-row #body>
+      <td
+        class="uwt-inspector-timeline__time"
+        [class.uwt-inspector-timeline__fresh]="isFresh(row.sequence)"
+        [attr.title]="row.time">
+        @if (isFresh(row.sequence)) {
+          <span class="cps-sr-only">New: </span>
+        }
+        {{ row.time.slice(0, 8)
+        }}<span class="uwt-inspector-timeline__ms">{{
+          row.time.slice(8)
+        }}</span>
+      </td>
+      <td>{{ row.kind }}</td>
+      <td [attr.title]="row.name || null">
+        @if (row.forwardedFrom) {
+          <span class="uwt-inspector-timeline__forwarded"
+            >↪ {{ row.forwardedFrom }}</span
+          >
+        }
+        {{ row.name }}
+      </td>
+      <td
+        [class.uwt-inspector-timeline__tone--success]="row.tone === 'success'"
+        [class.uwt-inspector-timeline__tone--warn]="row.tone === 'warn'"
+        [class.uwt-inspector-timeline__tone--error]="row.tone === 'error'"
+        [attr.title]="row.details || null">
+        {{ row.details }}
+      </td>
+      <td
+        class="uwt-inspector-timeline__secondary"
+        [attr.title]="row.eventType || null">
+        {{ row.eventType }}
+      </td>
+      <td
+        class="uwt-inspector-timeline__secondary"
+        [attr.title]="row.id || null">
+        {{ row.id }}
+      </td>
+    </ng-template>
+
+    <ng-template let-row #rowexpansion>
+      <div class="uwt-inspector-timeline__detail">
+        <dl class="uwt-inspector-timeline__meta">
+          <div>
+            <dt>Handed to</dt>
+            <dd>
+              {{
+                row.entry.event.destination === 'sink'
+                  ? 'telemetry sink'
+                  : 'log API provider'
+              }}
+            </dd>
+          </div>
+          <div>
+            <dt>From</dt>
+            <dd>
+              {{
+                row.forwardedFrom
+                  ? 'forwarded by ' + row.forwardedFrom
+                  : 'this app'
+              }}
+            </dd>
+          </div>
+          @if ('eventType' in row.entry.event) {
+            <div>
+              <dt>Event type</dt>
+              <dd>{{ row.entry.event.eventType }}</dd>
+            </div>
+          }
+          @if (
+            row.entry.event.kind === 'error' && row.entry.event.relatedSequence
+          ) {
+            <div>
+              <dt>Mirrored from</dt>
+              <dd>log event #{{ row.entry.event.relatedSequence }}</dd>
+            </div>
+          }
+          <div>
+            <dt>Event</dt>
+            <dd>#{{ row.sequence }}, {{ row.entry.sizeChars }} characters</dd>
+          </div>
+        </dl>
+        @if (row.entry.renderError) {
+          <p class="uwt-inspector-timeline__error">
+            Couldn't prepare this event for display:
+            {{ row.entry.renderError }}
+          </p>
+        }
+        <uwt-inspector-json
+          [value]="row.entry.event.payload"
+          [label]="'Payload of event #' + row.sequence"
+          copyLabel="Copy event"
+          [maxChars]="maxPayloadChars()">
+        </uwt-inspector-json>
+      </div>
+    </ng-template>
+  </cps-table>
+</div>

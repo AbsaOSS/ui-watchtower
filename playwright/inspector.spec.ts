@@ -1,4 +1,4 @@
-import { expect, openLab, Page, press, test } from './lab';
+import { expect, openLab, Page, press, showKind, test } from './lab';
 
 /** Holds Shift and presses `keys` — by default the shortcut, Shift+E+I. */
 async function shortcut(page: Page, keys = ['KeyE', 'KeyI']): Promise<void> {
@@ -33,6 +33,34 @@ test('opens from the header as a dialog, with the mark and the transparency slid
     dialog.locator('.cps-dialog-header-icon uwt-inspector-logo')
   ).toHaveCount(1);
   await expect(dialog.locator('cps-slider')).toBeVisible();
+
+  // The title sits by the mark on the left, as in a pane or the window.
+  const header = (await dialog.locator('.cps-dialog-header').boundingBox())!;
+  const title = (await dialog
+    .locator('.cps-dialog-header-title')
+    .boundingBox())!;
+  expect(title.x - header.x).toBeLessThan(header.width / 4);
+});
+
+test('a phone-sized screen offers only the dialog and the window, and opens a remembered pane as a dialog', async ({
+  page
+}) => {
+  await press(page, 'Right pane');
+  await expect(page.locator('uwt-inspector-pane')).toBeVisible();
+  await press(page, 'Close');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await shortcut(page);
+  await expect(page.locator('.cps-dialog uwt-inspector')).toBeVisible();
+  await expect(page.locator('uwt-inspector-pane')).toHaveCount(0);
+  await expect(page.locator('[data-dock]')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Close dialog' }).click();
+  await expect(page.locator('uwt-inspector')).toHaveCount(0);
+
+  // Kept for a wider screen.
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await shortcut(page);
+  await expect(page.locator('uwt-inspector-pane')).toBeVisible();
 });
 
 test('the Dialog button moves it from a pane to the dialog', async ({
@@ -156,7 +184,7 @@ test('reopens where it was last, after a reload', async ({ page }) => {
   expect(Math.round(pane.x + pane.width)).toBe(page.viewportSize()!.width);
 });
 
-test('lists what is sent, keeping the newest 500 events per section', async ({
+test('lists what is sent, keeping the newest 500 events of each kind', async ({
   page
 }) => {
   // A pane, so the page's buttons stay clear of it.
@@ -167,41 +195,49 @@ test('lists what is sent, keeping the newest 500 events per section', async ({
   await press(page, 'Odd shapes');
   await press(page, 'An unknown event type');
 
-  await expect(page.locator('uwt-inspector')).toContainText(
-    /BI telemetry · 500 · last [\d:]{8} · oldest \d+ dropped/
-  );
+  const inspector = page.locator('uwt-inspector');
+  await expect(inspector).toContainText(/ · \d+ oldest dropped/);
+  await expect(inspector.locator('cps-button-toggle')).toContainText('BI 500');
 });
 
-test('sorts each kind into its section, and shows any shape — an unrecognised type, odd values, a huge payload cut short', async ({
+test('shows every kind in one timeline, and any shape — an unrecognised type, odd values, a huge payload cut short', async ({
   page
 }) => {
-  const section = (title: string) =>
-    page.locator('uwt-inspector-section').filter({ hasText: title });
-  const bi = section('BI telemetry');
+  const timeline = page.locator('uwt-inspector-timeline');
+  const row = (text: string) =>
+    timeline.locator('tbody tr:not(.cps-table-row-expanded-content)', {
+      hasText: text
+    });
 
   await press(page, 'Right pane');
   await press(page, 'One of each kind');
   await press(page, 'An unknown event type');
   await press(page, 'Odd shapes');
 
-  await expect(section('Scenario telemetry')).toContainText('lab-happy-path');
-  await expect(section('Logging')).toContainText(
-    'A warning, from the Event Inspector page'
+  await expect(row('lab-happy-path')).toContainText('Scenario');
+  await expect(row('A warning, from the Event Inspector page')).toContainText(
+    'Log'
   );
-  await expect(section('Logging')).toContainText('error → RUM');
-  await expect(bi).toContainText('com.example.custom (unrecognised type)');
+  await expect(row('→ RUM')).toContainText('Error');
+  await expect(row('com.example.custom')).toContainText(
+    'unrecognised event type'
+  );
+
+  await showKind(page, 'Logs');
+  await expect(timeline).not.toContainText('lab-happy-path');
+  await expect(timeline).toContainText('→ RUM');
+  await showKind(page, 'All');
 
   const expand = (eventName: string) =>
-    bi
-      .locator('tbody tr', { hasText: eventName })
-      .getByRole('button', { name: 'Expand row' })
-      .click();
+    row(eventName).getByRole('button', { name: 'Expand row' }).click();
 
   await expand('lab_odd_shapes');
-  await expect(bi).toContainText('Zürich · 東京 · 🚀');
-  await expect(bi.locator('.uwt-inspector-section__error')).toHaveCount(0);
+  await expect(timeline).toContainText('Zürich · 東京 · 🚀');
+  await expect(timeline.locator('.uwt-inspector-timeline__error')).toHaveCount(
+    0
+  );
 
   await press(page, 'A 300,000-character payload');
   await expand('lab_huge_payload');
-  await expect(bi).toContainText('Large payload: showing the first');
+  await expect(timeline).toContainText('Large payload: showing the first');
 });

@@ -65,7 +65,7 @@ for (const path of PAGES) {
   });
 }
 
-test('the Event Inspector with events, a row open and a filter being built: no violations, and readable warnings', async ({
+test('the Event Inspector with events, a row open, a filter being built and the Export menu open: no violations, and readable colours', async ({
   page
 }) => {
   await page.addInitScript(() =>
@@ -79,22 +79,29 @@ test('the Event Inspector with events, a row open and a filter being built: no v
   await press(page, 'One of each kind');
   await press(page, 'An unknown event type');
   await press(page, 'A 300,000-character payload');
-  const bi = page
-    .locator('uwt-inspector-section')
-    .filter({ hasText: 'BI telemetry' });
-  await bi
+  const timeline = page.locator('uwt-inspector-timeline');
+  await timeline
     .locator('tbody tr', { hasText: 'lab_huge_payload' })
     .getByRole('button', { name: 'Expand row' })
     .click();
-  await page.getByRole('button', { name: 'Add filter, BI telemetry' }).click();
-  await expect(bi).toContainText('Large payload: showing the first');
+  await page.getByRole('button', { name: 'Add filter' }).click();
+  await expect(timeline).toContainText('Large payload: showing the first');
+  // Past the new-row tint, so contrast is measured on the usual rows.
+  await page.waitForTimeout(3500);
 
   expect(await violations(page, 'uwt-inspector-pane')).toEqual([]);
   // axe can't always settle contrast on striped rows; measured directly.
-  expect(
-    await contrastOf(page, '.uwt-inspector-section__level--warn')
-  ).toBeGreaterThanOrEqual(4.5);
+  for (const tone of ['success', 'warn', 'error']) {
+    expect(
+      await contrastOf(page, `.uwt-inspector-timeline__tone--${tone}`)
+    ).toBeGreaterThanOrEqual(4.5);
+  }
   expect(
     await contrastOf(page, '.uwt-inspector-json__notice')
   ).toBeGreaterThanOrEqual(4.5);
+
+  await timeline.getByRole('button', { name: 'Export' }).click();
+  // Once it has faded in: mid-fade, its text is too faint to measure.
+  await expect(page.locator('.cps-menu-container')).toHaveCSS('opacity', '1');
+  expect(await violations(page, '.cps-menu-container')).toEqual([]);
 });

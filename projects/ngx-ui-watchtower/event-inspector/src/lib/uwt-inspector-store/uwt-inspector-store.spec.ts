@@ -100,7 +100,7 @@ describe('UwtInspectorStore', () => {
     expect(names(store)).toEqual(['b', 'a']); // newest first
   });
 
-  it('should route each kind to its section', () => {
+  it('should keep each kind apart', () => {
     const store = createStore();
     monitor.publish(bi('a'));
     monitor.publish(log('careful'));
@@ -111,16 +111,18 @@ describe('UwtInspectorStore', () => {
     expect(store.entries().scenario).toHaveLength(0);
   });
 
-  it('should keep at most the configured number per section, counting drops', () => {
+  it('should keep at most the configured number per kind, counting drops', () => {
     const store = createStore(2);
     ['a', 'b', 'c', 'd'].forEach((n) => monitor.publish(bi(n)));
-    monitor.publish(log('kept'));
+    ['x', 'y', 'z'].forEach((m) => monitor.publish(log(m)));
     flush();
 
     expect(names(store)).toEqual(['d', 'c']);
     expect(store.dropped().bi).toBe(2);
-    // A noisy section never evicts another.
-    expect(store.entries().logging).toHaveLength(1);
+    // A noisy kind never evicts another: each keeps its own two.
+    expect(store.entries().logging).toHaveLength(2);
+    expect(store.count('logging')).toEqual({ captured: 2, droppedOldest: 1 });
+    expect(store.count('all')).toEqual({ captured: 4, droppedOldest: 3 });
   });
 
   it('should clear everything and keep capturing', () => {
@@ -147,8 +149,8 @@ describe('UwtInspectorStore', () => {
     flush();
     expect(names(store)).toEqual(['a']);
     expect(store.newWhilePaused()).toBe(2);
-    // The section's download still contains them.
-    expect(store.sectionEvents('bi')).toHaveLength(3);
+    // The export still contains them.
+    expect(store.events('bi')).toHaveLength(3);
 
     store.setPaused(false);
     expect(names(store)).toEqual(['c', 'b', 'a']);
@@ -174,65 +176,87 @@ describe('UwtInspectorStore', () => {
     const store = createStore();
     monitor.publish(bi('a'));
 
-    expect(store.sectionEvents('bi')).toHaveLength(1);
-    expect(store.sectionCount('bi')).toEqual({ captured: 1, droppedOldest: 0 });
+    expect(store.events('bi')).toHaveLength(1);
+    expect(store.events('all')).toHaveLength(1);
+    expect(store.count('bi')).toEqual({ captured: 1, droppedOldest: 0 });
 
     flush();
     expect(names(store)).toEqual(['a']);
   });
 
-  it("should export only a section's own events, oldest first", () => {
+  it('should export one kind, or every kind, oldest first', () => {
     const store = createStore();
     monitor.publish(bi('first'));
     monitor.publish(log('a log line'));
     monitor.publish(bi('second'));
     flush();
 
-    const events = store.sectionEvents('bi');
+    const events = store.events('bi');
     expect(events.map((e) => e.kind)).toEqual(['bi', 'bi']);
     expect(events[0].sequence).toBeLessThan(events[1].sequence);
-    expect(store.sectionEvents('logging')).toHaveLength(1);
-    expect(store.sectionEvents('scenario')).toHaveLength(0);
+    expect(store.events('all').map((e) => e.kind)).toEqual(['bi', 'log', 'bi']);
+    expect(store.events('logging')).toHaveLength(1);
+    expect(store.events('scenario')).toHaveLength(0);
   });
 
-  it('should filter each section on its own, ignoring case', () => {
+  it('should show every kind merged newest first, or one kind', () => {
+    const store = createStore();
+    monitor.publish(bi('a'));
+    monitor.publish(log('b'));
+    monitor.publish(bi('c'));
+    flush();
+
+    const sequences = store.filtered().map((e) => e.event.sequence);
+    expect(store.filtered().map((e) => e.event.kind)).toEqual([
+      'bi',
+      'log',
+      'bi'
+    ]);
+    expect(sequences).toEqual([...sequences].sort((x, y) => y - x));
+
+    store.setKind('logging');
+    expect(store.filtered().map((e) => e.event.kind)).toEqual(['log']);
+  });
+
+  it('should filter every kind at once, ignoring case, and count matches per kind', () => {
     const store = createStore();
     monitor.publish(bi('theme_changed'));
     monitor.publish(bi('sidebar_toggled'));
     monitor.publish(log('Careful now'));
     flush();
 
-    store.setText('bi', 'THEME');
-    expect(store.filtered().bi).toHaveLength(1);
-    // Other sections are untouched by BI's filter.
-    expect(store.filtered().logging).toHaveLength(1);
-    expect(store.isFiltering('bi')).toBe(true);
-    expect(store.isFiltering('logging')).toBe(false);
+    store.setText('THEME');
+    expect(store.filtered()).toHaveLength(1);
+    expect(store.matchCounts()).toEqual({ bi: 1, scenario: 0, logging: 0 });
 
-    store.addFilter('logging', {
-      path: 'level',
-      operator: 'equals',
-      value: 'error'
-    });
-    expect(store.filtered().logging).toHaveLength(0);
-    expect(store.filtered().bi).toHaveLength(1);
+    store.setText('');
+    store.addFilter({ path: 'level', operator: 'equals', value: 'warn' });
+    expect(store.filtered().map((e) => e.event.kind)).toEqual(['log']);
+    expect(store.matchCounts()).toEqual({ bi: 0, scenario: 0, logging: 1 });
 
-    store.removeFilter('logging', store.filters().logging.fields[0].id);
-    expect(store.filtered().logging).toHaveLength(1);
+    store.removeFilter(store.filters().fields[0].id);
+    expect(store.filtered()).toHaveLength(3);
 
-    store.clearFilters('bi');
-    expect(store.filtered().bi).toHaveLength(2);
+    store.setText('careful');
+    store.setKind('bi');
+    expect(store.filtered()).toHaveLength(0);
+    store.clearFilters();
+    expect(store.filters()).toEqual({ text: '', fields: [] });
+    expect(store.filtered()).toHaveLength(2);
   });
 
-  it('should suggest filter fields from each section separately', () => {
+  it('should suggest filter fields from the kind shown', () => {
     const store = createStore();
     monitor.publish(bi('a'));
     monitor.publish(log('b'));
     flush();
 
-    expect(store.knownPaths().logging).toContain('level');
-    expect(store.knownPaths().bi).not.toContain('level');
-    expect(store.knownPaths().bi).toContain('eventName');
+    expect(store.knownPaths()).toContain('level');
+    expect(store.knownPaths()).toContain('eventName');
+
+    store.setKind('bi');
+    expect(store.knownPaths()).not.toContain('level');
+    expect(store.knownPaths()).toContain('eventName');
   });
 
   it('should mark the latest arrivals as new, briefly', () => {

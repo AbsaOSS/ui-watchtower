@@ -3,7 +3,7 @@
   class="uwt-inspector-dock__group"
   role="group"
   aria-label="Dock the Event Inspector">
-  @for (option of options; track option.dock) {
+  @for (option of options(); track option.dock) {
     <button
       type="button"
       class="uwt-inspector-dock__option"

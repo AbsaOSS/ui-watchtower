@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { expect, openLab, Page, press, test } from './lab';
+import { expect, openLab, Page, press, showKind, test } from './lab';
 
 /** Opens the lab's Event Inspector page, and the inspector in `dock`. */
 async function openInspector(page: Page, dock = 'right'): Promise<void> {
@@ -15,15 +15,28 @@ async function openInspector(page: Page, dock = 'right'): Promise<void> {
   await expect(page.locator('uwt-inspector')).toBeVisible();
 }
 
-const section = (page: Page, title: string) =>
-  page.locator('uwt-inspector-section').filter({ hasText: title });
+const timeline = (page: Page) => page.locator('uwt-inspector-timeline');
+/** The timeline's rows, without an open row's detail. */
+const rows = (page: Page) =>
+  timeline(page).locator('tbody tr:not(.cps-table-row-expanded-content)');
+
+/** Opens the Export menu and chooses one of its items. */
+async function exportAs(
+  page: Page,
+  item: 'Copy JSON' | 'Download JSON'
+): Promise<void> {
+  await timeline(page).getByRole('button', { name: 'Export' }).click();
+  await page.getByRole('menuitem', { name: new RegExp(`^${item}`) }).click();
+  // cps-menu ignores the button while it is still closing.
+  await expect(page.getByRole('menu')).toBeHidden();
+}
 
 test('pause holds new events back until Resume, and Clear empties it', async ({
   page
 }) => {
   await openInspector(page);
   const inspector = page.locator('uwt-inspector');
-  const bi = section(page, 'BI telemetry');
+  const events = timeline(page);
 
   await page
     .locator('cps-switch', { hasText: 'Pause live updates' })
@@ -31,75 +44,85 @@ test('pause holds new events back until Resume, and Clear empties it', async ({
     .click();
   await press(page, 'An unknown event type');
   await expect(inspector).toContainText('1 new event held back while paused.');
-  await expect(bi).not.toContainText('com.example.custom');
+  await expect(events).not.toContainText('com.example.custom');
 
   await press(page, 'Resume');
-  await expect(bi).toContainText('com.example.custom');
+  await expect(events).toContainText('com.example.custom');
 
   await page.getByRole('button', { name: 'Clear captured events' }).click();
   await expect(inspector).toContainText('Capturing from now.');
-  await expect(bi).not.toContainText('com.example.custom');
+  await expect(events).not.toContainText('com.example.custom');
 });
 
-test('search and field filters narrow a section, until cleared', async ({
+test('one search and set of filters narrow every kind, until cleared; the kind toggle narrows to one', async ({
   page
 }) => {
   await openInspector(page);
   await press(page, 'One of each kind');
   await press(page, 'An unknown event type');
-  const bi = section(page, 'BI telemetry');
-  await expect(bi).toContainText('com.example.custom (unrecognised type)');
+  const events = timeline(page);
+  await expect(events).toContainText('com.example.custom');
+  await expect(events).toContainText('lab-happy-path');
 
-  const search = page.getByRole('textbox', {
-    name: 'Search BI telemetry events'
-  });
+  const search = page.getByRole('textbox', { name: 'Search events' });
   await search.fill('each-kind');
-  await expect(bi).not.toContainText('com.example.custom');
-  await expect(bi).toContainText('lab_button_clicked');
+  await expect(events).not.toContainText('com.example.custom');
+  await expect(events).toContainText('lab_button_clicked');
   await search.fill('');
-  await expect(bi).toContainText('com.example.custom');
+  await expect(events).toContainText('com.example.custom');
 
-  await page.getByRole('button', { name: 'Add filter, BI telemetry' }).click();
-  const builder = page.getByRole('group', {
-    name: 'New filter for BI telemetry'
-  });
+  await page.getByRole('button', { name: 'Add filter' }).click();
+  const builder = page.getByRole('group', { name: 'New filter' });
   await builder.getByRole('combobox', { name: 'Field' }).click();
   await page.getByRole('option', { name: 'eventType', exact: true }).click();
   await builder.getByRole('textbox', { name: 'Value' }).fill('com.example');
   await builder.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(bi).not.toContainText('lab_button_clicked');
-  await expect(bi).toContainText('com.example.custom');
+  await expect(events).not.toContainText('lab_button_clicked');
+  await expect(events).not.toContainText('lab-happy-path');
+  await expect(events).toContainText('com.example.custom');
 
-  await page
-    .getByRole('button', { name: 'Clear filters for BI telemetry' })
-    .click();
-  await expect(bi).toContainText('lab_button_clicked');
+  await page.getByRole('button', { name: 'Clear filters' }).click();
+  await expect(events).toContainText('lab_button_clicked');
+
+  await showKind(page, 'Scenarios');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(events).toContainText('lab-happy-path');
+  await showKind(page, 'All');
+  await expect(events).toContainText('lab_button_clicked');
 });
 
-test('Download JSON saves a section as a versioned file', async ({ page }) => {
+test('Export saves every kind, or the kind shown, as a versioned file', async ({
+  page
+}) => {
   await openInspector(page);
   await press(page, 'One of each kind');
-  const bi = section(page, 'BI telemetry');
-  await expect(bi).toContainText('lab_button_clicked');
+  await expect(timeline(page)).toContainText('lab_button_clicked');
 
-  const download = page.waitForEvent('download');
-  await bi
-    .getByRole('button', { name: /^Download JSON, BI telemetry/ })
-    .click();
-  const file = await download;
+  let download = page.waitForEvent('download');
+  await exportAs(page, 'Download JSON');
+  let file = await download;
   expect(file.suggestedFilename()).toMatch(
-    /^ngx-ui-watchtower-events-watchtower-lab-bi-\d{8}-\d{6}\.json$/
+    /^ngx-ui-watchtower-events-watchtower-lab-all-\d{8}-\d{6}\.json$/
   );
-  const exported = JSON.parse(await readFile(await file.path(), 'utf8'));
-  expect(exported).toMatchObject({
-    formatVersion: 1,
+  const all = JSON.parse(await readFile(await file.path(), 'utf8'));
+  expect(all).toMatchObject({ formatVersion: 2, section: 'all' });
+  expect(all.count.captured).toBeGreaterThan(1);
+
+  await showKind(page, 'BI');
+  download = page.waitForEvent('download');
+  await exportAs(page, 'Download JSON');
+  file = await download;
+  expect(file.suggestedFilename()).toContain('-bi-');
+  const bi = JSON.parse(await readFile(await file.path(), 'utf8'));
+  expect(bi).toMatchObject({
+    formatVersion: 2,
     section: 'bi',
     count: { captured: 1, droppedOldest: 0 }
   });
-  expect(exported.events[0].payload.eventName).toBe('lab_button_clicked');
+  expect(bi.events[0].payload.eventName).toBe('lab_button_clicked');
 });
 
-test('Copy JSON puts a section on the clipboard', async ({
+test('Copy JSON puts the kind shown on the clipboard', async ({
   page,
   context,
   browserName
@@ -111,11 +134,13 @@ test('Copy JSON puts a section on the clipboard', async ({
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await openInspector(page);
   await press(page, 'One of each kind');
-  const bi = section(page, 'BI telemetry');
-  await expect(bi).toContainText('lab_button_clicked');
+  await expect(timeline(page)).toContainText('lab_button_clicked');
 
-  await bi.getByRole('button', { name: 'Copy JSON, BI telemetry' }).click();
-  await expect(bi).toContainText('Copied');
+  await showKind(page, 'BI');
+  await exportAs(page, 'Copy JSON');
+  await expect(
+    timeline(page).getByRole('button', { name: 'Copied' })
+  ).toBeVisible();
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(JSON.parse(copied)).toMatchObject({
     section: 'bi',
@@ -128,16 +153,16 @@ test('pages 25 rows at a time, and offers the newest when more arrive', async ({
 }) => {
   await openInspector(page);
   await press(page, 'A burst of 600 BI events');
-  const bi = section(page, 'BI telemetry');
-  await expect(bi.locator('tbody tr')).toHaveCount(25);
+  const events = timeline(page);
+  await expect(rows(page)).toHaveCount(25);
 
-  await bi.getByRole('button', { name: /next page/i }).click();
+  await events.getByRole('button', { name: /next page/i }).click();
+  // Once the burst is no longer new, so only the next event counts.
+  await expect(events).not.toContainText('new at the top', { timeout: 5000 });
   await press(page, 'An unknown event type');
-  await expect(bi).toContainText('1 new on the first page.');
-  await bi.getByRole('button', { name: 'Go to newest' }).click();
-  await expect(bi.locator('tbody tr').first()).toContainText(
-    'com.example.custom'
-  );
+  await expect(events).toContainText('1 new at the top of the list.');
+  await events.getByRole('button', { name: 'Go to newest' }).click();
+  await expect(rows(page).first()).toContainText('com.example.custom');
 });
 
 test('the transparency slider makes the dialog see-through', async ({
@@ -200,10 +225,9 @@ test('a blocked window falls back to the dialog, and says so once', async ({
 test('a mirrored error links back to its log event', async ({ page }) => {
   await openInspector(page);
   await press(page, 'One of each kind');
-  const logging = section(page, 'Logging');
-  await logging
-    .locator('tbody tr', { hasText: 'error → RUM' })
+  await rows(page)
+    .filter({ hasText: '→ RUM' })
     .getByRole('button', { name: 'Expand row' })
     .click();
-  await expect(logging).toContainText(/Mirrored from\s*log event #\d+/);
+  await expect(timeline(page)).toContainText(/Mirrored from\s*log event #\d+/);
 });

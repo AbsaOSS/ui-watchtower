@@ -23,8 +23,6 @@ describe('UwtInspectorFilterBarComponent', () => {
     }).compileComponents();
     store = TestBed.inject(UwtInspectorStore);
     fixture = TestBed.createComponent(UwtInspectorFilterBarComponent);
-    fixture.componentRef.setInput('section', 'logging');
-    fixture.componentRef.setInput('sectionName', 'Logging');
     fixture.detectChanges();
   });
 
@@ -43,13 +41,13 @@ describe('UwtInspectorFilterBarComponent', () => {
     expect(bar().canAdd()).toBe(true);
   });
 
-  it('should name its controls after the section', () => {
+  it('should name its search field', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(
       el
         .querySelector('.uwt-inspector-search input')
         ?.getAttribute('aria-label')
-    ).toBe('Search Logging events');
+    ).toBe('Search events');
   });
 
   it('should add a filter as a removable chip with a spoken name', () => {
@@ -59,9 +57,7 @@ describe('UwtInspectorFilterBarComponent', () => {
     bar().add();
     fixture.detectChanges();
 
-    // Written to this bar's own section only.
-    expect(store.filters().bi.fields).toHaveLength(0);
-    expect(store.filters().logging.fields).toEqual([
+    expect(store.filters().fields).toEqual([
       expect.objectContaining({
         path: 'metadata.theme',
         operator: 'equals',
@@ -77,13 +73,12 @@ describe('UwtInspectorFilterBarComponent', () => {
 
     close.click();
     fixture.detectChanges();
-    expect(store.filters().logging.fields).toHaveLength(0);
+    expect(store.filters().fields).toHaveLength(0);
   });
 
   it('should clear the text and every filter together', () => {
-    store.setText('logging', 'x');
-    store.addFilter('logging', { path: 'kind', operator: 'exists', value: '' });
-    store.setText('bi', 'kept');
+    store.setText('x');
+    store.addFilter({ path: 'kind', operator: 'exists', value: '' });
     fixture.detectChanges();
 
     const clearBtn = Array.from(
@@ -91,8 +86,6 @@ describe('UwtInspectorFilterBarComponent', () => {
     ).find((b) => b.textContent?.trim() === 'Clear filters');
     clearBtn?.click();
 
-    expect(store.filters().logging).toEqual({ text: '', fields: [] });
-    // Another section's filters are left alone.
-    expect(store.filters().bi.text).toBe('kept');
+    expect(store.filters()).toEqual({ text: '', fields: [] });
   });
 });

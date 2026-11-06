@@ -2,12 +2,12 @@ import { UwtTelemetryObservedEvent } from '@absaoss-cps/ngx-ui-watchtower';
 import {
   UwtInspectorExport,
   UwtInspectorFilterState,
-  UwtInspectorSectionId
+  UwtInspectorKindFilter
 } from '../uwt-inspector.models/uwt-inspector.models';
 
 /** What the export needs to know beyond the events themselves. */
 export interface UwtInspectorExportContext {
-  section: UwtInspectorSectionId;
+  section: UwtInspectorKindFilter;
   startedAt: string;
   paused: boolean;
   app: UwtInspectorExport['app'];
@@ -19,8 +19,9 @@ export interface UwtInspectorExportContext {
 }
 
 /**
- * One section's downloadable document: every event captured in it, in the
- * order they were handed over, regardless of the filters on screen.
+ * The downloadable document for a kind, or every kind: every event captured
+ * of it, in the order they were handed over, regardless of the filters on
+ * screen.
  */
 export function uwtBuildInspectorExport(
   events: readonly UwtTelemetryObservedEvent[],
@@ -29,7 +30,7 @@ export function uwtBuildInspectorExport(
   const now = (context.now ?? new Date()).toISOString();
   return {
     format: 'ngx-ui-watchtower-event-inspector',
-    formatVersion: 1,
+    formatVersion: 2,
     section: context.section,
     exportedAt: now,
     capture: {
@@ -76,12 +77,13 @@ export function uwtSafeStringify(value: unknown, indent?: number): string {
 }
 
 /**
- * `ngx-ui-watchtower-events-<application>-<section>-<yyyyMMdd-HHmmss>.json`
- * — no session or user id, since the name ends up in folders and tickets.
+ * `ngx-ui-watchtower-events-<application>-<kind>-<yyyyMMdd-HHmmss>.json`,
+ * the kind being `all`, `bi`, `scenario` or `logging` — no session or user
+ * id, since the name ends up in folders and tickets.
  */
 export function uwtInspectorFilename(
   application: string,
-  section: UwtInspectorSectionId,
+  section: UwtInspectorKindFilter,
   at: Date
 ): string {
   const pad = (n: number) => String(n).padStart(2, '0');

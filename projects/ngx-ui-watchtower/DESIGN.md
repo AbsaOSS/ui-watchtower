@@ -138,8 +138,8 @@ Everything each entry point exports, by role.
 `UwtEventInspectorService`, `UWT_EVENT_INSPECTOR_CONFIG`,
 `UwtEventInspectorConfig`, `UWT_DEFAULT_INSPECTOR_CONFIG`,
 `UwtInspectorShortcut`, `UWT_DEFAULT_INSPECTOR_SHORTCUTS`,
-`UwtInspectorDock`, `UwtInspectorExport`, `UwtInspectorSectionId`, and the
-filter types
+`UwtInspectorDock`, `UwtInspectorExport`, `UwtInspectorSectionId`,
+`UwtInspectorKindFilter`, and the filter types
 `UwtInspectorFilterState`, `UwtInspectorFieldFilter`,
 `UwtInspectorFilterOperator` — see §12, "Event Inspector".
 
@@ -1347,8 +1347,9 @@ nothing, sends nothing and grants no remote access.
 
 Avoid sharing your screen while it is open, and treat downloads as you would
 any file with ids in it; filenames carry only the application name, the
-section and a timestamp
-(`ngx-ui-watchtower-events-<application>-<section>-<yyyyMMdd-HHmmss>.json`). The shortcut prevents accidental opening; it is not access
+kind exported and a timestamp
+(`ngx-ui-watchtower-events-<application>-<kind>-<yyyyMMdd-HHmmss>.json`,
+the kind being `all`, `bi`, `scenario` or `logging`). The shortcut prevents accidental opening; it is not access
 control — use `enabled` for that, or leave the provider out.
 
 ---
@@ -1661,7 +1662,7 @@ convention, for an application that wants the pre-fallback behavior back.
   before the RUM client is ready, then replays them; it never grows past
   that if initialization never completes. The telemetry monitor costs one
   check per event while nobody watches; the popup keeps at most 500 events
-  per section, updates the screen at most every 250 ms, and releases
+  of each kind, updates the screen at most every 250 ms, and releases
   everything when it closes.
 
 The console report is itself wrapped in a try/catch — an application that has
@@ -2113,6 +2114,10 @@ side, and the choice is remembered in this browser:
 Moving it keeps everything captured, the filters and the pause; pages and
 expanded rows start afresh.
 
+A screen narrower than 640px has no room for a pane: the Dock buttons offer
+only the dialog and the window, and a pane remembered from a wider screen
+opens as a dialog there.
+
 A pane makes room by padding the page's `body` on its side, so content in
 the normal flow moves aside. A page can't shrink the browser's viewport —
 only the browser can, as DevTools does — so whatever is laid out against the
@@ -2170,24 +2175,37 @@ provideUwtEventInspector({
 
 #### What it shows
 
-Three sections — BI telemetry, scenario telemetry and logging — listing
-events newest first, from the moment the popup opens. The table always fits
-the popup: a long value ends in an ellipsis, and hovering shows it in full.
-Expand a row for the full payload as JSON; its **Copy event** puts that one
-payload on the clipboard.
+One timeline of everything sent from the moment the popup opens, newest
+first: BI events, scenarios and their steps, and log records with the errors
+they mirror to RUM. Each row shows the time, the kind, a name and the
+details — a BI event's first metadata, a scenario's status, duration and
+steps, a log's level and message — with a status or level coloured as well
+as written. With room to spare, it adds the event type and the scenario or
+correlation id. A new row is tinted for a moment, and screen readers hear
+that it is new. The table always fits the popup: a long value ends in an
+ellipsis, and hovering shows it in full. Expand a row for the full payload
+as JSON; its **Copy event** puts that one payload on the clipboard.
 
-Each section has its own tools, which never affect the other two:
+It shows 25 rows a page, with a pager once there is more than one. On a
+later page, a notice counts the new events at the top, with **Go to
+newest**.
 
-- **Search** matches any field's value or name. **Add filter** compares one
-  field — `metadata.theme`, `status`, or `steps[].name` for any item of a
-  list. Field suggestions come from the events that section has seen.
-- **Download JSON** saves every event that section captured, oldest first,
-  whatever its filters, with those filters recorded in the file. Each event
-  keeps its `sequence` and `capturedAt`, so downloads from different
-  sections can be interleaved again. **Copy JSON** puts the same JSON on the
-  clipboard, for when a browser blocks downloads.
+The tools above the table:
 
-Two controls at the top apply to all three sections, because they are about
+- **All, BI, Scenarios, Logs** shows every kind or one, each with how many
+  of its events match the search and filters.
+- **Export** saves the kind shown as JSON: **Download JSON** as a file, or
+  **Copy JSON** to the clipboard, for when a browser blocks downloads. It
+  holds every event captured of that kind, oldest first, whatever the search
+  and filters, which are recorded in the file. Each event keeps its
+  `sequence` and `capturedAt`, so exports of different kinds can be
+  interleaved again.
+- **Search** matches any field's value or name, in every kind. **Add
+  filter** compares one field — `metadata.theme`, `status`, or
+  `steps[].name` for any item of a list. Field suggestions come from the
+  events of the kind shown.
+
+Two controls at the top apply to everything, because they are about
 capturing rather than viewing:
 
 - **Pause live updates** freezes the view while you read; events are still
@@ -2202,8 +2220,9 @@ brought down to that. A maximized dialog covers the app, so it is opaque and
 hides the slider. The setting is remembered in this browser. Panes and the
 window don't cover the app, so they have none.
 
-Each section keeps the latest 500 events (`maxEventsPerSection`). History is
-discarded when the popup closes.
+Each kind keeps its latest 500 events (`maxEventsPerSection`), so a burst
+of one never pushes out another; the status line counts the oldest dropped.
+History is discarded when the popup closes.
 
 What it does **not** show:
 
@@ -2224,7 +2243,7 @@ each marked with `↪` and the fragment's name.
 | ----------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `enabled`               | `true`                            | `false`, or a function read once at startup, turns the popup off — shortcut and `open()` alike                                             |
 | `shortcuts`             | `UWT_DEFAULT_INSPECTOR_SHORTCUTS` | Replaces the defaults; `[]` disables the keyboard                                                                                          |
-| `maxEventsPerSection`   | `500`                             | Events kept per section; the oldest are dropped, and the count of dropped ones is shown                                                    |
+| `maxEventsPerSection`   | `500`                             | Events kept of each kind — BI, scenarios, logs; the oldest are dropped, and the status line counts them                                    |
 | `maxPayloadCharsInView` | `262144` (256 × 1024)             | A payload whose JSON is longer is shown truncated to its first `maxPayloadCharsInView` characters, at most 65,536; downloads stay complete |
 
 Characters here are UTF-16 code units (JavaScript's `length`), not bytes: the
@@ -2247,13 +2266,13 @@ European Windows layouts report as Ctrl+Alt, never matches. Spread
 it there if it is closed, and remembers the choice like the Dock buttons;
 asked for the dock it is already in, it just focuses it.
 
-A download is a `UwtInspectorExport`:
+An export is a `UwtInspectorExport`:
 
 ```ts
 interface UwtInspectorExport {
   format: 'ngx-ui-watchtower-event-inspector';
-  formatVersion: 1;
-  section: 'bi' | 'scenario' | 'logging';
+  formatVersion: 2;
+  section: 'all' | 'bi' | 'scenario' | 'logging'; // the kind shown
   exportedAt: string;
   capture: { startedAt: string; endedAt: string; paused: boolean };
   app: {
@@ -2269,6 +2288,9 @@ interface UwtInspectorExport {
   events: UwtTelemetryObservedEvent[]; // oldest first
 }
 ```
+
+Version 1, from before the timeline, exported one of three sections, so its
+`section` was never `'all'`.
 
 Field filters use the operators `contains` (the default), `equals`,
 `not-contains`, `exists` and `missing`, all case-insensitive; several filters

@@ -202,3 +202,15 @@ export async function press(
 ): Promise<void> {
   await where.getByRole('button', { name: label, exact: true }).first().click();
 }
+
+/** Shows one kind of event in the Event Inspector's timeline, or all. */
+export async function showKind(
+  page: Page,
+  kind: 'All' | 'BI' | 'Scenarios' | 'Logs'
+): Promise<void> {
+  // The toggle's options are radios, each inside the label people click.
+  await page
+    .locator('uwt-inspector cps-button-toggle label')
+    .filter({ hasText: new RegExp(`^\\s*${kind} \\d+\\s*$`) })
+    .click();
+}

@@ -2,7 +2,8 @@ import {
   createEnvironmentInjector,
   EnvironmentInjector,
   inject,
-  Injectable
+  Injectable,
+  Signal
 } from '@angular/core';
 import { UwtInspectorDock } from '../uwt-inspector.models/uwt-inspector.models';
 import { UwtInspectorStore } from '../uwt-inspector-store/uwt-inspector-store';
@@ -23,6 +24,8 @@ export interface UwtInspectorHost {
 export interface UwtInspectorControls {
   setDock(dock: UwtInspectorDock): void;
   close(): void;
+  /** Whether the app's window is wide enough for a pane beside it. */
+  readonly panesFit: Signal<boolean>;
 }
 
 /**

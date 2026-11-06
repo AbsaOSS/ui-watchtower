@@ -6,7 +6,10 @@ import {
   UwtTelemetrySink
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { CPS_LIVE_ANNOUNCER_SERVICE, CpsNotificationService } from 'cps-ui-kit';
-import { UwtInspectorSectionId } from '../uwt-inspector.models/uwt-inspector.models';
+import {
+  UwtInspectorKindFilter,
+  UwtInspectorSectionId
+} from '../uwt-inspector.models/uwt-inspector.models';
 import { UwtInspectorStore } from '../uwt-inspector-store/uwt-inspector-store';
 import {
   uwtBuildInspectorExport,
@@ -15,13 +18,29 @@ import {
   uwtSafeStringify
 } from './uwt-inspector-export';
 
-/** What each section calls its events, when telling people about them. */
+/** What each kind calls its events, when telling people about them. */
 export const UWT_INSPECTOR_SECTION_NOUN: Record<UwtInspectorSectionId, string> =
   { bi: 'BI', scenario: 'scenario', logging: 'log' };
 
+/** `events`, or `BI events`: what an export of `kind` holds. */
+export function uwtInspectorEventsNoun(kind: UwtInspectorKindFilter): string {
+  return kind === 'all'
+    ? 'events'
+    : `${UWT_INSPECTOR_SECTION_NOUN[kind]} events`;
+}
+
+/** `1 BI event`, `3 events`: a number of a kind's events. */
+export function uwtInspectorEventCount(
+  count: number,
+  kind: UwtInspectorKindFilter
+): string {
+  const noun = uwtInspectorEventsNoun(kind);
+  return `${count} ${count === 1 ? noun.slice(0, -1) : noun}`;
+}
+
 /**
- * Downloads or copies one section's captured events as JSON. Provided by
- * the popup, beside its {@link UwtInspectorStore}.
+ * Downloads or copies the captured events of a kind, or of every kind, as
+ * JSON. Provided by the popup, beside its {@link UwtInspectorStore}.
  */
 @Injectable()
 export class UwtInspectorExporter {
@@ -40,23 +59,21 @@ export class UwtInspectorExporter {
     optional: true
   });
 
-  /** Saves the section's events as a JSON file. */
-  download(section: UwtInspectorSectionId): void {
+  /** Saves the kind's events as a JSON file. */
+  download(kind: UwtInspectorKindFilter): void {
     try {
-      const json = this.json(section);
+      const json = this.json(kind);
       uwtDownloadJson(
         this.document,
         uwtInspectorFilename(
           this.identity?.application ?? 'app',
-          section,
+          kind,
           new Date()
         ),
         json
       );
       this.announce(
-        `Downloaded ${this.store.sectionCount(section).captured} ${
-          UWT_INSPECTOR_SECTION_NOUN[section]
-        } events.`
+        `Downloaded ${uwtInspectorEventCount(this.store.count(kind).captured, kind)}.`
       );
     } catch (error) {
       this.fail("Couldn't create the download", error);
@@ -64,19 +81,19 @@ export class UwtInspectorExporter {
   }
 
   /**
-   * Puts the section's events on the clipboard, for when a browser blocks
+   * Puts the kind's events on the clipboard, for when a browser blocks
    * downloads.
    *
    * @returns whether copying worked
    */
-  async copy(section: UwtInspectorSectionId): Promise<boolean> {
+  async copy(kind: UwtInspectorKindFilter): Promise<boolean> {
     try {
       // The inspector's own window: in a separate window, the app's
       // clipboard refuses, as the app's page doesn't have focus.
       const view = this.document.defaultView ?? window;
-      await view.navigator.clipboard.writeText(this.json(section));
+      await view.navigator.clipboard.writeText(this.json(kind));
       this.announce(
-        `${UWT_INSPECTOR_SECTION_NOUN[section]} events copied as JSON.`
+        `${uwtInspectorEventCount(this.store.count(kind).captured, kind)} copied as JSON.`
       );
       return true;
     } catch (error) {
@@ -85,11 +102,11 @@ export class UwtInspectorExporter {
     }
   }
 
-  /** The section's export document, serialized. */
-  json(section: UwtInspectorSectionId): string {
+  /** The kind's export document, serialized. */
+  json(kind: UwtInspectorKindFilter): string {
     return uwtSafeStringify(
-      uwtBuildInspectorExport(this.store.sectionEvents(section), {
-        section,
+      uwtBuildInspectorExport(this.store.events(kind), {
+        section: kind,
         startedAt: this.store.startedAt(),
         paused: this.store.paused(),
         app: {
@@ -101,8 +118,8 @@ export class UwtInspectorExporter {
         },
         session: this.session(),
         userAgent: this.document.defaultView?.navigator.userAgent ?? '',
-        activeFilters: this.store.filters()[section],
-        count: this.store.sectionCount(section)
+        activeFilters: this.store.filters(),
+        count: this.store.count(kind)
       }),
       2
     );

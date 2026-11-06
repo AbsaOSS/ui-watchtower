@@ -36,15 +36,18 @@ import {
   uwtSafeVoid
 } from '../uwt-inspector-internal.util/uwt-inspector-internal.util';
 
+/** Narrower than 640 CSS pixels, the app's window takes no pane. */
+const NARROW = '(width < 640px)';
+
 /**
  * Opens and closes the Event Inspector, moves it between docks, and
  * listens for its keyboard shortcut once {@link provideUwtEventInspector}
  * installs it.
  *
- * It opens where it was last — a dialog the first time — and the
- * application stays usable while events arrive. With it open, the shortcut
- * returns focus to it from the application, and closes it when focus is
- * already inside.
+ * It opens where it was last — a dialog the first time, and on a screen
+ * too narrow for a pane — and the application stays usable while events
+ * arrive. With it open, the shortcut returns focus to it from the
+ * application, and closes it when focus is already inside.
  *
  * @example
  * ```typescript
@@ -92,12 +95,17 @@ export class UwtEventInspectorService {
   /** Whether the inspector is currently open, in any dock. */
   readonly isOpen = signal(false);
 
+  /** Whether the app's window is wide enough for a pane beside it. */
+  private readonly panesFit = signal(true);
+
   constructor() {
     this.session.controls = {
       setDock: (dock) => this.setDock(dock),
-      close: () => this.close()
+      close: () => this.close(),
+      panesFit: this.panesFit.asReadonly()
     };
     this.destroyRef.onDestroy(() => this.close());
+    uwtSafeVoid('width', () => this.watchWidth());
   }
 
   /**
@@ -199,13 +207,37 @@ export class UwtEventInspectorService {
       this.zone.run(() => this.toggle());
     });
 
+  /** Keeps {@link panesFit} up to date as the app's window is resized. */
+  private watchWidth(): void {
+    const narrow = this.isBrowser
+      ? this.document.defaultView?.matchMedia?.(NARROW)
+      : undefined;
+    if (!narrow) {
+      return;
+    }
+    this.panesFit.set(!narrow.matches);
+    const onChange = (event: MediaQueryListEvent) =>
+      this.panesFit.set(!event.matches);
+    narrow.addEventListener('change', onChange);
+    this.destroyRef.onDestroy(() =>
+      narrow.removeEventListener('change', onChange)
+    );
+  }
+
+  /** Whether the app's window is too narrow for a pane, right now. */
+  private isNarrow(): boolean {
+    // A fresh query: one made earlier catches up with a resize a frame late.
+    return !!this.document.defaultView?.matchMedia?.(NARROW).matches;
+  }
+
+  /** Shows it in `dock`; a pane on a narrow screen shows as a dialog. */
   private show(dock: UwtInspectorDock): void {
     uwtSafeVoid('open', () => {
       this.host =
-        dock === 'dialog'
-          ? this.openDialog()
-          : dock === 'window'
-            ? (this.openWindow() ?? this.openDialog())
+        dock === 'window'
+          ? (this.openWindow() ?? this.openDialog())
+          : dock === 'dialog' || this.isNarrow()
+            ? this.openDialog()
             : this.openPane(dock);
       this.isOpen.set(true);
     });
@@ -239,7 +271,9 @@ export class UwtEventInspectorService {
         width: 'clamp(min(40rem, 96vw), 50vw, 64rem)',
         height: '88vh',
         minWidth: 'min(22rem, 96vw)',
-        autoFocus: '.uwt-inspector-search input'
+        autoFocus: '.uwt-inspector-search input',
+        // Hooks the title's alignment; see the inspector's styles.
+        styleClass: 'uwt-inspector-dialog'
       }
     );
     const host: UwtInspectorHost = {

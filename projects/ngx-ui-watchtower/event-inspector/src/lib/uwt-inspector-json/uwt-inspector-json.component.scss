@@ -31,7 +31,9 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
   line-height: 1.5;
-  white-space: pre;
+  // Wraps inside the row, so a long value never widens the table.
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   tab-size: 2;
 
   &:focus-visible {

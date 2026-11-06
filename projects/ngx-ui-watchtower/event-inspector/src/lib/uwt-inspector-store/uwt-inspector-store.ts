@@ -14,6 +14,7 @@ import {
   UwtInspectorEntry,
   UwtInspectorFieldFilter,
   UwtInspectorFilterState,
+  UwtInspectorKindFilter,
   UwtInspectorSectionId,
   UwtEventInspectorConfig
 } from '../uwt-inspector.models/uwt-inspector.models';
@@ -60,8 +61,9 @@ function perSection<T>(make: () => T): PerSection<T> {
  *
  * Events arrive whenever the application sends them; they are batched and
  * reach the screen at most every {@link UWT_INSPECTOR_FLUSH_MS}, so a
- * burst causes one re-render rather than hundreds. Each section keeps at
- * most `maxEventsPerSection`, newest first, and counts what it dropped.
+ * burst causes one re-render rather than hundreds. Each kind keeps at most
+ * `maxEventsPerSection`, newest first, and counts what it dropped; the
+ * timeline shows them merged, newest first.
  */
 @Injectable()
 export class UwtInspectorStore {
@@ -97,37 +99,48 @@ export class UwtInspectorStore {
   readonly newWhilePaused = signal(0);
 
   /**
-   * Events received per section since opening or the last clear — keeps
-   * rising after the retention cap, unlike the section lengths.
+   * Events received per kind since opening or the last clear — keeps
+   * rising after the retention cap, unlike the kinds' lengths.
    */
   readonly received = signal<PerSection<number>>(perSection(() => 0));
 
   /** Sequence numbers from the latest flush, for a "new" marker. */
   readonly fresh = signal<ReadonlySet<number>>(new Set());
 
-  /** Each section's own search text and field filters. */
-  readonly filters = signal<PerSection<UwtInspectorFilterState>>(
-    perSection(emptyFilters)
-  );
+  /** Which kind the timeline shows, and exports. */
+  readonly kind = signal<UwtInspectorKindFilter>('all');
 
-  /** Entries matching each section's own filters. */
-  readonly filtered = computed<PerSection<readonly UwtInspectorEntry[]>>(() => {
+  /** The timeline's search text and field filters, for every kind. */
+  readonly filters = signal<UwtInspectorFilterState>(emptyFilters());
+
+  /** Each kind's entries that match the filters. */
+  private readonly matching = computed<
+    PerSection<readonly UwtInspectorEntry[]>
+  >(() => {
     const entries = this.entries();
     const filters = this.filters();
     return perSectionFrom((id) =>
-      isFiltering(filters[id])
-        ? entries[id].filter((e) => uwtMatchesFilters(e.fields, filters[id]))
+      isFiltering(filters)
+        ? entries[id].filter((e) => uwtMatchesFilters(e.fields, filters))
         : entries[id]
     );
   });
 
-  /** Field paths seen so far in each section, for filter suggestions. */
-  readonly knownPaths = computed<PerSection<string[]>>(() => {
-    const entries = this.entries();
-    return perSectionFrom((id) =>
-      uwtKnownPaths(entries[id].map((e) => e.fields))
-    );
+  /** How many events of each kind match the filters. */
+  readonly matchCounts = computed<PerSection<number>>(() => {
+    const matching = this.matching();
+    return perSectionFrom((id) => matching[id].length);
   });
+
+  /** The timeline: entries of the kind shown that match, newest first. */
+  readonly filtered = computed<readonly UwtInspectorEntry[]>(() =>
+    this.ofKind(this.matching(), this.kind())
+  );
+
+  /** Field paths seen so far in the kind shown, for filter suggestions. */
+  readonly knownPaths = computed<string[]>(() =>
+    uwtKnownPaths(this.ofKind(this.entries(), this.kind()).map((e) => e.fields))
+  );
 
   readonly total = computed(() => {
     const entries = this.entries();
@@ -169,65 +182,77 @@ export class UwtInspectorStore {
     }
   }
 
-  setText(section: UwtInspectorSectionId, text: string): void {
-    this.updateFilters(section, (f) => ({ ...f, text }));
+  setKind(kind: UwtInspectorKindFilter): void {
+    this.kind.set(kind);
   }
 
-  addFilter(
-    section: UwtInspectorSectionId,
-    filter: Omit<UwtInspectorFieldFilter, 'id'>
-  ): void {
-    this.updateFilters(section, (f) => ({
+  setText(text: string): void {
+    this.filters.update((f) => ({ ...f, text }));
+  }
+
+  addFilter(filter: Omit<UwtInspectorFieldFilter, 'id'>): void {
+    this.filters.update((f) => ({
       ...f,
       fields: [...f.fields, { ...filter, id: newId() }]
     }));
   }
 
-  removeFilter(section: UwtInspectorSectionId, id: string): void {
-    this.updateFilters(section, (f) => ({
+  removeFilter(id: string): void {
+    this.filters.update((f) => ({
       ...f,
       fields: f.fields.filter((x) => x.id !== id)
     }));
   }
 
-  clearFilters(section: UwtInspectorSectionId): void {
-    this.updateFilters(section, emptyFilters);
-  }
-
-  /** Whether a section has any filter or search text active. */
-  isFiltering(section: UwtInspectorSectionId): boolean {
-    return isFiltering(this.filters()[section]);
+  clearFilters(): void {
+    this.filters.set(emptyFilters());
   }
 
   /**
-   * Every event captured in one section: what is shown, plus anything held
-   * back while paused or still waiting for the next flush. Oldest first.
+   * Every event captured of a kind: what is shown, plus anything held back
+   * while paused or still waiting for the next flush. Oldest first.
    */
-  sectionEvents(section: UwtInspectorSectionId): UwtTelemetryObservedEvent[] {
+  events(kind: UwtInspectorKindFilter): UwtTelemetryObservedEvent[] {
     return [
-      ...this.buffers[section].map((e) => e.event),
-      ...this.pending.filter((e) => e.section === section).map((e) => e.event)
+      ...this.captured(kind).map((e) => e.event),
+      ...this.pendingOf(kind).map((e) => e.event)
     ].sort((a, b) => a.sequence - b.sequence);
   }
 
-  /** One section's totals for its export, counted like {@link sectionEvents}. */
-  sectionCount(section: UwtInspectorSectionId): {
+  /** A kind's totals for its export, counted like {@link events}. */
+  count(kind: UwtInspectorKindFilter): {
     captured: number;
     droppedOldest: number;
   } {
+    const ids = kind === 'all' ? UWT_INSPECTOR_SECTIONS : [kind];
     return {
-      captured:
-        this.buffers[section].length +
-        this.pending.filter((e) => e.section === section).length,
-      droppedOldest: this.droppedCount[section]
+      captured: this.captured(kind).length + this.pendingOf(kind).length,
+      droppedOldest: ids.reduce((n, id) => n + this.droppedCount[id], 0)
     };
   }
 
-  private updateFilters(
-    section: UwtInspectorSectionId,
-    change: (f: UwtInspectorFilterState) => UwtInspectorFilterState
-  ): void {
-    this.filters.update((all) => ({ ...all, [section]: change(all[section]) }));
+  /** One kind's entries, or every kind's merged newest first. */
+  private ofKind(
+    entries: PerSection<readonly UwtInspectorEntry[]>,
+    kind: UwtInspectorKindFilter
+  ): readonly UwtInspectorEntry[] {
+    return kind === 'all'
+      ? UWT_INSPECTOR_SECTIONS.flatMap((id) => entries[id]).sort(
+          (a, b) => b.event.sequence - a.event.sequence
+        )
+      : entries[kind];
+  }
+
+  private captured(kind: UwtInspectorKindFilter): UwtInspectorEntry[] {
+    return kind === 'all'
+      ? UWT_INSPECTOR_SECTIONS.flatMap((id) => this.buffers[id])
+      : this.buffers[kind];
+  }
+
+  private pendingOf(kind: UwtInspectorKindFilter): UwtInspectorEntry[] {
+    return kind === 'all'
+      ? this.pending
+      : this.pending.filter((e) => e.section === kind);
   }
 
   /**

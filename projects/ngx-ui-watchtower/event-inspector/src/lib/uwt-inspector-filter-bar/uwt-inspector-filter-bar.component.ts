@@ -4,7 +4,6 @@ import {
   computed,
   DestroyRef,
   inject,
-  input,
   signal
 } from '@angular/core';
 import {
@@ -15,10 +14,7 @@ import {
   CpsInputComponent,
   CpsSelectComponent
 } from 'cps-ui-kit';
-import {
-  UwtInspectorFilterOperator,
-  UwtInspectorSectionId
-} from '../uwt-inspector.models/uwt-inspector.models';
+import { UwtInspectorFilterOperator } from '../uwt-inspector.models/uwt-inspector.models';
 import { UwtInspectorStore } from '../uwt-inspector-store/uwt-inspector-store';
 import {
   uwtDescribeFilter,
@@ -29,8 +25,8 @@ import {
 const SEARCH_DEBOUNCE_MS = 150;
 
 /**
- * One section's free-text search, field-filter builder and active filters.
- * Each section filters on its own; nothing here affects the others.
+ * The timeline's free-text search, field-filter builder and active
+ * filters. They apply to every kind of event.
  */
 @Component({
   selector: 'uwt-inspector-filter-bar',
@@ -49,14 +45,7 @@ const SEARCH_DEBOUNCE_MS = 150;
 export class UwtInspectorFilterBarComponent {
   protected readonly store = inject(UwtInspectorStore);
 
-  /** The section these filters belong to. */
-  readonly section = input.required<UwtInspectorSectionId>();
-  /** The section's name as people read it, e.g. `BI telemetry`. */
-  readonly sectionName = input.required<string>();
-
-  protected readonly filters = computed(
-    () => this.store.filters()[this.section()]
-  );
+  protected readonly filters = this.store.filters;
 
   protected readonly operators: {
     label: string;
@@ -76,7 +65,7 @@ export class UwtInspectorFilterBarComponent {
   protected readonly value = signal('');
 
   protected readonly pathOptions = computed(() =>
-    this.store.knownPaths()[this.section()].map((p) => ({ label: p, value: p }))
+    this.store.knownPaths().map((p) => ({ label: p, value: p }))
   );
 
   protected readonly needsValue = computed(() =>
@@ -108,7 +97,7 @@ export class UwtInspectorFilterBarComponent {
   protected onSearch(text: string): void {
     clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(
-      () => this.store.setText(this.section(), text ?? ''),
+      () => this.store.setText(text ?? ''),
       SEARCH_DEBOUNCE_MS
     );
   }
@@ -126,7 +115,7 @@ export class UwtInspectorFilterBarComponent {
     if (!this.canAdd()) {
       return;
     }
-    this.store.addFilter(this.section(), {
+    this.store.addFilter({
       path: this.path().trim(),
       operator: this.operator(),
       value: this.needsValue() ? this.value().trim() : ''
@@ -136,6 +125,6 @@ export class UwtInspectorFilterBarComponent {
 
   protected clearAll(): void {
     clearTimeout(this.searchTimer);
-    this.store.clearFilters(this.section());
+    this.store.clearFilters();
   }
 }

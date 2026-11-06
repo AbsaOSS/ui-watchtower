@@ -71,6 +71,9 @@ test('a backdated start and aggregated batches count in the timing', async ({
   page,
   backend
 }) => {
+  // A start from before the page loaded is ignored, so the page must be
+  // older than the backdating.
+  await page.waitForFunction(() => performance.now() > 1600);
   await press(page, 'Backdated by 1.5 s');
   await press(page, '5 aggregated batches');
 
