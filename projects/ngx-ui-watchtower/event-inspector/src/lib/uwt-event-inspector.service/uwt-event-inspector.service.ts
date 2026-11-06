@@ -318,8 +318,9 @@ export class UwtEventInspectorService {
       dock: side,
       focus: () => ref.instance.content().focusSearch(),
       containsFocus: () => ref.instance.content().containsFocus(),
+      // Destroying the view detaches it from the app, unless the app, being
+      // destroyed, already has: detaching it here would warn (NG0406).
       destroy: () => {
-        this.appRef.detachView(ref.hostView);
         ref.destroy();
         element.remove();
       }

@@ -263,6 +263,17 @@ describe('UwtEventInspectorService', () => {
     expect(pane()?.classList).toContain('uwt-inspector-pane--right');
   });
 
+  it('should take an open pane away quietly when the app is destroyed', () => {
+    remember({ dock: 'right' });
+    create().open();
+    const warn = jest.spyOn(console, 'warn');
+
+    TestBed.resetTestingModule();
+
+    expect(pane()).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it('should move between docks, keeping the session, and remember the dock', () => {
     const service = create();
     service.open();
@@ -454,31 +465,27 @@ describe('UwtEventInspectorService', () => {
     /** Whether the app's window is narrower than 640px right now. */
     let narrow = false;
 
-    /** The app's window, as `matchMedia` reports it: `narrow` when asked. */
+    /**
+     * The app's window, as `matchMedia` reports it: `narrow` when asked. A
+     * spy, as `ng test` makes `matchMedia` writable but not configurable.
+     */
     function screenIsNarrow(matches: boolean): void {
       narrow = matches;
-      Object.defineProperty(window, 'matchMedia', {
-        configurable: true,
-        value: jest.fn((query: string) => ({
-          get matches() {
-            return narrow;
-          },
-          media: query,
-          addEventListener: (_: string, listener: typeof change) =>
-            (change = listener),
-          removeEventListener: jest.fn()
-        }))
-      });
+      jest.spyOn(window, 'matchMedia').mockImplementation(
+        (query: string) =>
+          ({
+            get matches() {
+              return narrow;
+            },
+            media: query,
+            addEventListener: (_: string, listener: typeof change) =>
+              (change = listener),
+            removeEventListener: jest.fn()
+          }) as unknown as MediaQueryList
+      );
     }
 
-    const original = Object.getOwnPropertyDescriptor(window, 'matchMedia');
-
     afterEach(() => {
-      if (original) {
-        Object.defineProperty(window, 'matchMedia', original);
-      } else {
-        delete (window as { matchMedia?: unknown }).matchMedia;
-      }
       change = undefined;
     });
 

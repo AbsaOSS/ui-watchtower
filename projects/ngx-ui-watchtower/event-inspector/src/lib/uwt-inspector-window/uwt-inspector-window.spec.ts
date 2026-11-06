@@ -145,6 +145,19 @@ describe('uwtOpenInspectorWindow', () => {
     expect(options.onGeometry).toHaveBeenCalledTimes(1);
   });
 
+  it('should close the window quietly when the app is destroyed first', () => {
+    const { popup } = fakePopup();
+    jest.spyOn(window, 'open').mockReturnValue(popup);
+    const host = uwtOpenInspectorWindow(options);
+    const warn = jest.spyOn(console, 'warn');
+
+    TestBed.resetTestingModule();
+    host?.destroy();
+
+    expect(popup.close).toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it('should close the window, and stop listening, when destroyed', () => {
     const { popup, key } = fakePopup();
     jest.spyOn(window, 'open').mockReturnValue(popup);

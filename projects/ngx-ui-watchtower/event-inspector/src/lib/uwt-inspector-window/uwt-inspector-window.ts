@@ -120,7 +120,8 @@ export function uwtOpenInspectorWindow(
       doc.removeEventListener('keydown', options.onKeydown, true);
       uwtSafeVoid('window.geometry', saveGeometry);
       stopMirroring();
-      options.appRef.detachView(ref.hostView);
+      // Destroying the view detaches it from the app, unless the app, being
+      // destroyed, already has: detaching it here would warn (NG0406).
       ref.destroy();
       environment.destroy();
       popup.close();
