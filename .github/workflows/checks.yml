@@ -111,7 +111,7 @@ jobs:
         run: npm run typecheck
 
   e2e:
-    name: End-to-end (Chromium, WebKit)
+    name: Playwright (Chromium, WebKit)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

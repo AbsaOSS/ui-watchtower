@@ -148,9 +148,13 @@ function broker(req: Request) {
       sessionEventLimit: 0,
       dispatchInterval: 2000,
       allowCookies: true,
-      // The lab is plain http: WebKit drops a Secure cookie even on
-      // localhost, and with it the session and its start.
-      cookieAttributes: { secure: false },
+      // The lab is plain http on localhost, where WebKit keeps none of the
+      // RUM client's cookies as it writes them by default, and with them go
+      // the session and its start: no Secure cookie over http, and on Linux
+      // no Domain=localhost, as it has no dot; an empty Domain is host-only.
+      // Lax, as WebKit on Linux may hide a Strict cookie from a page opened
+      // from about:blank, as Playwright opens them.
+      cookieAttributes: { secure: false, domain: '', sameSite: 'Lax' },
       // Names only: the lab's credentials provider adds their options.
       ...(state.telemetries ? { telemetries: state.telemetries } : {}),
       ...(mode === 'invalid' ? { pagesToExclude: ['^/private'] } : {}),

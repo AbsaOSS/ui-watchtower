@@ -269,8 +269,11 @@ test('an open row filters by its own values; the builder names fields, finds the
   const builder = page.getByRole('group', { name: 'New filter' });
   await builder.getByRole('combobox', { name: 'Field' }).click();
   await page.keyboard.type('scenarioName');
-  // Found by its path, shown by its name.
-  await page.getByRole('option', { name: /^Scenario/ }).click();
+  // Found by its path, shown by its name — named in full, as the list may
+  // not have caught up with the typing yet.
+  await page
+    .getByRole('option', { name: 'Scenario scenarioName', exact: true })
+    .click();
   await builder.getByRole('textbox', { name: 'Value' }).fill('happy');
 
   await page.getByText('How filters work').click();

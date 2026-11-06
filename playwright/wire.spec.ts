@@ -8,9 +8,13 @@ import {
   test
 } from './lab';
 
-/** Picks the option starting with `option` in the select labelled `label`. */
+/**
+ * Picks the option starting with `option` in the select labelled `label`,
+ * opened from the keyboard: a click in a list's box can land on a chip's
+ * Remove, wherever the fonts put the chips.
+ */
 async function choose(page: Page, label: string, option: string) {
-  await page.getByRole('combobox', { name: label }).click();
+  await page.getByRole('combobox', { name: label }).press('ArrowDown');
   await page.getByRole('option', { name: new RegExp(`^${option}`) }).click();
 }
 
