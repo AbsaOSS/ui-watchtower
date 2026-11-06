@@ -32,13 +32,19 @@ describe('UwtInspectorPreferenceStorage', () => {
   it('should read back what was stored', () => {
     const preferences = {
       dock: 'bottom',
-      transparency: 35,
+      transparency: 25,
       paneSize: { left: 500, right: 640, bottom: 300 },
       window: { width: 1000, height: 700, left: -1200, top: 40 }
     };
     store(preferences);
 
     expect(storage.read()).toEqual(preferences);
+  });
+
+  it('should bring a transparency above the 30% cap down to it', () => {
+    store({ transparency: 70 });
+
+    expect(storage.read().transparency).toBe(30);
   });
 
   it.each([
@@ -48,7 +54,7 @@ describe('UwtInspectorPreferenceStorage', () => {
       'invalid values',
       {
         dock: 'top',
-        transparency: 95,
+        transparency: -5,
         paneSize: { left: -5, right: 'wide', bottom: Infinity },
         window: { width: 0, height: 700, left: 0, top: 0 }
       }

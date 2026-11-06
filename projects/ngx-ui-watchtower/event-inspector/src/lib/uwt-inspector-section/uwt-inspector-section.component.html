@@ -22,7 +22,15 @@
                 ? 'Copy failed'
                 : 'Copy JSON'
           "
-          [ariaLabel]="'Copy ' + text().title + ' events as JSON'"
+          [ariaLabel]="
+            (copyState() === 'copied'
+              ? 'Copied'
+              : copyState() === 'failed'
+                ? 'Copy failed'
+                : 'Copy JSON') +
+            ', ' +
+            text().title
+          "
           (clicked)="copy()">
         </cps-button>
         <cps-button
@@ -30,9 +38,9 @@
           icon="download"
           label="Download JSON"
           [ariaLabel]="
-            'Download ' +
+            'Download JSON, ' +
             text().title +
-            ' events as JSON. Contains session and user ids.'
+            '. Contains session and user ids.'
           "
           (clicked)="download()">
         </cps-button>
@@ -152,6 +160,7 @@
           <uwt-inspector-json
             [value]="row.entry.event.payload"
             [label]="'Payload of event #' + row.sequence"
+            copyLabel="Copy event"
             [maxChars]="maxPayloadChars()">
           </uwt-inspector-json>
         </div>

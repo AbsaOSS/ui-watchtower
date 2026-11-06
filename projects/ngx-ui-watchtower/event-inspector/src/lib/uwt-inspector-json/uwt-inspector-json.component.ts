@@ -45,6 +45,9 @@ export class UwtInspectorJsonComponent {
   /** Accessible name of the scrollable block. */
   readonly label = input('Event payload');
 
+  /** The copy button's label, naming what it copies. */
+  readonly copyLabel = input('Copy JSON');
+
   /** JSON length, in characters, above which the view is truncated. */
   readonly maxChars = input(UWT_DEFAULT_INSPECTOR_CONFIG.maxPayloadCharsInView);
 

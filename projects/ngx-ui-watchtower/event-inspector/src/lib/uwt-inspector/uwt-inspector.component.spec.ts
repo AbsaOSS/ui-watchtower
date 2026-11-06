@@ -5,7 +5,12 @@ import {
   UwtTelemetryMonitor,
   UwtTelemetryPublishInput
 } from '@absaoss-cps/ngx-ui-watchtower';
-import { CPS_LIVE_ANNOUNCER_SERVICE, CpsDialogConfig } from 'cps-ui-kit';
+import { Subject } from 'rxjs';
+import {
+  CPS_LIVE_ANNOUNCER_SERVICE,
+  CpsDialogConfig,
+  CpsDialogRef
+} from 'cps-ui-kit';
 import * as exportUtil from '../uwt-inspector-export/uwt-inspector-export';
 import {
   UWT_INSPECTOR_FLUSH_MS,
@@ -66,6 +71,7 @@ describe('UwtInspectorComponent', () => {
   let monitor: UwtTelemetryMonitor;
   let announce: jest.Mock;
   let dialogConfig: CpsDialogConfig;
+  let maximize: Subject<boolean>;
 
   const el = () => fixture.nativeElement as HTMLElement;
   /** The popup's own actions, as its buttons and switch call them. */
@@ -101,6 +107,7 @@ describe('UwtInspectorComponent', () => {
     jest.useFakeTimers();
     announce = jest.fn();
     dialogConfig = {};
+    maximize = new Subject<boolean>();
     await TestBed.configureTestingModule({
       imports: [UwtInspectorComponent, NoopAnimationsModule],
       providers: [
@@ -116,7 +123,11 @@ describe('UwtInspectorComponent', () => {
           provide: CPS_LIVE_ANNOUNCER_SERVICE,
           useValue: { announce, clear: jest.fn() }
         },
-        { provide: CpsDialogConfig, useValue: dialogConfig }
+        { provide: CpsDialogConfig, useValue: dialogConfig },
+        {
+          provide: CpsDialogRef,
+          useValue: { onMaximize: maximize.asObservable() }
+        }
       ]
     }).compileComponents();
     monitor = TestBed.inject(UwtTelemetryMonitor);
@@ -249,6 +260,20 @@ describe('UwtInspectorComponent', () => {
     expect(bodyRows()).toBe(2);
   });
 
+  it('should say when it was paused, as well as when capturing began', () => {
+    jest.setSystemTime(new Date(2026, 0, 1, 10, 0, 0));
+    ui().clear();
+    jest.setSystemTime(new Date(2026, 0, 1, 10, 5, 30));
+    ui().setPaused(true);
+    fixture.detectChanges();
+    expect(text()).toContain('Paused at 10:05:30 · capturing since 10:00:00 ·');
+
+    ui().setPaused(false);
+    fixture.detectChanges();
+    expect(text()).toContain('Capturing since 10:00:00 ·');
+    expect(text()).not.toContain('Paused at');
+  });
+
   it("should download a section's own events, whatever its filters", () => {
     const download = jest
       .spyOn(exportUtil, 'uwtDownloadJson')
@@ -263,7 +288,7 @@ describe('UwtInspectorComponent', () => {
       .setText('bi', 'nothing matches this');
     fixture.detectChanges();
 
-    button('Download BI telemetry').click();
+    button('Download JSON, BI telemetry').click();
 
     expect(download).toHaveBeenCalledTimes(1);
     const [, filename, json] = download.mock.calls[0];
@@ -283,7 +308,7 @@ describe('UwtInspectorComponent', () => {
       'bi'
     ]);
 
-    button('Download Logging').click();
+    button('Download JSON, Logging').click();
     const logging = JSON.parse(download.mock.calls[1][2]);
     expect(logging.section).toBe('logging');
     expect(logging.events.map((e: { kind: string }) => e.kind)).toEqual([
@@ -298,7 +323,7 @@ describe('UwtInspectorComponent', () => {
     monitor.publish(warn);
     settle();
 
-    button('Copy Logging').click();
+    button('Copy JSON, Logging').click();
     await Promise.resolve();
 
     const doc = JSON.parse(writeText.mock.calls[0][0]);
@@ -335,8 +360,8 @@ describe('UwtInspectorComponent', () => {
     jest
       .spyOn(exportUtil, 'uwtDownloadJson')
       .mockImplementation(() => undefined);
-    button('Download BI telemetry').click();
-    button('Download Logging').click();
+    button('Download JSON, BI telemetry').click();
+    button('Download JSON, Logging').click();
     settle();
 
     expect(seen).toHaveLength(0);
@@ -359,18 +384,34 @@ describe('UwtInspectorComponent', () => {
   it('should reopen at the remembered transparency', () => {
     localStorage.setItem(
       UWT_INSPECTOR_PREFERENCES_KEY,
-      JSON.stringify({ transparency: 40 })
+      JSON.stringify({ transparency: 20 })
     );
     const reopened = TestBed.createComponent(UwtInspectorComponent);
     reopened.detectChanges();
 
-    expect(dialogConfig.style).toEqual({ opacity: '0.6' });
+    expect(dialogConfig.style).toEqual({ opacity: '0.8' });
     expect(
       (reopened.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
         'cps-slider input'
       )?.value
-    ).toBe('40');
+    ).toBe('20');
     reopened.destroy();
+  });
+
+  it('should drop the transparency while maximized, and bring it back after', () => {
+    const slider = el().querySelector('cps-slider input') as HTMLInputElement;
+    slider.value = '30';
+    slider.dispatchEvent(new Event('input'));
+
+    maximize.next(true);
+    fixture.detectChanges();
+    expect(dialogConfig.style).toEqual({ opacity: '1' });
+    expect(el().querySelector('cps-slider')).toBeNull();
+
+    maximize.next(false);
+    fixture.detectChanges();
+    expect(dialogConfig.style).toEqual({ opacity: '0.7' });
+    expect(el().querySelector('cps-slider')).not.toBeNull();
   });
 
   it('should have the slider only as a dialog, and its own header elsewhere', () => {

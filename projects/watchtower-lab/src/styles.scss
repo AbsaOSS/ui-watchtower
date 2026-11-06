@@ -2,6 +2,28 @@
 @use 'lab-base';
 @use 'cps-ui-kit/styles/mixins' as cps;
 
+// Hidden until focused, then shown over the header.
+.lab-skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 20;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  background: #fff;
+  color: var(--cps-color-calm);
+  font-weight: 600;
+  transform: translateY(-200%);
+
+  &:focus {
+    transform: none;
+  }
+}
+
+.lab-main:focus {
+  outline: none;
+}
+
 // The header and status bar are fixed to the window on purpose: they show
 // what an Event Inspector pane covers, and — with `lab-insets` on <html>,
 // switched on the Event Inspector page — how an app keeps them beside it.

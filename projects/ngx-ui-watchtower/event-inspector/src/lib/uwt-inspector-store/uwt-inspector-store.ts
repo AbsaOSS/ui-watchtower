@@ -91,6 +91,8 @@ export class UwtInspectorStore {
 
   /** Freezes what is shown. Capturing carries on underneath. */
   readonly paused = signal(false);
+  /** When the user paused; `undefined` while capturing live. */
+  readonly pausedAt = signal<string | undefined>(undefined);
   /** Events captured while paused and not yet shown. */
   readonly newWhilePaused = signal(0);
 
@@ -157,6 +159,9 @@ export class UwtInspectorStore {
   }
 
   setPaused(paused: boolean): void {
+    if (paused !== this.paused()) {
+      this.pausedAt.set(paused ? new Date().toISOString() : undefined);
+    }
     this.paused.set(paused);
     if (!paused) {
       this.newWhilePaused.set(0);

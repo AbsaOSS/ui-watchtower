@@ -40,7 +40,7 @@ test('query() reads records back from the backend', async ({ page }) => {
   await press(page, 'error, with an Error');
   await expect
     .poll(async () => {
-      await press(page, "query({ logger: 'lab' })");
+      await press(page, 'Run query');
       return page.locator('.lab-readout').last().textContent();
     })
     .toContain('Saving the order failed');
@@ -71,19 +71,19 @@ test('a query filter finds records by correlationId, by level and by time', asyn
     );
 
   // The filter now names the scenario's id.
-  await press(page, 'Run the query');
+  await press(page, 'Run query');
   await expect(readout).toContainText('Inside a journey');
   expect(await found()).toEqual(['Inside a journey']);
 
   const filter = page.getByRole('textbox', { name: 'Query filter (JSON)' });
   await filter.fill('{ "minLevel": "error" }');
-  await press(page, 'Run the query');
+  await press(page, 'Run query');
   await expect(readout).toContainText('Saving the order failed');
   expect(await found()).toEqual(['Saving the order failed']);
 
   const later = new Date(Date.now() + 60_000).toISOString();
   await filter.fill(`{ "from": "${later}" }`);
-  await press(page, 'Run the query');
+  await press(page, 'Run query');
   await expect(readout).toHaveText('[]');
 });
 

@@ -27,7 +27,11 @@
           class="uwt-inspector__dot"
           [class.uwt-inspector__dot--paused]="store.paused()"
           aria-hidden="true"></span>
-        {{ store.paused() ? 'Paused' : 'Capturing' }} since {{ since() }} ·
+        @if (pausedAt(); as at) {
+          Paused at {{ at }} · capturing since {{ since() }} ·
+        } @else {
+          Capturing since {{ since() }} ·
+        }
         {{ store.total() }} event{{ store.total() === 1 ? '' : 's' }}
       </p>
       <uwt-inspector-dock-switcher
@@ -36,7 +40,7 @@
       </uwt-inspector-dock-switcher>
     </div>
     <div class="uwt-inspector__actions">
-      @if (dock() === 'dialog') {
+      @if (dock() === 'dialog' && !maximized()) {
         <cps-slider
           label="Transparency"
           [max]="maxTransparency"
@@ -97,7 +101,7 @@
     }
   </div>
 
-  <footer class="uwt-inspector__footer">
+  <div class="uwt-inspector__footer">
     <p>
       Shows what this app hands to its telemetry destinations, after redaction.
       A destination can still drop an event, for example when RUM samples a
@@ -113,5 +117,5 @@
         >.
       }
     </p>
-  </footer>
+  </div>
 </div>

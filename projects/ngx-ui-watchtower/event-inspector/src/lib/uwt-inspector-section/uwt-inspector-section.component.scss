@@ -64,9 +64,10 @@ td {
   font-size: 0.75rem;
 }
 
-// Level is always written out; colour only supports it.
+// Level is always written out; colour only supports it. The warn shade is
+// dark enough to read as text (5.6:1 on white); the base warn is 2.1:1.
 .uwt-inspector-section__level--warn {
-  color: var(--cps-state-warn);
+  color: var(--cps-color-warn-darken3);
   font-weight: 600;
 }
 

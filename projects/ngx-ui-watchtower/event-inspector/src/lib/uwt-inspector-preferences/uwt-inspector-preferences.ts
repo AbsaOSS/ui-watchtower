@@ -10,8 +10,11 @@ import {
   uwtSafeVoid
 } from '../uwt-inspector-internal.util/uwt-inspector-internal.util';
 
-/** How see-through the dialog can get, in percent, so it never vanishes. */
-export const UWT_INSPECTOR_MAX_TRANSPARENCY = 70;
+/**
+ * How see-through the dialog can get, in percent. Text fades with it, so
+ * past this it gets hard to read.
+ */
+export const UWT_INSPECTOR_MAX_TRANSPARENCY = 30;
 
 /** Where this browser remembers the Event Inspector's settings. */
 export const UWT_INSPECTOR_PREFERENCES_KEY = 'ngx-ui-watchtower.eventInspector';
@@ -100,10 +103,8 @@ function sanitize(raw: unknown): UwtInspectorPreferences {
   return {
     dock: dock ?? 'dialog',
     transparency:
-      typeof transparency === 'number' &&
-      transparency >= 0 &&
-      transparency <= UWT_INSPECTOR_MAX_TRANSPARENCY
-        ? transparency
+      typeof transparency === 'number' && transparency >= 0
+        ? Math.min(transparency, UWT_INSPECTOR_MAX_TRANSPARENCY)
         : 0,
     paneSize,
     ...(window && {

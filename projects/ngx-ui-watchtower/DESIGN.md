@@ -2173,7 +2173,8 @@ provideUwtEventInspector({
 Three sections — BI telemetry, scenario telemetry and logging — listing
 events newest first, from the moment the popup opens. The table always fits
 the popup: a long value ends in an ellipsis, and hovering shows it in full.
-Expand a row for the full payload as JSON.
+Expand a row for the full payload as JSON; its **Copy event** puts that one
+payload on the clipboard.
 
 Each section has its own tools, which never affect the other two:
 
@@ -2190,13 +2191,16 @@ Two controls at the top apply to all three sections, because they are about
 capturing rather than viewing:
 
 - **Pause live updates** freezes the view while you read; events are still
-  captured.
+  captured. The status line then says when you paused as well as when
+  capturing began: "Paused at 22:08:41 · capturing since 22:08:10".
 - **Clear** empties the history; capturing continues.
 
 As a dialog, it also has **Transparency**, which lets the app show through,
-so you can watch the page and its events together. It goes up to 70%, so the
-dialog never disappears, and the setting is remembered in this browser.
-Panes and the window don't cover the app, so they have none.
+so you can watch the page and its events together. Text fades with it, so it
+goes up to 30%, and a higher value remembered from an older version is
+brought down to that. A maximized dialog covers the app, so it is opaque and
+hides the slider. The setting is remembered in this browser. Panes and the
+window don't cover the app, so they have none.
 
 Each section keeps the latest 500 events (`maxEventsPerSection`). History is
 discarded when the popup closes.

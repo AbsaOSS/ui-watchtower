@@ -77,11 +77,7 @@ import { parseJsonObject } from '../../lab/lab-json';
           (valueChanged)="filter.set($event)" />
         <div class="lab-actions">
           <cps-button
-            label="query({ logger: 'lab' })"
-            type="outlined"
-            (clicked)="query()" />
-          <cps-button
-            label="Run the query"
+            label="Run query"
             type="outlined"
             (clicked)="runQuery()" />
         </div>
@@ -92,7 +88,7 @@ import { parseJsonObject } from '../../lab/lab-json';
 })
 export class LoggingPage {
   protected readonly readout = signal('');
-  protected readonly filter = signal('');
+  protected readonly filter = signal('{ "logger": "lab", "limit": 20 }');
   protected readonly filterError = signal('');
 
   private readonly logger = inject(UwtLoggerService);
@@ -106,11 +102,6 @@ export class LoggingPage {
       context: 'checkout',
       metadata: { orderId: 'A-1001' }
     });
-  }
-
-  protected async query(): Promise<void> {
-    const records = await this.logger.query({ logger: 'lab', limit: 20 });
-    this.readout.set(JSON.stringify(records, null, 2));
   }
 
   protected correlated(): void {

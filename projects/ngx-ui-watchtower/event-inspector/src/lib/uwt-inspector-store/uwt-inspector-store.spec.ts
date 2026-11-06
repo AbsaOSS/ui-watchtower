@@ -155,6 +155,21 @@ describe('UwtInspectorStore', () => {
     expect(store.newWhilePaused()).toBe(0);
   });
 
+  it('should remember when it was paused, through a clear, until resumed', () => {
+    const store = createStore();
+    expect(store.pausedAt()).toBeUndefined();
+
+    store.setPaused(true);
+    const at = store.pausedAt();
+    expect(at).toBeDefined();
+    store.setPaused(true);
+    store.clear();
+    expect(store.pausedAt()).toBe(at);
+
+    store.setPaused(false);
+    expect(store.pausedAt()).toBeUndefined();
+  });
+
   it('should include not-yet-flushed events in the download without hiding them', () => {
     const store = createStore();
     monitor.publish(bi('a'));

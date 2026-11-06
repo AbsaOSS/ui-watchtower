@@ -64,7 +64,7 @@ type DebugFlag = (typeof DEBUG_FLAGS)[number];
           Console lines for what is sent. The library reads them on every event,
           so they apply without a reload.
         </p>
-        <div class="lab-actions">
+        <div class="lab-switches">
           @for (flag of flags; track flag) {
             <cps-switch
               [label]="flag"
@@ -76,7 +76,12 @@ type DebugFlag = (typeof DEBUG_FLAGS)[number];
 
       <div class="lab-card">
         <h2>In effect</h2>
-        <pre class="lab-readout">{{ effective }}</pre>
+        <pre
+          class="lab-readout"
+          tabindex="0"
+          role="region"
+          aria-label="Settings in effect"
+          >{{ effective }}</pre>
       </div>
     </section>
   `

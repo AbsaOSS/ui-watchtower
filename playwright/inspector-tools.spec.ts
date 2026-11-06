@@ -59,9 +59,7 @@ test('search and field filters narrow a section, until cleared', async ({
   await search.fill('');
   await expect(bi).toContainText('com.example.custom');
 
-  await page
-    .getByRole('button', { name: 'Add a filter to BI telemetry' })
-    .click();
+  await page.getByRole('button', { name: 'Add filter, BI telemetry' }).click();
   const builder = page.getByRole('group', {
     name: 'New filter for BI telemetry'
   });
@@ -86,7 +84,7 @@ test('Download JSON saves a section as a versioned file', async ({ page }) => {
 
   const download = page.waitForEvent('download');
   await bi
-    .getByRole('button', { name: /^Download BI telemetry events as JSON/ })
+    .getByRole('button', { name: /^Download JSON, BI telemetry/ })
     .click();
   const file = await download;
   expect(file.suggestedFilename()).toMatch(
@@ -116,9 +114,7 @@ test('Copy JSON puts a section on the clipboard', async ({
   const bi = section(page, 'BI telemetry');
   await expect(bi).toContainText('lab_button_clicked');
 
-  await bi
-    .getByRole('button', { name: 'Copy BI telemetry events as JSON' })
-    .click();
+  await bi.getByRole('button', { name: 'Copy JSON, BI telemetry' }).click();
   await expect(bi).toContainText('Copied');
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(JSON.parse(copied)).toMatchObject({

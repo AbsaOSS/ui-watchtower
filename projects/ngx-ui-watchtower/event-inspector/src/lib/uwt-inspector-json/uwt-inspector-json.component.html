@@ -9,9 +9,8 @@
           ? 'Copied'
           : copied() === 'failed'
             ? 'Copy failed'
-            : 'Copy JSON'
+            : copyLabel()
       "
-      ariaLabel="Copy this payload as JSON"
       (clicked)="copy()">
     </cps-button>
     <span role="status" class="cps-sr-only">{{

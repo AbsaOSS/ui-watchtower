@@ -95,6 +95,16 @@ describe('UwtInspectorJsonComponent', () => {
     expect(pre().textContent).toContain('"[Circular]"');
   });
 
+  it('should name the copy button by its visible label, which says what it copies', () => {
+    fixture.componentRef.setInput('value', { a: 1 });
+    fixture.componentRef.setInput('copyLabel', 'Copy event');
+    fixture.detectChanges();
+
+    const copy = fixture.nativeElement.querySelector('cps-button button');
+    expect(copy.textContent.trim()).toBe('Copy event');
+    expect(copy.getAttribute('aria-label')).toBe('Copy event');
+  });
+
   it('should copy the full JSON', async () => {
     const writeText = jest.fn(() => Promise.resolve());
     Object.assign(navigator, { clipboard: { writeText } });

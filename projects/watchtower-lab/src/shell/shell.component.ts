@@ -20,6 +20,9 @@ import { LAB_OPTIONS, SHELL_PAGES } from './shell.config';
   imports: [RouterLink, RouterLinkActive, RouterOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <a class="lab-skip-link" href="#lab-main" (click)="skipToContent($event)"
+      >Skip to content</a
+    >
     <header class="lab-header">
       <img
         class="lab-logo"
@@ -62,7 +65,7 @@ import { LAB_OPTIONS, SHELL_PAGES } from './shell.config';
           }}</a>
         }
       </nav>
-      <main class="lab-main">
+      <main class="lab-main" id="lab-main" tabindex="-1">
         <router-outlet />
       </main>
     </div>
@@ -125,15 +128,15 @@ export class ShellComponent {
   );
 
   private readonly sink = inject(UwtTelemetrySink);
+  private readonly document = inject(DOCUMENT);
 
   constructor() {
     inject(LabLayout);
     const destroyRef = inject(DestroyRef);
-    const document = inject(DOCUMENT);
     // In the browser only, like the wire's polling.
     afterNextRender(() => {
       // Hydrated: the page now answers clicks. The suite waits for this.
-      document.documentElement.setAttribute('data-lab-ready', '');
+      this.document.documentElement.setAttribute('data-lab-ready', '');
       const timer = setInterval(
         () =>
           this.identity.set({
@@ -144,5 +147,11 @@ export class ShellComponent {
       );
       destroyRef.onDestroy(() => clearInterval(timer));
     });
+  }
+
+  /** Focuses the page's content; handled here, so the router stays out. */
+  protected skipToContent(event: Event): void {
+    event.preventDefault();
+    this.document.getElementById('lab-main')?.focus();
   }
 }

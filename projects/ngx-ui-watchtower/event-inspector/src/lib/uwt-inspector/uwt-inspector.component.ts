@@ -11,10 +11,12 @@ import {
   signal,
   viewChild
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   CPS_LIVE_ANNOUNCER_SERVICE,
   CpsButtonComponent,
   CpsDialogConfig,
+  CpsDialogRef,
   CpsSwitchComponent
 } from 'cps-ui-kit';
 import { CpsSliderComponent } from '../cps-slider/cps-slider.component';
@@ -98,6 +100,7 @@ export class UwtInspectorComponent {
 
   /** The dialog's own config: cps-dialog binds its `style` to the window. */
   private readonly dialogConfig = inject(CpsDialogConfig, { optional: true });
+  private readonly dialogRef = inject(CpsDialogRef, { optional: true });
 
   private readonly config = {
     ...UWT_DEFAULT_INSPECTOR_CONFIG,
@@ -115,6 +118,11 @@ export class UwtInspectorComponent {
     uwtInspectorTime(this.store.startedAt()).slice(0, 8)
   );
 
+  protected readonly pausedAt = computed(() => {
+    const at = this.store.pausedAt();
+    return at && uwtInspectorTime(at).slice(0, 8);
+  });
+
   protected readonly shortcut = uwtShortcutLabel(
     this.config.shortcuts,
     uwtIsApplePlatform(this.document.defaultView?.navigator)
@@ -125,6 +133,9 @@ export class UwtInspectorComponent {
     this.preferences.read().transparency
   );
 
+  /** A maximized dialog covers the app, so it isn't see-through. */
+  protected readonly maximized = signal(false);
+
   private readonly dialogLogo = viewChild('dialogLogo', { read: ElementRef });
 
   private lastAnnounced = { bi: 0, scenario: 0, logging: 0 };
@@ -133,6 +144,12 @@ export class UwtInspectorComponent {
     const timer = setInterval(() => this.announceNew(), ANNOUNCE_EVERY_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
     this.applyTransparency(this.transparency());
+    this.dialogRef?.onMaximize
+      .pipe(takeUntilDestroyed())
+      .subscribe((maximized) => {
+        this.maximized.set(maximized);
+        this.applyTransparency(maximized ? 0 : this.transparency());
+      });
     afterNextRender(() => this.placeDialogLogo());
   }
 

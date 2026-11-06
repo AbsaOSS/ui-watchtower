@@ -76,6 +76,13 @@ body {
   }
 }
 
+.lab-switches {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
 .lab-actions {
   display: flex;
   flex-wrap: wrap;
