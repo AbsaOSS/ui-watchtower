@@ -100,25 +100,34 @@ for (const { name, telemetries, chip, expected } of cases) {
   });
 }
 
-test('"On the wire" switches between the default and a list to edit', async ({
+test('Settings switches between the default and a list to edit, set on Apply', async ({
   page,
   backend
 }) => {
-  await openLab(page, 'wire');
+  await openLab(page, 'settings');
   const telemetriesList = page.locator('cps-select[label="Telemetries"]');
+  const useDefault = page
+    .locator('cps-switch', { hasText: "The library's default" })
+    .locator('label.cps-switch');
   await expect(telemetriesList).toHaveCount(0);
 
-  await page
-    .locator('cps-switch', { hasText: "The library's default" })
-    .click();
+  await useDefault.click();
   await expect(telemetriesList).toBeVisible();
-  await expect
-    .poll(async () => (await backend.state()).telemetries)
-    .toEqual(['errors', 'performance', 'http']);
+  await press(page, 'Apply and reload');
+  await expect(page.locator('.lab-header')).toContainText(
+    'rum telemetries: errors, performance, http'
+  );
+  expect((await backend.state()).telemetries).toEqual([
+    'errors',
+    'performance',
+    'http'
+  ]);
 
-  await page
-    .locator('cps-switch', { hasText: "The library's default" })
-    .click();
+  await useDefault.click();
   await expect(telemetriesList).toHaveCount(0);
-  await expect.poll(async () => (await backend.state()).telemetries).toBeNull();
+  await press(page, 'Apply and reload');
+  await expect(page.locator('.lab-header')).toContainText(
+    'rum telemetries: default'
+  );
+  expect((await backend.state()).telemetries).toBeNull();
 });

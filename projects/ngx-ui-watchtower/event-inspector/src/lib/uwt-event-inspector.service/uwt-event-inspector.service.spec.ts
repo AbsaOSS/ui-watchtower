@@ -358,6 +358,22 @@ describe('UwtEventInspectorService', () => {
     expect(service.isOpen()).toBe(false);
   });
 
+  it('should say where it is shown, which a blocked window makes a dialog', () => {
+    const service = create();
+    expect(service.dock()).toBeUndefined();
+
+    service.setDock('left');
+    expect(service.dock()).toBe('left');
+
+    jest.spyOn(windowHost, 'uwtOpenInspectorWindow').mockReturnValue(undefined);
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    service.setDock('window');
+    expect(service.dock()).toBe('dialog');
+
+    service.close();
+    expect(service.dock()).toBeUndefined();
+  });
+
   it('should leave the inspector as it is when asked for the dock it is in', () => {
     const service = create();
     service.setDock('right');

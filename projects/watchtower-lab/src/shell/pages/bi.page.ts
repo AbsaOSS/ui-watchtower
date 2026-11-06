@@ -9,32 +9,43 @@ import {
   UwtScenarioTelemetryService
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { CpsButtonComponent } from 'cps-ui-kit';
+import { LabResultsComponent } from '../../lab/lab-results.component';
 
 @Component({
   selector: 'lab-bi-page',
-  imports: [CpsButtonComponent],
+  imports: [CpsButtonComponent, LabResultsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="lab-page">
+    <section class="lab-page lab-page--results">
       <h1>BI events</h1>
       <p>
-        Identical events within 400 ms are collapsed into one. Check the Event
-        Inspector or On the wire for what arrived.
+        Identical events within 400 ms are collapsed into one. Results shows
+        what was sent, and when it arrived.
       </p>
-      <div class="lab-card">
-        <div class="lab-actions">
-          <cps-button label="Track a click" (clicked)="click()" />
-          <cps-button
-            label="Fire twice at once"
-            type="outlined"
-            (clicked)="doubleFire()" />
-          <cps-button
-            label="Feature, tied to a scenario"
-            type="outlined"
-            (clicked)="feature()" />
+      <div class="lab-page__cards">
+        <div class="lab-card">
+          <h2>Tracking</h2>
+          <div class="lab-actions">
+            <cps-button label="Track a click" (clicked)="click()" />
+            <cps-button
+              label="Fire twice at once"
+              type="outlined"
+              (clicked)="doubleFire()" />
+            <cps-button
+              label="Feature, tied to a scenario"
+              type="outlined"
+              (clicked)="feature()" />
+          </div>
         </div>
       </div>
-      <pre class="lab-readout">{{ readout() || 'Nothing tracked yet.' }}</pre>
+      <lab-results>
+        <pre
+          class="lab-readout"
+          tabindex="0"
+          role="region"
+          aria-label="Last result"
+          >{{ readout() || 'Nothing tracked yet.' }}</pre>
+      </lab-results>
     </section>
   `
 })

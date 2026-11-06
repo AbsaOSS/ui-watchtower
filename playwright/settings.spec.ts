@@ -49,6 +49,54 @@ test('the Settings page applies an overlay, shows it in effect, and goes back', 
   );
 });
 
+test('Settings checks the overlay against the library: no unknown setting, no wrong type', async ({
+  page
+}) => {
+  await openLab(page, 'settings');
+  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  const settings = page.locator('lab-settings-page');
+
+  await overlay.fill('{ "bi": { "dedupWindow": 0 } }');
+  await press(page, 'Apply and reload');
+  await expect(settings).toContainText(`"bi.dedupWindow" isn't a setting`);
+
+  await overlay.fill('{ "bi": { "dedupWindowMs": "0" } }');
+  await press(page, 'Apply and reload');
+  await expect(settings).toContainText(
+    '"bi.dedupWindowMs" should be a number.'
+  );
+
+  await overlay.fill('{ "scenario": {} }');
+  await press(page, 'Apply and reload');
+  await expect(settings).toContainText(`"scenario" isn't a section`);
+  // Never applied.
+  await expect(page.locator('.lab-header')).not.toContainText('config:');
+});
+
+test('Settings controls write the common options into the overlay', async ({
+  page
+}) => {
+  await openLab(page, 'settings');
+  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  await expect(overlay).toHaveValue('{}');
+
+  await page
+    .locator('cps-switch', { hasText: 'Lifecycle step events' })
+    .locator('label.cps-switch')
+    .click();
+  await expect(overlay).toHaveValue(/"emitLifecycleEvents": true/);
+  await page
+    .locator('cps-input', { hasText: 'BI dedup window' })
+    .locator('input')
+    .fill('250');
+  await expect(overlay).toHaveValue(/"dedupWindowMs": 250/);
+
+  await press(page, 'Apply and reload');
+  const effective = page.locator('.lab-readout');
+  await expect(effective).toContainText('"emitLifecycleEvents": true');
+  await expect(effective).toContainText('"dedupWindowMs": 250');
+});
+
 test('eventNamespace renames the event types, and the inspector still sorts them', async ({
   page,
   backend

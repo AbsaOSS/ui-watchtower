@@ -189,8 +189,18 @@ export async function sessionStarted(page: Page): Promise<string> {
   return (await status.textContent())!.match(/session: ([0-9a-f-]{36})/)![1];
 }
 
-/** Moves to another lab page within the app, keeping its state. */
+/**
+ * Moves to another lab page within the app, keeping its state — through the
+ * folded nav's button too, as on a narrow screen or beside a pane.
+ */
 export async function navigate(page: Page, label: string): Promise<void> {
+  const fold = page.locator('.lab-nav__toggle');
+  if (
+    (await fold.isVisible()) &&
+    (await fold.getAttribute('aria-expanded')) !== 'true'
+  ) {
+    await fold.click();
+  }
   await page.locator('.lab-nav').getByRole('link', { name: label }).click();
   await expect(page.locator('lab-root main h1').first()).toHaveText(label);
 }

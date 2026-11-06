@@ -211,13 +211,17 @@ function queryLogs(query: Request['query']): LogRecord[] {
 export const labBackend = Router();
 
 labBackend.get('/rum/init', (req, res) => {
+  // Lab-only: what the broker was set to, for the header to show what this
+  // page load got. A real broker sends nothing like it.
+  const lab = { mode: state.brokerMode, telemetries: state.telemetries };
   const answer = broker(req);
   if (answer) {
-    res.json(answer);
+    res.json({ ...answer, lab });
   } else {
-    res
-      .status(500)
-      .json({ error: `broker unavailable (lab mode: ${state.brokerMode})` });
+    res.status(500).json({
+      error: `broker unavailable (lab mode: ${state.brokerMode})`,
+      lab
+    });
   }
 });
 

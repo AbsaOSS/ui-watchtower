@@ -9,7 +9,7 @@ import {
   withEventReplay
 } from '@angular/platform-browser';
 import { provideAnimations } from '@angular/platform-browser/animations';
-import { provideRouter, Routes } from '@angular/router';
+import { provideRouter, Route, Routes } from '@angular/router';
 import {
   UWT_LOG_API_PROVIDER,
   provideUwtTelemetry,
@@ -35,60 +35,79 @@ import { LabRumCredentialsProvider } from '../lab/lab-rum-credentials.provider';
 
 export { LAB_OPTIONS };
 
-export const SHELL_PAGES = [
+/** The side nav's groups, in order. */
+export const SHELL_GROUPS = ['Library', 'Composition', 'Tools'] as const;
+
+export const SHELL_PAGES: {
+  path: string;
+  group: (typeof SHELL_GROUPS)[number];
+  label: string;
+  load: NonNullable<Route['loadComponent']>;
+}[] = [
   {
     path: 'scenarios',
+    group: 'Library',
     label: 'Scenarios',
     load: () => import('./pages/scenarios.page').then((m) => m.ScenariosPage)
   },
   {
     path: 'bi',
+    group: 'Library',
     label: 'BI events',
     load: () => import('./pages/bi.page').then((m) => m.BIPage)
   },
   {
     path: 'logging',
+    group: 'Library',
     label: 'Logging',
     load: () => import('./pages/logging.page').then((m) => m.LoggingPage)
   },
   {
     path: 'identity',
+    group: 'Library',
     label: 'Identity',
     load: () => import('./pages/identity.page').then((m) => m.IdentityPage)
   },
   {
     path: 'privacy',
+    group: 'Library',
     label: 'Privacy',
     load: () => import('./pages/privacy.page').then((m) => m.PrivacyPage)
   },
   {
     path: 'lifecycle',
+    group: 'Library',
     label: 'Lifecycle',
     load: () => import('./pages/lifecycle.page').then((m) => m.LifecyclePage)
   },
   {
     path: 'fragment',
+    group: 'Composition',
     label: 'Fragment (iframe)',
     load: () => import('./pages/fragment.page').then((m) => m.FragmentPage)
   },
   {
     path: 'web-fragment',
+    group: 'Composition',
     label: 'Web Fragment',
     load: () =>
       import('./pages/web-fragment.page').then((m) => m.WebFragmentPage)
   },
   {
     path: 'inspector',
+    group: 'Tools',
     label: 'Event Inspector',
     load: () => import('./pages/inspector.page').then((m) => m.InspectorPage)
   },
   {
     path: 'wire',
+    group: 'Tools',
     label: 'On the wire',
     load: () => import('./pages/wire.page').then((m) => m.WirePage)
   },
   {
     path: 'settings',
+    group: 'Tools',
     label: 'Settings',
     load: () => import('./pages/settings.page').then((m) => m.SettingsPage)
   }

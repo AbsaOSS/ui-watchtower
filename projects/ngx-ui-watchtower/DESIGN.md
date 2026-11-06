@@ -2284,9 +2284,12 @@ European Windows layouts report as Ctrl+Alt, never matches. Spread
 
 `UwtEventInspectorService` opens it from code: `open()`, `close()`,
 `toggle()`, `setDock(dock)` — a `UwtInspectorDock`: `'dialog'`, `'window'`,
-`'left'`, `'right'` or `'bottom'` — and an `isOpen` signal. `setDock` opens
-it there if it is closed, and remembers the choice like the Dock buttons;
-asked for the dock it is already in, it just focuses it.
+`'left'`, `'right'` or `'bottom'` — an `isOpen` signal, and a `dock` signal
+for where it is shown, `undefined` while closed. `setDock` opens it there if
+it is closed, and remembers the choice like the Dock buttons; asked for the
+dock it is already in, it just focuses it. `dock` can differ from the dock
+asked for: a blocked window, or a pane on a narrow screen, shows as a
+dialog.
 
 An export is a `UwtInspectorExport`:
 

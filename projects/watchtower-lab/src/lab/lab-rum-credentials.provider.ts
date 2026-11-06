@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import {
   UwtRumBootstrap,
   UwtRumCredentialsProvider
@@ -28,6 +28,13 @@ const telemetryOptions = (origin: string): Record<string, object> => ({
   replay: { recordOptions: { blockSelector: '.lab-status, lab-wire-page' } }
 });
 
+/** How the mock broker was set when this page load started RUM. */
+export interface LabBrokerStartup {
+  mode: string;
+  /** `null` for the library's default. */
+  telemetries: readonly string[] | null;
+}
+
 /**
  * Asks the lab's mock broker for the app monitor config and credentials, as
  * the library's own example does: a broker that says RUM is off returns
@@ -38,12 +45,21 @@ export class LabRumCredentialsProvider implements UwtRumCredentialsProvider {
   /** This page's calls, so the broker can tell startup from a refresh. */
   private calls = 0;
 
+  /** What this page load got, from the broker's lab-only echo. */
+  readonly startup = signal<LabBrokerStartup | undefined>(undefined);
+
   async load(): Promise<UwtRumBootstrap | null> {
-    const response = await fetch(`/rum/init?call=${++this.calls}`);
+    const call = ++this.calls;
+    const response = await fetch(`/rum/init?call=${call}`);
+    const body = await response.json().catch(() => ({}));
+    if (call === 1 && body.lab) {
+      this.startup.set(body.lab);
+    }
     if (!response.ok) {
       throw new Error(`RUM bootstrap failed: ${response.status}`);
     }
-    const { enabled, config, credentials } = await response.json();
+    // Only these: the lab's own echo goes no further.
+    const { enabled, config, credentials } = body;
     if (!enabled) {
       return null;
     }

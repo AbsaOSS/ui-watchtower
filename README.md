@@ -72,15 +72,23 @@ rendered on the server, then hydrated. Its server (`server/server.ts`, which
 the library talks to: the real `aws-rum-web` runs against a mock RUM broker
 and dataplane, fully offline, and logs go to a mock log backend.
 
-One page per concern: **Scenarios**, **BI events**, **Logging**,
-**Identity**, **Privacy**, **Lifecycle**, **Fragment (iframe)** and **Web
-Fragment** (the same second app in a plain iframe, and as a
-[Web Fragment](https://web-fragments.dev) through the server's gateway, each
-forwarding through the shell over the tab's own channel), **Event Inspector**
-(every dock, event generators, and the `--uwt-inspector-inset-*` opt-in on
-the lab's fixed header and status bar), **On the wire**: what the mock
-backend actually received, and **Settings**: the library's settings in
-effect, a `?config=` overlay to edit, and the debug flags.
+One page per concern, in three groups. **Library**: **Scenarios**, **BI
+events**, **Logging**, **Identity**, **Privacy** and **Lifecycle**, each with
+a **Results** column beside its buttons — the page's own readout, and what
+it sent, ticked once the mock backend has it. **Composition**: **Fragment
+(iframe)** and **Web Fragment** (the same second app in a plain iframe, and
+as a [Web Fragment](https://web-fragments.dev) through the server's gateway,
+each forwarding through the shell over the tab's own channel). **Tools**:
+**Event Inspector** (every dock, showing the one it is in, event generators,
+and the `--uwt-inspector-inset-*` opt-in on the lab's fixed header and status
+bar), **On the wire**: what the mock backend actually received, and
+**Settings**: the library's settings and the mock broker's answer, applied
+together with one reload, the debug flags, and the settings in effect.
+
+The header's chips show how this load runs; where the broker is set
+differently for the next one, its chip says so: `broker: ok → null after
+reload`. On a narrow screen, or beside a docked pane, the chips fold behind
+**Run settings**, and the page list behind **Pages**.
 
 Options, read once at startup like an app's configuration:
 
@@ -100,10 +108,11 @@ Options, read once at startup like an app's configuration:
 and the one value transform is `mask-order-ids`. One more, `lab`, is the
 lab's own: `{ "logBatching": true }` makes its log provider batch, and send
 when the library flushes it. For example
-`?config={"scenarios":{"emitLifecycleEvents":true}}`.
+`?config={"scenarios":{"emitLifecycleEvents":true}}`. **Settings** edits it,
+with switches for the common options, and refuses a section, setting or
+type the library doesn't have.
 
-The mock RUM broker's answer is set on the **On the wire** page, then applied
-by reloading:
+The mock RUM broker's answer is set on the **Settings** page too:
 
 | Mode                        | The broker                                                   |
 | --------------------------- | ------------------------------------------------------------ |
@@ -116,7 +125,7 @@ by reloading:
 | `null-on-refresh`           | Turns RUM off at the first refresh                           |
 | `no-credentials-on-refresh` | Refreshes without credentials: the sink keeps the old ones   |
 
-The same page sets RUM's own `telemetries` (the library's default, or any of
+It also sets RUM's own `telemetries` (the library's default, or any of
 `errors`, `performance`, `interaction`, `http` and `replay`, down to none),
 and a JSON object laid over the broker's app monitor config, such as
 `{ "sessionSampleRate": 0 }`.
@@ -132,13 +141,14 @@ their own channels or one shared, a custom destination, every broker mode
 and RUM's start-up and refresh, RUM's telemetries, the library's settings
 through `?config=`, the debug flags, and the Event Inspector's docks,
 shortcut, pause, kinds, search, filters, export, paging, resizing, links
-between an error and its log event, and events kept from before opening. It
-also runs axe-core's WCAG 2.2 A and AA rules on every lab page and on the
-Event Inspector with its Export menu and filter help open, measures the
-contrast of its coloured text, and checks its states under forced colours. Internal edge
-cases — timers longer than 24 days, giving up after five minutes, no Web
-Locks or storage, message validation, start-up errors — are left to the unit
-tests.
+between an error and its log event, and events kept from before opening —
+and the lab's own frame: results beside the buttons, the header and nav
+folding when narrow, and no page wider than a phone. It also runs axe-core's
+WCAG 2.2 A and AA rules on every lab page and on the Event Inspector with its
+Export menu and filter help open, measures the contrast of its coloured
+text, and checks its states under forced colours. Internal edge cases —
+timers longer than 24 days, giving up after five minutes, no Web Locks or
+storage, message validation, start-up errors — are left to the unit tests.
 
 It runs the built server on http://localhost:4390, beside `npm run lab`. The
 first time, download the browsers with

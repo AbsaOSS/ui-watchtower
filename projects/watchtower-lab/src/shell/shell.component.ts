@@ -1,24 +1,53 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   DOCUMENT,
+  ElementRef,
   inject,
-  signal
+  signal,
+  viewChild
 } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  NavigationEnd,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet
+} from '@angular/router';
+import { filter } from 'rxjs';
 import { UwtTelemetrySink } from '@absaoss-cps/ngx-ui-watchtower';
 import { UwtEventInspectorService } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
 import { LabLayout } from '../lab/lab-layout.service';
-import { LabWire } from '../lab/lab-wire.service';
-import { LAB_OPTIONS, SHELL_PAGES } from './shell.config';
+import { LabRumCredentialsProvider } from '../lab/lab-rum-credentials.provider';
+import { labTelemetriesLabel, LabWire } from '../lab/lab-wire.service';
+import { LAB_OPTIONS, SHELL_GROUPS, SHELL_PAGES } from './shell.config';
+
+/**
+ * The broker's setting as this page load got it, and the next load's when
+ * that differs: `ok → null after reload`.
+ */
+function inEffect(now?: string, next?: string): string {
+  if (now === undefined) {
+    return next ?? '…';
+  }
+  return next === undefined || next === now
+    ? now
+    : `${now} → ${next} after reload`;
+}
 
 /** The lab's frame: a fixed header, the pages, and a fixed status bar. */
 @Component({
   selector: 'lab-root',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive, RouterOutlet],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // On the document: Safari doesn't focus a button it clicks, so Escape
+  // after opening the nav with the mouse wouldn't come from inside it.
+  host: { '(document:keydown.escape)': 'closeNav()' },
   template: `
     <a class="lab-skip-link" href="#lab-main" (click)="skipToContent($event)"
       >Skip to content</a
@@ -31,20 +60,16 @@ import { LAB_OPTIONS, SHELL_PAGES } from './shell.config';
         width="32"
         height="32" />
       <strong class="lab-title">Watchtower Lab</strong>
-      <span class="lab-chip">destination: {{ options.destination }}</span>
-      <span class="lab-chip"
-        >telemetry: {{ options.telemetry ? 'on' : 'off' }}</span
-      >
-      <span class="lab-chip">broker: {{ wire.brokerMode() }}</span>
-      <span class="lab-chip"
-        >rum telemetries: {{ wire.telemetriesLabel() }}</span
-      >
-      @if (options.channel === 'shared') {
-        <span class="lab-chip">channel: shared</span>
-      }
-      @if (customConfig) {
-        <span class="lab-chip">config: custom</span>
-      }
+      <!-- Inline when there's room; otherwise behind Run settings. -->
+      <div class="lab-chips">
+        <ng-container [ngTemplateOutlet]="chips" />
+      </div>
+      <details class="lab-run-settings">
+        <summary>Run settings</summary>
+        <div class="lab-run-settings__panel">
+          <ng-container [ngTemplateOutlet]="chips" />
+        </div>
+      </details>
       <span class="lab-spacer"></span>
       <span class="lab-user">{{
         identity().userId ? 'Signed in' : 'Signed out'
@@ -57,64 +82,86 @@ import { LAB_OPTIONS, SHELL_PAGES } from './shell.config';
       </button>
     </header>
 
+    <ng-template #chips>
+      <span class="lab-chip">destination: {{ options.destination }}</span>
+      <span class="lab-chip"
+        >telemetry: {{ options.telemetry ? 'on' : 'off' }}</span
+      >
+      <span class="lab-chip">broker: {{ broker() }}</span>
+      <span class="lab-chip">rum telemetries: {{ telemetries() }}</span>
+      @if (options.channel === 'shared') {
+        <span class="lab-chip">channel: shared</span>
+      }
+      @if (customConfig) {
+        <span class="lab-chip">config: custom</span>
+      }
+    </ng-template>
+
     <div class="lab-layout">
-      <nav class="lab-nav" aria-label="Lab pages">
-        @for (page of pages; track page.path) {
-          <a [routerLink]="page.path" routerLinkActive="active">{{
-            page.label
-          }}</a>
-        }
-      </nav>
-      <main class="lab-main" id="lab-main" tabindex="-1">
-        <router-outlet />
-      </main>
+      <div class="lab-layout__grid">
+        <nav class="lab-nav" aria-label="Lab pages">
+          <button
+            #navToggle
+            type="button"
+            class="lab-nav__toggle"
+            aria-controls="lab-nav-pages"
+            [attr.aria-expanded]="navOpen()"
+            (click)="navOpen.set(!navOpen())">
+            <span aria-hidden="true">☰</span> Pages
+            <span class="lab-nav__current"
+              ><span aria-hidden="true">·</span> {{ current() }}</span
+            >
+          </button>
+          <div
+            id="lab-nav-pages"
+            class="lab-nav__pages"
+            [class.lab-nav__pages--open]="navOpen()">
+            @for (group of groups; track group.name) {
+              <p class="lab-nav__group" [id]="'lab-nav-' + group.name">
+                {{ group.name }}
+              </p>
+              <ul [attr.aria-labelledby]="'lab-nav-' + group.name">
+                @for (page of group.pages; track page.path) {
+                  <li>
+                    <a
+                      [routerLink]="page.path"
+                      routerLinkActive="active"
+                      ariaCurrentWhenActive="page"
+                      >{{ page.label }}</a
+                    >
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        </nav>
+        <main class="lab-main" id="lab-main" tabindex="-1">
+          <router-outlet />
+        </main>
+      </div>
     </div>
 
     <footer class="lab-status">
       <span
-        >Mock dataplane: {{ wire.rum().length }} RUM events ({{
-          wire.libraryEvents()
-        }}
-        from the library) in {{ wire.batches() }} batches</span
+        title="Everything the mock dataplane received. RUM's own events — page views, timings, its session start — arrive while the page is idle, too."
+        >RUM events: {{ wire.rum().length }}</span
       >
+      <span title="The library's own events among them"
+        >from the library: {{ wire.libraryEvents() }}</span
+      >
+      <span>batches: {{ wire.batches() }}</span>
       <span>logs: {{ wire.logs().length }}</span>
-      <span>session: {{ identity().sessionId ?? '—' }}</span>
-      <span>user: {{ identity().userId ?? '—' }}</span>
+      <span
+        class="lab-status__id"
+        [title]="'session: ' + (identity().sessionId ?? '—')"
+        >session: {{ identity().sessionId ?? '—' }}</span
+      >
+      <span
+        class="lab-status__id"
+        [title]="'user: ' + (identity().userId ?? '—')"
+        >user: {{ identity().userId ?? '—' }}</span
+      >
     </footer>
-  `,
-  styles: `
-    .lab-logo {
-      flex-shrink: 0;
-      margin-right: -0.25rem;
-      border-radius: 50%;
-      box-shadow: 0 0 0 0.125rem #ffffffb3;
-    }
-    .lab-title {
-      font-size: 1.2rem;
-    }
-    .lab-chip {
-      padding: 0.15rem 0.6rem;
-      border-radius: 1rem;
-      background-color: #ffffff26;
-      font-size: 0.85rem;
-      white-space: nowrap;
-    }
-    .lab-spacer {
-      flex: 1;
-    }
-    .lab-user {
-      white-space: nowrap;
-    }
-    .lab-header-button {
-      padding: 0.35rem 0.9rem;
-      border: 0.0625rem solid #fff;
-      border-radius: 0.25rem;
-      background: transparent;
-      color: #fff;
-      font: inherit;
-      white-space: nowrap;
-      cursor: pointer;
-    }
   `
 })
 export class ShellComponent {
@@ -122,16 +169,56 @@ export class ShellComponent {
   protected readonly customConfig = Object.keys(this.options.config).length > 0;
   protected readonly wire = inject(LabWire);
   protected readonly inspector = inject(UwtEventInspectorService);
-  protected readonly pages = SHELL_PAGES;
   protected readonly identity = signal<{ sessionId?: string; userId?: string }>(
     {}
   );
 
+  protected readonly groups = SHELL_GROUPS.map((name) => ({
+    name,
+    pages: SHELL_PAGES.filter((page) => page.group === name)
+  }));
+
+  /** Whether the folded nav is open, on a narrow screen. */
+  protected readonly navOpen = signal(false);
+  private readonly path = signal('');
+  protected readonly current = computed(
+    () => SHELL_PAGES.find((page) => page.path === this.path())?.label ?? ''
+  );
+
+  private readonly credentials = inject(LabRumCredentialsProvider);
+  protected readonly broker = computed(() =>
+    inEffect(
+      this.credentials.startup()?.mode,
+      this.wire.polled() ? this.wire.brokerMode() : undefined
+    )
+  );
+
+  protected readonly telemetries = computed(() => {
+    const startup = this.credentials.startup();
+    return inEffect(
+      startup && labTelemetriesLabel(startup.telemetries),
+      this.wire.polled() ? this.wire.telemetriesLabel() : undefined
+    );
+  });
+
   private readonly sink = inject(UwtTelemetrySink);
   private readonly document = inject(DOCUMENT);
+  private readonly navToggle =
+    viewChild.required<ElementRef<HTMLButtonElement>>('navToggle');
 
   constructor() {
     inject(LabLayout);
+    const router = inject(Router);
+    router.events
+      .pipe(
+        filter((event) => event instanceof NavigationEnd),
+        takeUntilDestroyed()
+      )
+      .subscribe(() => {
+        this.path.set(router.url.split(/[?#]/)[0].replace(/^\//, ''));
+        this.navOpen.set(false);
+      });
+
     const destroyRef = inject(DestroyRef);
     // In the browser only, like the wire's polling.
     afterNextRender(() => {
@@ -153,5 +240,13 @@ export class ShellComponent {
   protected skipToContent(event: Event): void {
     event.preventDefault();
     this.document.getElementById('lab-main')?.focus();
+  }
+
+  /** Escape folds the open nav, back to its button. */
+  protected closeNav(): void {
+    if (this.navOpen()) {
+      this.navOpen.set(false);
+      this.navToggle().nativeElement.focus();
+    }
   }
 }

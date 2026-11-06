@@ -63,6 +63,27 @@ test('a phone-sized screen offers only the dialog and the window, and opens a re
   await expect(page.locator('uwt-inspector-pane')).toBeVisible();
 });
 
+test('the Where it opens buttons show where it is, with Close apart', async ({
+  page
+}) => {
+  const lab = page.locator('lab-inspector-page');
+  const pressed = lab.locator('[aria-pressed="true"]');
+  const close = lab.getByRole('button', { name: 'Close', exact: true });
+  await expect(pressed).toHaveCount(0);
+  await expect(close).toBeDisabled();
+
+  await press(page, 'Right pane');
+  await expect(pressed).toHaveText('Right pane');
+  await expect(close).toBeEnabled();
+
+  // Moved from the inspector's own Dock buttons, the page follows.
+  await page.locator('uwt-inspector [data-dock="bottom"]').click();
+  await expect(pressed).toHaveText('Bottom pane');
+
+  await close.click();
+  await expect(pressed).toHaveCount(0);
+});
+
 test('the Dialog button moves it from a pane to the dialog', async ({
   page
 }) => {

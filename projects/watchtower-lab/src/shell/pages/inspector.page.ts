@@ -11,26 +11,32 @@ import {
   UwtEventInspectorService,
   UwtInspectorDock
 } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
-import { CpsButtonComponent, CpsSwitchComponent } from 'cps-ui-kit';
+import {
+  CpsButtonComponent,
+  CpsButtonToggleComponent,
+  CpsSwitchComponent
+} from 'cps-ui-kit';
 import { LabLayout } from '../../lab/lab-layout.service';
 import { LAB_OPTIONS } from '../shell.config';
 
-const DOCKS: { dock: UwtInspectorDock; label: string }[] = [
-  { dock: 'dialog', label: 'Dialog' },
-  { dock: 'window', label: 'Separate window' },
-  { dock: 'left', label: 'Left pane' },
-  { dock: 'right', label: 'Right pane' },
-  { dock: 'bottom', label: 'Bottom pane' }
+const DOCKS: { value: UwtInspectorDock; label: string }[] = [
+  { value: 'dialog', label: 'Dialog' },
+  { value: 'window', label: 'Separate window' },
+  { value: 'left', label: 'Left pane' },
+  { value: 'right', label: 'Right pane' },
+  { value: 'bottom', label: 'Bottom pane' }
 ];
 
 @Component({
   selector: 'lab-inspector-page',
-  imports: [CpsButtonComponent, CpsSwitchComponent],
+  imports: [CpsButtonComponent, CpsButtonToggleComponent, CpsSwitchComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="lab-page">
       <h1>Event Inspector</h1>
       <p>
+        Shows, live, what this app hands to its telemetry destinations, with
+        events to try it on below.
         {{
           options.inspector === 'off'
             ? 'Disabled with ?inspector=off.'
@@ -42,16 +48,21 @@ const DOCKS: { dock: UwtInspectorDock; label: string }[] = [
 
       <div class="lab-card">
         <h2>Where it opens</h2>
+        <!-- Pressed: where it is now. Buttons rather than radios, so
+          arrowing along them doesn't move it at every step. -->
         <div class="lab-actions">
-          @for (option of docks; track option.dock) {
-            <cps-button
-              [label]="option.label"
-              type="outlined"
-              (clicked)="inspector.setDock(option.dock)" />
-          }
+          <cps-button-toggle
+            ariaLabel="Where it opens"
+            [options]="docks"
+            [radioNavigation]="false"
+            [equalWidths]="false"
+            [value]="inspector.dock()"
+            (valueChanged)="inspector.setDock($event)" />
           <cps-button
+            class="lab-apart"
             label="Close"
-            type="borderless"
+            type="outlined"
+            [disabled]="!inspector.isOpen()"
             (clicked)="inspector.close()" />
         </div>
         <cps-switch
@@ -78,10 +89,7 @@ const DOCKS: { dock: UwtInspectorDock; label: string }[] = [
           Inspector sees them — shapes the library's own services never produce.
         </p>
         <div class="lab-actions">
-          <cps-button
-            label="A 300,000-character payload"
-            type="outlined"
-            (clicked)="huge()" />
+          <cps-button label="A 300,000-character payload" (clicked)="huge()" />
           <cps-button label="Odd shapes" type="outlined" (clicked)="odd()" />
           <cps-button
             label="An unknown event type"

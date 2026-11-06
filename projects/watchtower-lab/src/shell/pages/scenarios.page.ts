@@ -13,151 +13,149 @@ import {
   UwtScenarioTelemetryService
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { CpsButtonComponent } from 'cps-ui-kit';
+import { LabResultsComponent } from '../../lab/lab-results.component';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 @Component({
   selector: 'lab-scenarios-page',
-  imports: [CpsButtonComponent],
+  imports: [CpsButtonComponent, LabResultsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="lab-page">
+    <section class="lab-page lab-page--results">
       <h1>Scenarios</h1>
       <p>
-        Each settled scenario's record appears below, as the sink receives it.
+        Each settled scenario's record appears in Results, as the sink receives
+        it.
       </p>
+      <div class="lab-page__cards">
+        <div class="lab-card">
+          <h2>Settling</h2>
+          <div class="lab-actions">
+            <cps-button
+              label="Complete, with 3 steps"
+              (clicked)="happyPath()" />
+            <cps-button
+              label="Fail with an error"
+              type="outlined"
+              (clicked)="failure()" />
+            <cps-button label="Cancel" type="outlined" (clicked)="cancel()" />
+            <cps-button
+              label="Incomplete"
+              type="outlined"
+              (clicked)="incomplete()" />
+            <cps-button
+              label="Time out after 1.5 s"
+              type="outlined"
+              (clicked)="timeout()" />
+          </div>
+        </div>
 
-      <div class="lab-card">
-        <h2>Settling</h2>
-        <div class="lab-actions">
-          <cps-button label="Complete, with 3 steps" (clicked)="happyPath()" />
-          <cps-button
-            label="Fail with an error"
-            type="outlined"
-            (clicked)="failure()" />
-          <cps-button label="Cancel" type="outlined" (clicked)="cancel()" />
-          <cps-button
-            label="Incomplete"
-            type="outlined"
-            (clicked)="incomplete()" />
-          <cps-button
-            label="Time out after 1.5 s"
-            type="outlined"
-            (clicked)="timeout()" />
+        <div class="lab-card">
+          <h2>Timing</h2>
+          <div class="lab-actions">
+            <cps-button label="Backdated by 1.5 s" (clicked)="backdated()" />
+            <cps-button
+              label="5 aggregated batches"
+              type="outlined"
+              (clicked)="aggregates()" />
+          </div>
+        </div>
+
+        <div class="lab-card">
+          <h2>HTTP, with traceScenario</h2>
+          <p>
+            Search cancels the search in flight (switchMap): click it several
+            times quickly, and only the last one completes; the others settle as
+            abandoned, with abandonedBy: caller.
+          </p>
+          <div class="lab-actions">
+            <cps-button label="Request (600 ms)" (clicked)="request()" />
+            <cps-button
+              label="Request that fails (500)"
+              type="outlined"
+              (clicked)="failingRequest()" />
+            <cps-button
+              label="Search"
+              type="outlined"
+              (clicked)="searches.next(800)" />
+          </div>
+        </div>
+
+        <div class="lab-card">
+          <h2>A running scenario</h2>
+          <div class="lab-actions">
+            <cps-button label="Start" (clicked)="startRunning()" />
+            <cps-button
+              label="Show toRecord()"
+              type="outlined"
+              (clicked)="showRunning()" />
+            <cps-button
+              label="Complete it"
+              type="outlined"
+              (clicked)="completeRunning()" />
+          </div>
+        </div>
+
+        <div class="lab-card">
+          <h2>The rest of the scenario API</h2>
+          <div class="lab-actions">
+            <cps-button label="Steps with detail" (clicked)="detailed()" />
+            <cps-button
+              label="A parent and a child"
+              type="outlined"
+              (clicked)="family()" />
+            <cps-button
+              label="settle('incomplete')"
+              type="outlined"
+              (clicked)="settleDirectly()" />
+            <cps-button
+              label="51 at once"
+              type="outlined"
+              (clicked)="crowd()" />
+          </div>
+        </div>
+
+        <div class="lab-card">
+          <h2>Active scenarios</h2>
+          <div class="lab-actions">
+            <cps-button label="Start a long one" (clicked)="startLong()" />
+            <cps-button
+              label="Look them up"
+              type="outlined"
+              (clicked)="lookUp()" />
+            <cps-button
+              label="Cancel every active one"
+              type="outlined"
+              (clicked)="cancelActive()" />
+          </div>
+        </div>
+
+        <div class="lab-card">
+          <h2>traceScenario's options</h2>
+          <div class="lab-actions">
+            <cps-button
+              label="outcome, from the response"
+              (clicked)="outcomeFromResponse()" />
+            <cps-button
+              label="cancelOutcome, unsubscribed early"
+              type="outlined"
+              (clicked)="unsubscribedEarly()" />
+            <cps-button
+              label="valueThenTeardown: 'cancel'"
+              type="outlined"
+              (clicked)="valueThenCancel()" />
+          </div>
         </div>
       </div>
-
-      <div class="lab-card">
-        <h2>Timing</h2>
-        <div class="lab-actions">
-          <cps-button
-            label="Backdated by 1.5 s"
-            type="outlined"
-            (clicked)="backdated()" />
-          <cps-button
-            label="5 aggregated batches"
-            type="outlined"
-            (clicked)="aggregates()" />
-        </div>
-      </div>
-
-      <div class="lab-card">
-        <h2>HTTP, with traceScenario</h2>
-        <p>
-          Search cancels the search in flight (switchMap): click it several
-          times quickly, and only the last one completes; the others settle as
-          abandoned, with abandonedBy: caller.
-        </p>
-        <div class="lab-actions">
-          <cps-button
-            label="Request (600 ms)"
-            type="outlined"
-            (clicked)="request()" />
-          <cps-button
-            label="Request that fails (500)"
-            type="outlined"
-            (clicked)="failingRequest()" />
-          <cps-button
-            label="Search"
-            type="outlined"
-            (clicked)="searches.next(800)" />
-        </div>
-      </div>
-
-      <div class="lab-card">
-        <h2>A running scenario</h2>
-        <div class="lab-actions">
-          <cps-button
-            label="Start"
-            type="outlined"
-            (clicked)="startRunning()" />
-          <cps-button
-            label="Show toRecord()"
-            type="outlined"
-            (clicked)="showRunning()" />
-          <cps-button
-            label="Complete it"
-            type="outlined"
-            (clicked)="completeRunning()" />
-        </div>
-      </div>
-
-      <div class="lab-card">
-        <h2>The rest of the scenario API</h2>
-        <div class="lab-actions">
-          <cps-button
-            label="Steps with detail"
-            type="outlined"
-            (clicked)="detailed()" />
-          <cps-button
-            label="A parent and a child"
-            type="outlined"
-            (clicked)="family()" />
-          <cps-button
-            label="settle('incomplete')"
-            type="outlined"
-            (clicked)="settleDirectly()" />
-          <cps-button label="51 at once" type="outlined" (clicked)="crowd()" />
-        </div>
-      </div>
-
-      <div class="lab-card">
-        <h2>Active scenarios</h2>
-        <div class="lab-actions">
-          <cps-button
-            label="Start a long one"
-            type="outlined"
-            (clicked)="startLong()" />
-          <cps-button
-            label="Look them up"
-            type="outlined"
-            (clicked)="lookUp()" />
-          <cps-button
-            label="Cancel every active one"
-            type="outlined"
-            (clicked)="cancelActive()" />
-        </div>
-      </div>
-
-      <div class="lab-card">
-        <h2>traceScenario's options</h2>
-        <div class="lab-actions">
-          <cps-button
-            label="outcome, from the response"
-            type="outlined"
-            (clicked)="outcomeFromResponse()" />
-          <cps-button
-            label="cancelOutcome, unsubscribed early"
-            type="outlined"
-            (clicked)="unsubscribedEarly()" />
-          <cps-button
-            label="valueThenTeardown: 'cancel'"
-            type="outlined"
-            (clicked)="valueThenCancel()" />
-        </div>
-      </div>
-
-      <pre class="lab-readout">{{ readout() || 'Nothing settled yet.' }}</pre>
+      <lab-results>
+        <pre
+          class="lab-readout"
+          tabindex="0"
+          role="region"
+          aria-label="Last result"
+          >{{ readout() || 'Nothing settled yet.' }}</pre>
+      </lab-results>
     </section>
   `
 })

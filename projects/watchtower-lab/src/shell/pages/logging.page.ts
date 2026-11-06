@@ -9,80 +9,85 @@ import {
   UwtScenarioTelemetryService
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { CpsButtonComponent, CpsTextareaComponent } from 'cps-ui-kit';
+import { LabResultsComponent } from '../../lab/lab-results.component';
 import { parseJsonObject } from '../../lab/lab-json';
 
 @Component({
   selector: 'lab-logging-page',
-  imports: [CpsButtonComponent, CpsTextareaComponent],
+  imports: [CpsButtonComponent, CpsTextareaComponent, LabResultsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="lab-page">
+    <section class="lab-page lab-page--results">
       <h1>Logging</h1>
       <p>
         Records go to the lab's mock log backend. Errors are also mirrored to
         RUM (mirrorErrorsToRum). The <code>noisy</code> logger only writes
         warnings and up.
       </p>
-      <div class="lab-card">
-        <h2>The <code>lab</code> logger</h2>
-        <div class="lab-actions">
-          <cps-button
-            label="log"
-            type="outlined"
-            (clicked)="lab.log('A lab log line')" />
-          <cps-button
-            label="warn"
-            type="outlined"
-            (clicked)="lab.warn('A lab warning')" />
-          <cps-button label="error, with an Error" (clicked)="error()" />
+      <div class="lab-page__cards">
+        <div class="lab-card">
+          <h2>The <code>lab</code> logger</h2>
+          <div class="lab-actions">
+            <cps-button label="log" (clicked)="lab.log('A lab log line')" />
+            <cps-button
+              label="warn"
+              type="outlined"
+              (clicked)="lab.warn('A lab warning')" />
+            <cps-button
+              label="error, with an Error"
+              type="outlined"
+              (clicked)="error()" />
+          </div>
+        </div>
+        <div class="lab-card">
+          <h2>The <code>noisy</code> logger (warn and up)</h2>
+          <div class="lab-actions">
+            <cps-button
+              label="log (dropped)"
+              type="outlined"
+              (clicked)="noisy.log('Not written')" />
+            <cps-button
+              label="warn (written)"
+              (clicked)="noisy.warn('A noisy warning')" />
+          </div>
+        </div>
+        <div class="lab-card">
+          <h2>Tied to a journey</h2>
+          <p>
+            A warning whose correlationId is a scenario's id: the filter below
+            is set to find it.
+          </p>
+          <div class="lab-actions">
+            <cps-button
+              label="Log inside a scenario"
+              (clicked)="correlated()" />
+          </div>
+        </div>
+        <div class="lab-card">
+          <h2>Reading back</h2>
+          <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
+          <cps-textarea
+            ngSkipHydration
+            label="Query filter (JSON)"
+            placeholder='{ "logger": "lab", "minLevel": "warn", "limit": 20 }'
+            width="30rem"
+            [rows]="3"
+            [value]="filter()"
+            [error]="filterError()"
+            (valueChanged)="filter.set($event)" />
+          <div class="lab-actions">
+            <cps-button label="Run query" (clicked)="runQuery()" />
+          </div>
         </div>
       </div>
-      <div class="lab-card">
-        <h2>The <code>noisy</code> logger (warn and up)</h2>
-        <div class="lab-actions">
-          <cps-button
-            label="log (dropped)"
-            type="outlined"
-            (clicked)="noisy.log('Not written')" />
-          <cps-button
-            label="warn (written)"
-            type="outlined"
-            (clicked)="noisy.warn('A noisy warning')" />
-        </div>
-      </div>
-      <div class="lab-card">
-        <h2>Tied to a journey</h2>
-        <p>
-          A warning whose correlationId is a scenario's id: the filter below is
-          set to find it.
-        </p>
-        <div class="lab-actions">
-          <cps-button
-            label="Log inside a scenario"
-            type="outlined"
-            (clicked)="correlated()" />
-        </div>
-      </div>
-      <div class="lab-card">
-        <h2>Reading back</h2>
-        <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
-        <cps-textarea
-          ngSkipHydration
-          label="Query filter (JSON)"
-          placeholder='{ "logger": "lab", "minLevel": "warn", "limit": 20 }'
-          width="30rem"
-          [rows]="3"
-          [value]="filter()"
-          [error]="filterError()"
-          (valueChanged)="filter.set($event)" />
-        <div class="lab-actions">
-          <cps-button
-            label="Run query"
-            type="outlined"
-            (clicked)="runQuery()" />
-        </div>
-      </div>
-      <pre class="lab-readout">{{ readout() || 'No query yet.' }}</pre>
+      <lab-results>
+        <pre
+          class="lab-readout"
+          tabindex="0"
+          role="region"
+          aria-label="Last result"
+          >{{ readout() || 'No query yet.' }}</pre>
+      </lab-results>
     </section>
   `
 })

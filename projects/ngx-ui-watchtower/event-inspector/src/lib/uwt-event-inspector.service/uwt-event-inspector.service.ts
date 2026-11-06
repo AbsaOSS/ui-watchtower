@@ -97,6 +97,15 @@ export class UwtEventInspectorService {
   /** Whether the inspector is currently open, in any dock. */
   readonly isOpen = signal(false);
 
+  private readonly shownIn = signal<UwtInspectorDock | undefined>(undefined);
+
+  /**
+   * Where the inspector is shown while open — which can differ from the dock
+   * asked for, as a blocked window or a narrow screen makes it a dialog —
+   * and `undefined` while closed.
+   */
+  readonly dock = this.shownIn.asReadonly();
+
   /** Whether the app's window is wide enough for a pane beside it. */
   private readonly panesFit = signal(true);
 
@@ -181,6 +190,7 @@ export class UwtEventInspectorService {
     uwtSafeVoid('close', () => host?.destroy());
     this.session.end();
     this.isOpen.set(false);
+    this.shownIn.set(undefined);
   }
 
   /**
@@ -246,6 +256,7 @@ export class UwtEventInspectorService {
             ? this.openDialog()
             : this.openPane(dock);
       this.isOpen.set(true);
+      this.shownIn.set(this.host.dock);
     });
     // A dialog focuses itself once rendered; a pane or window is ready now.
     uwtSafeVoid('focus', () => this.host?.focus());

@@ -41,6 +41,17 @@ export const LAB_TELEMETRIES = [
 
 export type LabTelemetry = (typeof LAB_TELEMETRIES)[number];
 
+/** RUM's telemetries as people read them: `default`, `none`, or a list. */
+export function labTelemetriesLabel(
+  telemetries: readonly string[] | null
+): string {
+  return telemetries === null ? 'default' : telemetries.join(', ') || 'none';
+}
+
+function sameJson(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 /** How often "On the wire" and the status bar ask the mock backend, in ms. */
 const POLL_MS = 1500;
 
@@ -60,19 +71,31 @@ const labFetch =
  */
 @Injectable({ providedIn: 'root' })
 export class LabWire {
+  /** Whether the mock backend has answered yet. */
+  readonly polled = signal(false);
   readonly batches = signal(0);
   readonly rum = signal<readonly LabRumEvent[]>([]);
   readonly logs = signal<readonly UwtLogRecord[]>([]);
   readonly brokerMode = signal<LabBrokerMode>('ok');
-  /** Laid over the broker's app monitor config. */
-  readonly brokerConfig = signal<Record<string, unknown>>({});
-  /** RUM telemetries the broker names; `null` for the library's default. */
-  readonly telemetries = signal<readonly LabTelemetry[] | null>(null);
 
-  readonly telemetriesLabel = computed(() => {
-    const telemetries = this.telemetries();
-    return telemetries === null ? 'default' : telemetries.join(', ') || 'none';
+  // The next two change only when their content does: each poll brings new
+  // objects, and a draft built from them would be reset under the user's
+  // typing.
+
+  /** Laid over the broker's app monitor config. */
+  readonly brokerConfig = signal<Record<string, unknown>>(
+    {},
+    { equal: sameJson }
+  );
+
+  /** RUM telemetries the broker names; `null` for the library's default. */
+  readonly telemetries = signal<readonly LabTelemetry[] | null>(null, {
+    equal: sameJson
   });
+
+  readonly telemetriesLabel = computed(() =>
+    labTelemetriesLabel(this.telemetries())
+  );
 
   /** The library's own events, as opposed to RUM's page views and timings. */
   readonly libraryEvents = computed(
@@ -103,6 +126,7 @@ export class LabWire {
       this.brokerMode.set(state.brokerMode);
       this.brokerConfig.set(state.brokerConfig);
       this.telemetries.set(state.telemetries);
+      this.polled.set(true);
     } catch {
       // The mock backend isn't running: `npm run lab` starts it.
     }

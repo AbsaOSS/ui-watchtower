@@ -2,213 +2,126 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DOCUMENT,
   inject,
-  linkedSignal,
   signal
 } from '@angular/core';
 import { UwtTelemetrySink } from '@absaoss-cps/ngx-ui-watchtower';
-import {
-  CpsButtonComponent,
-  CpsSelectComponent,
-  CpsSwitchComponent,
-  CpsTextareaComponent
-} from 'cps-ui-kit';
-import {
-  LAB_TELEMETRIES,
-  LabBrokerMode,
-  LabRumEvent,
-  LabTelemetry,
-  LabWire
-} from '../../lab/lab-wire.service';
-import { parseJsonObject } from '../../lab/lab-json';
-
-const BROKER_MODES: { label: string; value: LabBrokerMode }[] = [
-  { label: 'ok — RUM records normally', value: 'ok' },
-  { label: 'null — RUM off for the page', value: 'null' },
-  { label: 'fail — broker error, the app carries on', value: 'fail' },
-  {
-    label: 'short-expiry — credentials refresh within seconds',
-    value: 'short-expiry'
-  },
-  { label: 'flaky — fails twice, then answers', value: 'flaky' },
-  {
-    label: 'invalid — a pattern as a string: RUM not started',
-    value: 'invalid'
-  },
-  {
-    label: 'null-on-refresh — RUM off at the first refresh',
-    value: 'null-on-refresh'
-  },
-  {
-    label: 'no-credentials-on-refresh — a refresh without credentials',
-    value: 'no-credentials-on-refresh'
-  }
-];
+import { CpsButtonComponent, CpsSwitchComponent } from 'cps-ui-kit';
+import { LabRumEvent, LabWire } from '../../lab/lab-wire.service';
 
 @Component({
   selector: 'lab-wire-page',
-  imports: [
-    CpsButtonComponent,
-    CpsSelectComponent,
-    CpsSwitchComponent,
-    CpsTextareaComponent
-  ],
+  imports: [CpsButtonComponent, CpsSwitchComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="lab-page">
       <h1>On the wire</h1>
       <p>
         What the lab's mock backend actually received — the other side of what
-        the app, and the Event Inspector, say was sent. Newest first.
+        the app, and the Event Inspector, say was sent. Newest first. The mock
+        RUM broker is set up in Settings.
       </p>
 
       <div class="lab-card">
-        <h2>Mock RUM broker</h2>
+        <h2>The mock backend</h2>
         <div class="lab-actions">
-          <cps-select
-            label="Answer the next /rum/init with"
-            [options]="modes"
-            [returnObject]="false"
-            [value]="wire.brokerMode()"
-            width="26rem"
-            (valueChanged)="wire.setBrokerMode($event)" />
-        </div>
-        <p>
-          RUM's own telemetry: the library's default is errors, performance and
-          same-origin HTTP. With none, RUM records only page views, the session
-          start and the library's events.
-        </p>
-        <div class="lab-actions">
-          <cps-switch
-            label="The library's default"
-            [value]="wire.telemetries() === null"
-            (valueChanged)="useDefault($event)" />
-          @if (wire.telemetries(); as chosen) {
-            <cps-select
-              label="Telemetries"
-              placeholder="None"
-              [options]="telemetryOptions"
-              [returnObject]="false"
-              [multiple]="true"
-              [selectAll]="true"
-              [chips]="true"
-              [value]="chosen"
-              width="26rem"
-              (valueChanged)="wire.setTelemetries($event)" />
-          }
-        </div>
-        <cps-textarea
-          label="Laid over the app monitor config (JSON)"
-          placeholder='{ "sessionSampleRate": 0 }'
-          width="26rem"
-          [rows]="3"
-          [value]="brokerConfigDraft()"
-          [error]="brokerConfigError()"
-          (valueChanged)="brokerConfigDraft.set($event)" />
-        <div class="lab-actions">
+          <cps-button label="Flush now" (clicked)="flush()" />
           <cps-button
-            label="Set the overlay"
+            label="Reset the mock backend"
             type="outlined"
-            (clicked)="setBrokerConfig()" />
-          <cps-button
-            label="Reload to apply"
-            type="outlined"
-            (clicked)="reload()" />
+            (clicked)="reset()" />
+          <span class="lab-note" role="status">{{ status() }}</span>
         </div>
       </div>
 
       <div class="lab-card">
-        <div class="lab-actions">
-          <cps-button label="Flush now" (clicked)="sink.flush()" />
-          <cps-button
-            label="Reset the mock backend"
-            type="outlined"
-            (clicked)="wire.reset()" />
+        <div class="lab-card__header">
+          <h2>RUM events ({{ rum().length }})</h2>
           <cps-switch
             label="Library events only"
             [value]="libraryOnly()"
             (valueChanged)="libraryOnly.set($event)" />
         </div>
-      </div>
-
-      <div class="lab-card">
-        <h2>RUM events ({{ rum().length }})</h2>
-        <table class="lab-table">
-          <thead>
-            <tr>
-              <th>Received</th>
-              <th>Type</th>
-              <th>Session · user</th>
-              <th>signedIn</th>
-              <th>Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (event of rum(); track event.id) {
+        <div
+          class="lab-scroll"
+          tabindex="0"
+          role="region"
+          aria-label="RUM events received">
+          <table class="lab-table">
+            <thead>
               <tr>
-                <td>{{ event.receivedAt.slice(11, 19) }}</td>
-                <td>
-                  <code>{{ event.type }}</code>
-                </td>
-                <td>
-                  {{ short(event.user.sessionId) }} ·
-                  {{ short(event.user.userId) }}
-                </td>
-                <td>{{ event.metadata['signedIn'] ?? '' }}</td>
-                <td>
-                  <details>
-                    <summary>{{ summary(event) }}</summary>
-                    <pre class="lab-readout">{{ json(event) }}</pre>
-                  </details>
-                </td>
+                <th>Received</th>
+                <th>Type</th>
+                <th>Session · user</th>
+                <th>signedIn</th>
+                <th>Details</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (event of rum(); track event.id) {
+                <tr>
+                  <td>{{ event.receivedAt.slice(11, 19) }}</td>
+                  <td>
+                    <code>{{ event.type }}</code>
+                  </td>
+                  <td>
+                    {{ short(event.user.sessionId) }} ·
+                    {{ short(event.user.userId) }}
+                  </td>
+                  <td>{{ event.metadata['signedIn'] ?? '' }}</td>
+                  <td>
+                    <details>
+                      <summary>{{ summary(event) }}</summary>
+                      <pre class="lab-readout">{{ json(event) }}</pre>
+                    </details>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div class="lab-card">
         <h2>Log records ({{ logs().length }})</h2>
-        <table class="lab-table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Level</th>
-              <th>Application · logger</th>
-              <th>Message</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (record of logs(); track $index) {
+        <div
+          class="lab-scroll"
+          tabindex="0"
+          role="region"
+          aria-label="Log records received">
+          <table class="lab-table">
+            <thead>
               <tr>
-                <td>{{ record.timestamp.slice(11, 19) }}</td>
-                <td>{{ record.level }}</td>
-                <td>{{ record.application }} · {{ record.logger }}</td>
-                <td>{{ record.message }}</td>
+                <th>Time</th>
+                <th>Level</th>
+                <th>Application · logger</th>
+                <th>Message</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (record of logs(); track $index) {
+                <tr>
+                  <td>{{ record.timestamp.slice(11, 19) }}</td>
+                  <td>{{ record.level }}</td>
+                  <td>{{ record.application }} · {{ record.logger }}</td>
+                  <td>{{ record.message }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   `
 })
 export class WirePage {
   protected readonly wire = inject(LabWire);
-  protected readonly sink = inject(UwtTelemetrySink);
-  protected readonly modes = BROKER_MODES;
   protected readonly libraryOnly = signal(true);
-  /** The overlay in force, until edited; replaced if the server's changes. */
-  protected readonly brokerConfigDraft = linkedSignal(() =>
-    JSON.stringify(this.wire.brokerConfig())
-  );
+  protected readonly status = signal('');
 
-  protected readonly brokerConfigError = signal('');
-
-  protected readonly telemetryOptions = LAB_TELEMETRIES.map((t) => ({
-    label: t,
-    value: t
-  }));
+  private readonly sink = inject(UwtTelemetrySink);
+  private readonly window = inject(DOCUMENT).defaultView!;
 
   protected readonly rum = computed(() =>
     this.wire
@@ -220,22 +133,22 @@ export class WirePage {
 
   protected readonly logs = computed(() => this.wire.logs().slice().reverse());
 
-  protected async setBrokerConfig(): Promise<void> {
-    const config = parseJsonObject(this.brokerConfigDraft().trim() || '{}');
-    this.brokerConfigError.set(config ? '' : 'Not a JSON object.');
-    if (config) {
-      await this.wire.setBrokerConfig(config);
+  protected flush(): void {
+    this.sink.flush();
+    this.status.set('Flushed: what the sink held is on its way.');
+  }
+
+  /** Empties the mock backend, once confirmed: there's no undoing it. */
+  protected async reset(): Promise<void> {
+    if (
+      !this.window.confirm(
+        'Empty the mock backend? Everything it received is lost.'
+      )
+    ) {
+      return;
     }
-  }
-
-  protected reload(): void {
-    location.reload();
-  }
-
-  /** Back to the default, or a list to edit that starts as the default. */
-  protected useDefault(useDefault: boolean): void {
-    const defaults: LabTelemetry[] = ['errors', 'performance', 'http'];
-    this.wire.setTelemetries(useDefault ? null : defaults);
+    await this.wire.reset();
+    this.status.set('Reset: the mock backend is empty.');
   }
 
   protected short(id?: string): string {

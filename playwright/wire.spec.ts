@@ -14,46 +14,68 @@ async function choose(page: Page, label: string, option: string) {
   await page.getByRole('option', { name: new RegExp(`^${option}`) }).click();
 }
 
-test.beforeEach(async ({ page }) => {
-  await openLab(page, 'wire');
-});
-
-test('the broker select sets how the next /rum/init is answered', async ({
+test('Settings sets the broker, all at once with Apply and reload; the header tells this load from the next', async ({
   page,
   backend
 }) => {
-  await choose(page, 'Answer the next /rum/init with', 'null —');
-  await expect
-    .poll(async () => (await backend.state()).brokerMode)
-    .toBe('null');
-  await expect(page.locator('.lab-header')).toContainText('broker: null');
-});
-
-test('the telemetries list sets what the broker names', async ({
-  page,
-  backend
-}) => {
+  await openLab(page, 'settings');
+  await choose(page, 'Answer /rum/init with', 'null —');
   await page
     .locator('cps-switch', { hasText: "The library's default" })
+    .locator('label.cps-switch')
     .click();
   await choose(page, 'Telemetries', 'replay');
-  await expect
-    .poll(async () => (await backend.state()).telemetries)
-    .toEqual(['errors', 'performance', 'http', 'replay']);
+  const overlay = page.getByRole('textbox', {
+    name: 'Laid over the app monitor config (JSON)'
+  });
+  await overlay.fill('{ "sessionSampleRate": 0 }');
+  // Past the lab's next poll of the backend, the draft is still there.
+  await page.waitForTimeout(2000);
+  await expect(overlay).toHaveValue('{ "sessionSampleRate": 0 }');
+  // Nothing is set until applied.
+  expect((await backend.state()).brokerMode).toBe('ok');
+
+  await press(page, 'Apply and reload');
+  await expect(page.locator('.lab-header')).toContainText('broker: null');
+  expect(await backend.state()).toMatchObject({
+    brokerMode: 'null',
+    telemetries: ['errors', 'performance', 'http', 'replay'],
+    brokerConfig: { sessionSampleRate: 0 }
+  });
+  // After the reload, the fields show what is set.
+  await expect(
+    page.getByRole('textbox', {
+      name: 'Laid over the app monitor config (JSON)'
+    })
+  ).toHaveValue('{"sessionSampleRate":0}');
+
+  // Set elsewhere, for the next load: the header says so.
+  await backend.setBrokerMode('ok');
+  await expect(page.locator('.lab-header')).toContainText(
+    'broker: null → ok after reload'
+  );
 });
 
-test('Reload to apply loads the page again', async ({ page }) => {
-  await page.evaluate(() => ((window as { labMark?: number }).labMark = 1));
-  await press(page, 'Reload to apply');
-  await expect
-    .poll(() => page.evaluate(() => (window as { labMark?: number }).labMark))
-    .toBeUndefined();
-});
-
-test("the tables show what arrived, RUM's own events on request, until Reset empties them", async ({
+test('a broker overlay that is not JSON stops Apply, and sets nothing', async ({
   page,
   backend
 }) => {
+  await openLab(page, 'settings');
+  await page
+    .getByRole('textbox', { name: 'Laid over the app monitor config (JSON)' })
+    .fill('[1, 2]');
+  await press(page, 'Apply and reload');
+  await expect(page.locator('lab-settings-page')).toContainText(
+    'Not a JSON object.'
+  );
+  expect((await backend.state()).brokerConfig).toEqual({});
+});
+
+test("the tables show what arrived, RUM's own events on request, until a confirmed Reset empties them", async ({
+  page,
+  backend
+}) => {
+  await openLab(page, 'wire');
   await sessionStarted(page);
   await navigate(page, 'BI events');
   await press(page, 'Track a click');
@@ -67,42 +89,31 @@ test("the tables show what arrived, RUM's own events on request, until Reset emp
   await expect(rumTable).not.toContainText('com.amazon.rum.page_view_event');
   await expect(logTable).toContainText('A lab warning');
 
-  const libraryOnly = page.locator('cps-switch', {
+  // The filter sits with the table it filters.
+  const libraryOnly = rumTable.locator('cps-switch', {
     hasText: 'Library events only'
   });
   await libraryOnly.click();
   await expect(rumTable).toContainText('com.amazon.rum.page_view_event');
   await libraryOnly.click();
 
-  // RUM's own events can still arrive after it; the library's can't.
+  // Asked first; declined, nothing goes.
+  let asked = '';
+  page.once('dialog', (dialog) => {
+    asked = dialog.message();
+    return dialog.dismiss();
+  });
   await press(page, 'Reset the mock backend');
+  await expect.poll(() => asked).toContain('Empty the mock backend?');
+  expect((await backend.logs()).length).toBeGreaterThan(0);
+
+  // RUM's own events can still arrive after it; the library's can't.
+  page.once('dialog', (dialog) => dialog.accept());
+  await press(page, 'Reset the mock backend');
+  await expect(page.getByRole('status')).toContainText(
+    'Reset: the mock backend is empty.'
+  );
   await expect(rumTable.locator('h2')).toHaveText('RUM events (0)');
   await expect(logTable.locator('h2')).toHaveText('Log records (0)');
   expect(await backend.logs()).toEqual([]);
-});
-
-test('the overlay field sets what is laid over the broker config, and refuses what is not JSON', async ({
-  page,
-  backend
-}) => {
-  const field = page.getByRole('textbox', {
-    name: 'Laid over the app monitor config (JSON)'
-  });
-  await field.fill('{ "sessionSampleRate": 0 }');
-  await press(page, 'Set the overlay');
-  await expect
-    .poll(async () => (await backend.state()).brokerConfig)
-    .toEqual({ sessionSampleRate: 0 });
-  // After a reload, the field shows the overlay in force.
-  await press(page, 'Reload to apply');
-  await expect(field).toHaveValue('{"sessionSampleRate":0}');
-
-  await field.fill('[1, 2]');
-  await press(page, 'Set the overlay');
-  await expect(page.locator('lab-wire-page')).toContainText(
-    'Not a JSON object.'
-  );
-  expect((await backend.state()).brokerConfig).toEqual({
-    sessionSampleRate: 0
-  });
 });
