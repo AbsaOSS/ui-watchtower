@@ -5,6 +5,7 @@ import {
   UwtTelemetryPublishInput
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { UWT_EVENT_INSPECTOR_CONFIG } from '../uwt-inspector.models/uwt-inspector.models';
+import { UwtInspectorRing } from '../uwt-inspector-ring/uwt-inspector-ring';
 import {
   UWT_INSPECTOR_FLUSH_MS,
   UwtInspectorStore
@@ -88,6 +89,26 @@ describe('UwtInspectorStore', () => {
     flush();
 
     expect(store.total()).toBe(0);
+  });
+
+  it('should start with what the ring kept from before: at once, not as new, nor as received', () => {
+    jest.setSystemTime(new Date('2026-01-01T09:00:00.000Z'));
+    const ring = TestBed.inject(UwtInspectorRing);
+    ring.start(2);
+    ['a', 'b', 'c'].forEach((n) => monitor.publish(bi(n)));
+    jest.setSystemTime(new Date('2026-01-01T09:05:00.000Z'));
+
+    const store = createStore();
+
+    expect(names(store)).toEqual(['c', 'b']);
+    expect(store.fresh().size).toBe(0);
+    expect(store.received().bi).toBe(0);
+    expect(store.startedAt()).toBe('2026-01-01T09:00:00.000Z');
+    expect(store.count('bi')).toEqual({ captured: 2, droppedOldest: 1 });
+
+    // Clearing empties the ring too, so reopening won't bring them back.
+    store.clear();
+    expect(ring.snapshot().events).toHaveLength(0);
   });
 
   it('should batch arrivals into one update per flush', () => {

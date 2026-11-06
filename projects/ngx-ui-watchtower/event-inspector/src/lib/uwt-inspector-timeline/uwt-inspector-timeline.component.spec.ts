@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { UwtTelemetryMonitor } from '@absaoss-cps/ngx-ui-watchtower';
+import { CPS_LIVE_ANNOUNCER_SERVICE } from 'cps-ui-kit';
 import { UwtInspectorExporter } from '../uwt-inspector-export/uwt-inspector-exporter';
 import {
   UWT_INSPECTOR_FLUSH_MS,
@@ -15,6 +16,7 @@ describe('UwtInspectorTimelineComponent', () => {
   let fixture: ComponentFixture<UwtInspectorTimelineComponent>;
   let store: UwtInspectorStore;
   let monitor: UwtTelemetryMonitor;
+  let announce: jest.Mock;
 
   const el = () => fixture.nativeElement as HTMLElement;
   const shownRows = () =>
@@ -73,9 +75,17 @@ describe('UwtInspectorTimelineComponent', () => {
 
   beforeEach(async () => {
     jest.useFakeTimers();
+    announce = jest.fn();
     await TestBed.configureTestingModule({
       imports: [UwtInspectorTimelineComponent, NoopAnimationsModule],
-      providers: [UwtInspectorStore, UwtInspectorExporter]
+      providers: [
+        UwtInspectorStore,
+        UwtInspectorExporter,
+        {
+          provide: CPS_LIVE_ANNOUNCER_SERVICE,
+          useValue: { announce, clear: jest.fn() }
+        }
+      ]
     }).compileComponents();
     monitor = TestBed.inject(UwtTelemetryMonitor);
     store = TestBed.inject(UwtInspectorStore);
@@ -172,5 +182,132 @@ describe('UwtInspectorTimelineComponent', () => {
       ?.click();
     fixture.detectChanges();
     expect(ui().first()).toBe(0);
+  });
+
+  describe('an open row', () => {
+    const origin = { forwarded: false as const };
+    const detail = (sequence: number) =>
+      el().querySelector(
+        `[data-testid="cps-table-row-expanded-content-${sequence}"]`
+      );
+    /** A button in an open row, found by its text. */
+    const buttonIn = (sequence: number, text: string) =>
+      Array.from(detail(sequence)?.querySelectorAll('button') ?? []).find(
+        (b) => b.textContent?.trim() === text
+      );
+
+    function open(sequence: number): void {
+      el()
+        .querySelector<HTMLElement>(
+          `[data-testid="cps-table-row-expand-btn-${sequence}"]`
+        )
+        ?.click();
+      fixture.detectChanges();
+    }
+
+    function settle(): void {
+      jest.advanceTimersByTime(UWT_INSPECTOR_FLUSH_MS);
+      fixture.detectChanges();
+    }
+
+    /** A log error, 30 more log lines, then the error mirroring it to RUM. */
+    function mirror(): { log: number; error: number } {
+      const log = monitor.publish({
+        kind: 'log',
+        payload: {
+          timestamp: '',
+          level: 'error',
+          message: 'Payment failed',
+          application: 'app',
+          environment: 'test',
+          version: '1'
+        },
+        destination: 'log-provider',
+        origin
+      })!;
+      publish(30, 'log');
+      const error = monitor.publish({
+        kind: 'error',
+        payload: { name: 'Error', message: 'Payment failed' },
+        relatedSequence: log,
+        destination: 'sink',
+        origin
+      })!;
+      settle();
+      return { log, error };
+    }
+
+    it('should filter by one of its values, once', () => {
+      publish(1);
+      const [{ event }] = store.filtered();
+      open(event.sequence);
+
+      buttonIn(event.sequence, 'Event name: needle')?.click();
+      fixture.detectChanges();
+      buttonIn(event.sequence, 'Event name: needle')?.click();
+
+      expect(store.filters().fields).toEqual([
+        expect.objectContaining({
+          path: 'eventName',
+          operator: 'equals',
+          value: 'needle'
+        })
+      ]);
+    });
+
+    it('should take an error to its log event, open on its page, and back', () => {
+      const { log, error } = mirror();
+      open(error);
+
+      buttonIn(error, `log event #${log}`)?.click();
+      fixture.detectChanges();
+      TestBed.tick();
+
+      expect(ui().first()).toBe(PAGE);
+      expect(detail(log)).not.toBeNull();
+      expect(document.activeElement?.getAttribute('aria-label')).toBe(
+        `Payload of event #${log}`
+      );
+
+      buttonIn(log, `event #${error}`)?.click();
+      fixture.detectChanges();
+      TestBed.tick();
+      expect(ui().first()).toBe(0);
+      expect(document.activeElement?.getAttribute('aria-label')).toBe(
+        `Payload of event #${error}`
+      );
+    });
+
+    it('should clear the filters hiding the log event, and say so', () => {
+      const { log, error } = mirror();
+      store.addFilter({ path: 'kind', operator: 'equals', value: 'error' });
+      fixture.detectChanges();
+      open(error);
+
+      buttonIn(error, `log event #${log}`)?.click();
+      fixture.detectChanges();
+
+      expect(store.filters().fields).toHaveLength(0);
+      expect(detail(log)).not.toBeNull();
+      expect(announce).toHaveBeenCalledWith(
+        `Filters cleared to show event #${log}.`,
+        'polite'
+      );
+    });
+
+    it('should name a log event it no longer has, without a link', () => {
+      const error = monitor.publish({
+        kind: 'error',
+        payload: { name: 'Error', message: 'Payment failed' },
+        relatedSequence: 999,
+        destination: 'sink',
+        origin
+      })!;
+      settle();
+      open(error);
+
+      expect(detail(error)?.textContent).toContain('log event #999');
+      expect(buttonIn(error, 'log event #999')).toBeUndefined();
+    });
   });
 });

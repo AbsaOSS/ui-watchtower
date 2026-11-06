@@ -11,6 +11,7 @@
       (valueChanged)="onSearch($event)">
     </cps-input>
     <cps-button
+      #addFilter
       type="outlined"
       size="small"
       icon="filter-funnel"
@@ -18,10 +19,6 @@
       [ariaExpanded]="builderOpen()"
       (clicked)="builderOpen.set(!builderOpen())">
     </cps-button>
-    <cps-info-circle
-      tooltipMaxWidth="20rem"
-      tooltipText="Search matches any field's value or name, ignoring case. A filter compares one field, such as metadata.theme. Use steps[].name to match any item of a list, or steps[2].name for one. All filters must match. Export always contains every event captured of the kind shown, whatever the filters.">
-    </cps-info-circle>
   </div>
 
   @if (builderOpen()) {
@@ -35,6 +32,7 @@
         label="Field"
         placeholder="Choose a field"
         [options]="pathOptions()"
+        [withOptionsAliases]="true"
         [returnObject]="false"
         [hideDetails]="true"
         [value]="path()"
@@ -66,6 +64,29 @@
         (clicked)="add()">
       </cps-button>
     </div>
+    <!-- Beside the fields, not among them: Enter here opens it, never adds. -->
+    <details class="uwt-inspector-filter-bar__help">
+      <summary>How filters work</summary>
+      <p>
+        Search matches any field's value or name, ignoring case. A filter
+        compares one field, and every filter must match. For example:
+      </p>
+      <ul>
+        <li>
+          <strong>Event name</strong> equals <code>theme_changed</code> shows
+          that event only.
+        </li>
+        <li>
+          <strong>Step name</strong> contains <code>pay</code> shows scenarios
+          with any step like it; its path, <code>steps[].name</code>, covers
+          every step, and <code>steps[2].name</code> only the third.
+        </li>
+      </ul>
+      <p>
+        Filters narrow what is shown. Export still holds every event captured of
+        the kind shown.
+      </p>
+    </details>
   }
 
   @if (chips().length > 0 || anyActive()) {

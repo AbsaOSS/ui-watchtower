@@ -15,6 +15,7 @@ import { UwtInspectorComponent } from '../uwt-inspector/uwt-inspector.component'
 import { UWT_INSPECTOR_PREFERENCES_KEY } from '../uwt-inspector-preferences/uwt-inspector-preferences';
 import { UwtInspectorSession } from '../uwt-inspector-session/uwt-inspector-session';
 import * as windowHost from '../uwt-inspector-window/uwt-inspector-window';
+import { UwtInspectorRing } from '../uwt-inspector-ring/uwt-inspector-ring';
 import { UwtEventInspectorService } from './uwt-event-inspector.service';
 
 /** Stands in for CpsDialogService, recording what was opened. */
@@ -374,6 +375,62 @@ describe('UwtEventInspectorService', () => {
     expect(open).toHaveBeenCalledTimes(1);
     expect(host.destroy).not.toHaveBeenCalled();
     expect(host.focus).toHaveBeenCalledTimes(2);
+  });
+
+  describe('captureBeforeOpen', () => {
+    const bi = (name: string) => ({
+      kind: 'bi' as const,
+      eventType: 'com.uwt.bi',
+      payload: { eventName: name, eventTime: '', application: 'shop' },
+      destination: 'sink' as const,
+      origin: { forwarded: false as const }
+    });
+    const monitor = () => TestBed.inject(UwtTelemetryMonitor);
+
+    it('should keep events from before opening, even with no shortcut', () => {
+      const service = create({ captureBeforeOpen: 5, shortcuts: [] });
+      service.install();
+      monitor().publish(bi('before'));
+
+      service.open();
+      expect(
+        TestBed.inject(UwtInspectorSession).store.entries().bi
+      ).toHaveLength(1);
+    });
+
+    it('should keep them coming after closing, for the next opening', () => {
+      const service = create({ captureBeforeOpen: 5 });
+      service.install();
+      service.open();
+      service.close();
+      expect(monitor().observed).toBe(true);
+
+      monitor().publish(bi('while closed'));
+      service.open();
+      expect(
+        TestBed.inject(UwtInspectorSession).store.entries().bi
+      ).toHaveLength(1);
+    });
+
+    it('should keep no more of each kind than the inspector shows', () => {
+      create({ captureBeforeOpen: 50, maxEventsPerSection: 2 }).install();
+      ['a', 'b', 'c'].forEach((n) => monitor().publish(bi(n)));
+
+      expect(TestBed.inject(UwtInspectorRing).snapshot().events).toHaveLength(
+        2
+      );
+    });
+
+    it('should keep nothing by default, when disabled, or on the server', () => {
+      create().install();
+      expect(monitor().observed).toBe(false);
+
+      create({ captureBeforeOpen: 5, enabled: false }).install();
+      expect(monitor().observed).toBe(false);
+
+      create({ captureBeforeOpen: 5 }, 'server').install();
+      expect(monitor().observed).toBe(false);
+    });
   });
 
   describe('on a screen too narrow for a pane', () => {

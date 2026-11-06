@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { expect, openLab, Page, press, showKind, test } from './lab';
+import { expect, Locator, openLab, Page, press, showKind, test } from './lab';
 
 /** Opens the lab's Event Inspector page, and the inspector in `dock`. */
 async function openInspector(page: Page, dock = 'right'): Promise<void> {
@@ -50,7 +50,7 @@ test('pause holds new events back until Resume, and Clear empties it', async ({
   await expect(events).toContainText('com.example.custom');
 
   await page.getByRole('button', { name: 'Clear captured events' }).click();
-  await expect(inspector).toContainText('Capturing from now.');
+  await expect(inspector).toContainText('Use the app to generate events');
   await expect(events).not.toContainText('com.example.custom');
 });
 
@@ -74,7 +74,7 @@ test('one search and set of filters narrow every kind, until cleared; the kind t
   await page.getByRole('button', { name: 'Add filter' }).click();
   const builder = page.getByRole('group', { name: 'New filter' });
   await builder.getByRole('combobox', { name: 'Field' }).click();
-  await page.getByRole('option', { name: 'eventType', exact: true }).click();
+  await page.getByRole('option', { name: /^Event type/ }).click();
   await builder.getByRole('textbox', { name: 'Value' }).fill('com.example');
   await builder.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(events).not.toContainText('lab_button_clicked');
@@ -222,12 +222,131 @@ test('a blocked window falls back to the dialog, and says so once', async ({
   ).toHaveLength(1);
 });
 
-test('a mirrored error links back to its log event', async ({ page }) => {
+test('a mirrored error links to its log event, which links back', async ({
+  page
+}) => {
   await openInspector(page);
   await press(page, 'One of each kind');
   await rows(page)
     .filter({ hasText: '→ RUM' })
     .getByRole('button', { name: 'Expand row' })
     .click();
-  await expect(timeline(page)).toContainText(/Mirrored from\s*log event #\d+/);
+  const link = timeline(page).getByRole('button', {
+    name: /^log event #\d+$/
+  });
+  const log = (await link.textContent())!.match(/\d+/)![0];
+
+  await link.click();
+  await expect(
+    page.getByRole('region', { name: `Payload of event #${log}` })
+  ).toBeFocused();
+  await expect(timeline(page)).toContainText(/Mirrored to RUM as\s*event #\d+/);
+});
+
+test('an open row filters by its own values; the builder names fields, finds them by path, explains itself and closes on Add', async ({
+  page
+}) => {
+  await openInspector(page);
+  await press(page, 'One of each kind');
+  const events = timeline(page);
+  await rows(page)
+    .filter({ hasText: 'lab_button_clicked' })
+    .getByRole('button', { name: 'Expand row' })
+    .click();
+  await page
+    .getByRole('group', { name: 'Filter by' })
+    .getByRole('button', { name: 'Event name: lab_button_clicked' })
+    .click();
+  await expect(
+    page.getByRole('button', {
+      name: 'Remove filter eventName equals "lab_button_clicked"'
+    })
+  ).toBeVisible();
+  await expect(events).not.toContainText('lab-happy-path');
+  await page.getByRole('button', { name: 'Clear filters' }).click();
+
+  await page.getByRole('button', { name: 'Add filter' }).click();
+  const builder = page.getByRole('group', { name: 'New filter' });
+  await builder.getByRole('combobox', { name: 'Field' }).click();
+  await page.keyboard.type('scenarioName');
+  // Found by its path, shown by its name.
+  await page.getByRole('option', { name: /^Scenario/ }).click();
+  await builder.getByRole('textbox', { name: 'Value' }).fill('happy');
+
+  await page.getByText('How filters work').click();
+  await expect(page.getByText('shows that event only')).toBeVisible();
+
+  await builder.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(builder).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Add filter' })).toBeFocused();
+  await expect(events).toContainText('lab-happy-path');
+  await expect(events).not.toContainText('lab_button_clicked');
+});
+
+test('captureBeforeOpen shows what was sent before opening, and keeps on while closed, until Clear', async ({
+  page
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'ngx-ui-watchtower.eventInspector',
+      JSON.stringify({ dock: 'right' })
+    )
+  );
+  await openLab(page, 'inspector', { inspector: { captureBeforeOpen: 50 } });
+  await press(page, 'One of each kind');
+
+  await page.locator('.lab-header-button').click();
+  await expect(timeline(page)).toContainText('lab_button_clicked');
+
+  await press(page, 'Close');
+  await press(page, 'An unknown event type');
+  await page.locator('.lab-header-button').click();
+  await expect(timeline(page)).toContainText('com.example.custom');
+  await expect(timeline(page)).toContainText('lab_button_clicked');
+
+  await page.getByRole('button', { name: 'Clear captured events' }).click();
+  await press(page, 'Close');
+  await page.locator('.lab-header-button').click();
+  await expect(page.locator('uwt-inspector')).toContainText('0 events');
+});
+
+test('in forced colours, the dock, the kind shown, Pause and solid buttons keep their state and edges', async ({
+  page,
+  browserName
+}) => {
+  test.skip(
+    browserName !== 'chromium',
+    'Playwright emulates forced colours in Chromium only'
+  );
+  await page.emulateMedia({ forcedColors: 'active' });
+  await openInspector(page);
+  const css = (locator: Locator, property: string, pseudo?: string) =>
+    locator.evaluate(
+      (e, [p, ps]) => getComputedStyle(e, ps).getPropertyValue(p as string),
+      [property, pseudo] as const
+    );
+
+  // The system's selection colour, as this page resolves it.
+  const highlight = await page.evaluate(() => {
+    const probe = document.body.appendChild(document.createElement('div'));
+    probe.style.cssText = 'forced-color-adjust: none; background: Highlight';
+    const colour = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return colour;
+  });
+
+  const dock = (side: string) => page.locator(`[data-dock="${side}"]`);
+  expect(await css(dock('right'), 'background-color')).toBe(highlight);
+  expect(await css(dock('left'), 'background-color')).not.toBe(highlight);
+  const kinds = page.locator('uwt-inspector cps-button-toggle label');
+  expect(await css(kinds.nth(0), 'background-color')).toBe(highlight);
+  expect(await css(kinds.nth(1), 'background-color')).not.toBe(highlight);
+  const knob = page.locator('uwt-inspector .cps-switch-slider');
+  expect(parseFloat(await css(knob, 'border-top-width', '::before'))).toBe(7);
+
+  await page.getByRole('button', { name: 'Add filter' }).click();
+  const add = page
+    .getByRole('group', { name: 'New filter' })
+    .getByRole('button', { name: 'Add', exact: true });
+  expect(parseFloat(await css(add, 'border-top-width'))).toBeGreaterThan(0);
 });

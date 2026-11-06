@@ -65,7 +65,7 @@ for (const path of PAGES) {
   });
 }
 
-test('the Event Inspector with events, a row open, a filter being built and the Export menu open: no violations, and readable colours', async ({
+test('the Event Inspector with events, rows open, a filter being built with its help, and the Export menu open: no violations, and readable colours', async ({
   page
 }) => {
   await page.addInitScript(() =>
@@ -80,12 +80,16 @@ test('the Event Inspector with events, a row open, a filter being built and the 
   await press(page, 'An unknown event type');
   await press(page, 'A 300,000-character payload');
   const timeline = page.locator('uwt-inspector-timeline');
-  await timeline
-    .locator('tbody tr', { hasText: 'lab_huge_payload' })
-    .getByRole('button', { name: 'Expand row' })
-    .click();
+  for (const row of ['lab_huge_payload', '→ RUM']) {
+    await timeline
+      .locator('tbody tr', { hasText: row })
+      .getByRole('button', { name: 'Expand row' })
+      .click();
+  }
   await page.getByRole('button', { name: 'Add filter' }).click();
+  await page.getByText('How filters work').click();
   await expect(timeline).toContainText('Large payload: showing the first');
+  await expect(timeline).toContainText('Mirrored from');
   // Past the new-row tint, so contrast is measured on the usual rows.
   await page.waitForTimeout(3500);
 
@@ -96,9 +100,13 @@ test('the Event Inspector with events, a row open, a filter being built and the 
       await contrastOf(page, `.uwt-inspector-timeline__tone--${tone}`)
     ).toBeGreaterThanOrEqual(4.5);
   }
-  expect(
-    await contrastOf(page, '.uwt-inspector-json__notice')
-  ).toBeGreaterThanOrEqual(4.5);
+  for (const text of [
+    '.uwt-inspector-json__notice',
+    '.uwt-inspector-timeline__link',
+    '.uwt-inspector-filter-bar__help summary'
+  ]) {
+    expect(await contrastOf(page, text)).toBeGreaterThanOrEqual(4.5);
+  }
 
   await timeline.getByRole('button', { name: 'Export' }).click();
   // Once it has faded in: mid-fade, its text is too faint to measure.

@@ -1663,7 +1663,8 @@ convention, for an application that wants the pre-fallback behavior back.
   that if initialization never completes. The telemetry monitor costs one
   check per event while nobody watches; the popup keeps at most 500 events
   of each kind, updates the screen at most every 250 ms, and releases
-  everything when it closes.
+  everything when it closes. Only `captureBeforeOpen` watches from startup,
+  keeping at most as many events as the popup would.
 
 The console report is itself wrapped in a try/catch — an application that has
 patched or otherwise broken `console.error` cannot turn a suppressed
@@ -2175,8 +2176,8 @@ provideUwtEventInspector({
 
 #### What it shows
 
-One timeline of everything sent from the moment the popup opens, newest
-first: BI events, scenarios and their steps, and log records with the errors
+One timeline of everything sent from the moment the popup opens — or from
+the app's start, with `captureBeforeOpen` — newest first: BI events, scenarios and their steps, and log records with the errors
 they mirror to RUM. Each row shows the time, the kind, a name and the
 details — a BI event's first metadata, a scenario's status, duration and
 steps, a log's level and message — with a status or level coloured as well
@@ -2185,6 +2186,13 @@ correlation id. A new row is tinted for a moment, and screen readers hear
 that it is new. The table always fits the popup: a long value ends in an
 ellipsis, and hovering shows it in full. Expand a row for the full payload
 as JSON; its **Copy event** puts that one payload on the clipboard.
+
+An open row offers to **Filter by** its key values: a BI event's name and
+feature, a scenario's or step's name and status, a log's logger and level.
+An error mirrored to RUM links to the log event it came from, and the log
+event back to it. Following a link turns to that event's page, opens it and
+moves focus to its payload, clearing the search and filters first if they
+hide it.
 
 It shows 25 rows a page, with a pager once there is more than one. On a
 later page, a notice counts the new events at the top, with **Go to
@@ -2202,8 +2210,10 @@ The tools above the table:
   interleaved again.
 - **Search** matches any field's value or name, in every kind. **Add
   filter** compares one field — `metadata.theme`, `status`, or
-  `steps[].name` for any item of a list. Field suggestions come from the
-  events of the kind shown.
+  `steps[].name` for any item of a list — chosen by name, such as "Event
+  name", with its path below, which finds it too. The fields offered come
+  from the events of the kind shown. It closes once the filter is added,
+  and **How filters work**, beside it, explains them with examples.
 
 Two controls at the top apply to everything, because they are about
 capturing rather than viewing:
@@ -2224,9 +2234,20 @@ Each kind keeps its latest 500 events (`maxEventsPerSection`), so a burst
 of one never pushes out another; the status line counts the oldest dropped.
 History is discarded when the popup closes.
 
+To see what happened before it opened, set `captureBeforeOpen`: from the
+app's start, it keeps up to that many events of each kind, which the popup
+shows on opening, with "capturing since" the start. They keep coming while
+the popup is closed; **Clear** empties them too. The cost is a copy of every
+event handed over, from startup, popup open or not — why it is off by
+default.
+
+Under forced colours, such as Windows' contrast themes, the current dock,
+the kind shown, the Pause switch and solid buttons keep the marks that show
+their state, in the system's colours.
+
 What it does **not** show:
 
-- Anything before the popup opened.
+- Anything before the popup opened, unless `captureBeforeOpen` kept it.
 - RUM's own automatic events — page views, web vitals, HTTP and JS errors —
   which never pass through this library.
 - Whether the server accepted an event. It shows what was handed to the sink
@@ -2245,6 +2266,7 @@ each marked with `↪` and the fragment's name.
 | `shortcuts`             | `UWT_DEFAULT_INSPECTOR_SHORTCUTS` | Replaces the defaults; `[]` disables the keyboard                                                                                          |
 | `maxEventsPerSection`   | `500`                             | Events kept of each kind — BI, scenarios, logs; the oldest are dropped, and the status line counts them                                    |
 | `maxPayloadCharsInView` | `262144` (256 × 1024)             | A payload whose JSON is longer is shown truncated to its first `maxPayloadCharsInView` characters, at most 65,536; downloads stay complete |
+| `captureBeforeOpen`     | `0`                               | Events of each kind kept from the app's start, for the popup to show on opening; at most `maxEventsPerSection`, and copied from startup    |
 
 Characters here are UTF-16 code units (JavaScript's `length`), not bytes: the
 limit protects rendering, which costs by the length of the text. A cut never

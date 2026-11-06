@@ -1,16 +1,19 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   DestroyRef,
+  ElementRef,
   inject,
-  signal
+  Injector,
+  signal,
+  viewChild
 } from '@angular/core';
 import {
   CpsAutocompleteComponent,
   CpsButtonComponent,
   CpsChipComponent,
-  CpsInfoCircleComponent,
   CpsInputComponent,
   CpsSelectComponent
 } from 'cps-ui-kit';
@@ -18,6 +21,7 @@ import { UwtInspectorFilterOperator } from '../uwt-inspector.models/uwt-inspecto
 import { UwtInspectorStore } from '../uwt-inspector-store/uwt-inspector-store';
 import {
   uwtDescribeFilter,
+  uwtFieldName,
   uwtOperatorNeedsValue
 } from '../uwt-inspector-filter/uwt-inspector-filter';
 
@@ -35,8 +39,7 @@ const SEARCH_DEBOUNCE_MS = 150;
     CpsAutocompleteComponent,
     CpsSelectComponent,
     CpsButtonComponent,
-    CpsChipComponent,
-    CpsInfoCircleComponent
+    CpsChipComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './uwt-inspector-filter-bar.component.html',
@@ -64,8 +67,17 @@ export class UwtInspectorFilterBarComponent {
 
   protected readonly value = signal('');
 
+  /** Each field by name, its path below it; either finds it. */
   protected readonly pathOptions = computed(() =>
-    this.store.knownPaths().map((p) => ({ label: p, value: p }))
+    this.store.knownPaths().map((path) => {
+      const name = uwtFieldName(path);
+      return {
+        label: name,
+        value: path,
+        info: name === path ? '' : path,
+        alias: path
+      };
+    })
   );
 
   protected readonly needsValue = computed(() =>
@@ -86,6 +98,11 @@ export class UwtInspectorFilterBarComponent {
   protected readonly anyActive = computed(() => {
     const f = this.filters();
     return !!f.text.trim() || f.fields.length > 0;
+  });
+
+  private readonly injector = inject(Injector);
+  private readonly addFilterButton = viewChild('addFilter', {
+    read: ElementRef
   });
 
   private searchTimer?: ReturnType<typeof setTimeout>;
@@ -120,7 +137,19 @@ export class UwtInspectorFilterBarComponent {
       operator: this.operator(),
       value: this.needsValue() ? this.value().trim() : ''
     });
+    // Done: the builder closes, ready for the next one, and focus goes
+    // back to the button that opened it.
+    this.builderOpen.set(false);
+    this.path.set('');
+    this.operator.set('contains');
     this.value.set('');
+    afterNextRender(
+      () =>
+        (this.addFilterButton()?.nativeElement as HTMLElement | undefined)
+          ?.querySelector('button')
+          ?.focus(),
+      { injector: this.injector }
+    );
   }
 
   protected clearAll(): void {

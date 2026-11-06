@@ -105,6 +105,17 @@ export interface UwtEventInspectorConfig {
    * limit protects rendering, which costs by the length of the text.
    */
   maxPayloadCharsInView: number;
+
+  /**
+   * Events of each kind kept from the app's start, so the popup shows what
+   * happened before it opened; at most `maxEventsPerSection`. `0`, the
+   * default, keeps none: the popup shows only what follows its opening.
+   *
+   * Above `0`, every event handed over is copied for it from startup, with
+   * the popup closed too — a cost the default avoids. Closing the popup
+   * keeps them coming; Clear empties them.
+   */
+  captureBeforeOpen: number;
 }
 
 /** @group Tokens */

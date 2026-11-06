@@ -135,6 +135,30 @@ td {
   }
 }
 
+.uwt-inspector-timeline__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--cps-color-calm);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--cps-ring-color);
+    outline-offset: 2px;
+  }
+}
+
+.uwt-inspector-timeline__filter-by {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--cps-text-secondary);
+}
+
 .uwt-inspector-timeline__error {
   margin: 0;
   color: var(--cps-state-error);
@@ -156,5 +180,17 @@ td {
 
   .uwt-inspector-timeline__ms {
     display: none;
+  }
+}
+
+// Forced colours drop the fill that marks the kind shown: it takes the
+// system's selection colours instead. Important, as cps-button-toggle's
+// own rule is the more specific.
+@media (forced-colors: active) {
+  :host ::ng-deep .cps-btn-toggle-content-option.is-selected {
+    forced-color-adjust: none;
+    border-color: Highlight !important;
+    background: Highlight !important;
+    color: HighlightText !important;
   }
 }

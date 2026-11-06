@@ -154,6 +154,47 @@ function matchesField(
   }
 }
 
+/** The library's own fields as people read them; others keep their path. */
+const FIELD_NAMES: Record<string, string> = {
+  kind: 'Kind',
+  eventType: 'Event type',
+  destination: 'Handed to',
+  'origin.application': 'Forwarded from',
+  capturedAt: 'Time handed over',
+  eventName: 'Event name',
+  feature: 'Feature',
+  scenarioId: 'Scenario id',
+  scenarioName: 'Scenario',
+  name: 'Name',
+  status: 'Status',
+  delta: 'Duration (ms)',
+  stepDelta: 'Step duration (ms)',
+  stepCount: 'Step count',
+  'steps[].name': 'Step name',
+  'steps[].status': 'Step status',
+  level: 'Level',
+  logger: 'Logger',
+  message: 'Message',
+  context: 'Context',
+  correlationId: 'Correlation id',
+  'error.name': 'Error name',
+  'error.message': 'Error message',
+  application: 'Application',
+  environment: 'Environment',
+  version: 'Version',
+  sessionId: 'Session id',
+  userId: 'User id'
+};
+
+/**
+ * A field path as people read it: `eventName` is "Event name", and
+ * `metadata.theme` is "Metadata: theme". Other paths are left as they are.
+ */
+export function uwtFieldName(path: string): string {
+  const metadata = /^metadata\.(.+)$/.exec(path);
+  return FIELD_NAMES[path] ?? (metadata ? `Metadata: ${metadata[1]}` : path);
+}
+
 const OPERATOR_TEXT: Record<UwtInspectorFilterOperator, string> = {
   contains: 'contains',
   equals: 'equals',

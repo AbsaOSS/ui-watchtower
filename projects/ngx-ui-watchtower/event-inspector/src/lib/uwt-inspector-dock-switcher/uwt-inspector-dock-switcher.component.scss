@@ -68,3 +68,14 @@
     stroke: none;
   }
 }
+
+// Forced colours drop the fill that marks the current dock: it takes the
+// system's selection colours instead.
+@media (forced-colors: active) {
+  .uwt-inspector-dock__option[aria-pressed='true'] {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background-color: Highlight;
+    color: HighlightText;
+  }
+}

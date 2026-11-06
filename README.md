@@ -131,10 +131,11 @@ flushing, server rendering and hydration, both fragment pages, two tabs on
 their own channels or one shared, a custom destination, every broker mode
 and RUM's start-up and refresh, RUM's telemetries, the library's settings
 through `?config=`, the debug flags, and the Event Inspector's docks,
-shortcut, pause, kinds, search, filters, export, paging and resizing. It also
-runs axe-core's WCAG 2.2 A and AA rules on every lab page and on the Event
-Inspector with its Export menu open, and measures the contrast of its
-coloured statuses and levels. Internal edge
+shortcut, pause, kinds, search, filters, export, paging, resizing, links
+between an error and its log event, and events kept from before opening. It
+also runs axe-core's WCAG 2.2 A and AA rules on every lab page and on the
+Event Inspector with its Export menu and filter help open, measures the
+contrast of its coloured text, and checks its states under forced colours. Internal edge
 cases — timers longer than 24 days, giving up after five minutes, no Web
 Locks or storage, message validation, start-up errors — are left to the unit
 tests.

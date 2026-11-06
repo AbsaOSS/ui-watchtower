@@ -8,13 +8,20 @@ describe('UwtInspectorFilterBarComponent', () => {
   let store: UwtInspectorStore;
   const bar = () =>
     fixture.componentInstance as unknown as {
-      builderOpen: { set(v: boolean): void };
+      builderOpen: { (): boolean; set(v: boolean): void };
       onPath(v: unknown): void;
       onOperator(v: unknown): void;
       value: { set(v: string): void };
       add(): void;
       canAdd(): boolean;
+      pathOptions(): {
+        label: string;
+        value: string;
+        info: string;
+        alias: string;
+      }[];
     };
+  const el = () => fixture.nativeElement as HTMLElement;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -24,6 +31,52 @@ describe('UwtInspectorFilterBarComponent', () => {
     store = TestBed.inject(UwtInspectorStore);
     fixture = TestBed.createComponent(UwtInspectorFilterBarComponent);
     fixture.detectChanges();
+  });
+
+  it('should offer fields by name, with the path below, found by either', () => {
+    expect(bar().pathOptions()).toContainEqual({
+      label: 'Forwarded from',
+      value: 'origin.application',
+      info: 'origin.application',
+      alias: 'origin.application'
+    });
+    expect(bar().pathOptions()).toContainEqual({
+      label: 'Time handed over',
+      value: 'capturedAt',
+      info: 'capturedAt',
+      alias: 'capturedAt'
+    });
+  });
+
+  it('should close after adding, ready for the next, with focus back on Add filter', () => {
+    bar().builderOpen.set(true);
+    fixture.detectChanges();
+    bar().onPath('kind');
+    bar().onOperator('exists');
+    bar().add();
+    fixture.detectChanges();
+    TestBed.tick();
+
+    expect(bar().builderOpen()).toBe(false);
+    expect(el().querySelector('[aria-label="New filter"]')).toBeNull();
+    expect(document.activeElement?.textContent?.trim()).toBe('Add filter');
+
+    bar().builderOpen.set(true);
+    fixture.detectChanges();
+    expect(bar().canAdd()).toBe(false); // nothing carried over
+  });
+
+  it('should explain how filters work beside the builder', () => {
+    expect(el().querySelector('details')).toBeNull();
+    bar().builderOpen.set(true);
+    fixture.detectChanges();
+
+    const help = el().querySelector('details');
+    expect(help?.querySelector('summary')?.textContent).toBe(
+      'How filters work'
+    );
+    // Not inside the fields' group, where Enter adds the filter.
+    expect(help?.closest('[aria-label="New filter"]')).toBeNull();
   });
 
   it('should need a field, and a value unless checking presence', () => {

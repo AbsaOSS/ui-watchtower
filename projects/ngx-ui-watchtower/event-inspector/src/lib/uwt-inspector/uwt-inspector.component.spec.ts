@@ -180,7 +180,7 @@ describe('UwtInspectorComponent', () => {
 
   it('should open empty, with every kind at nought and an explanation', () => {
     expect(kinds()).toEqual(['All 0', 'BI 0', 'Scenarios 0', 'Logs 0']);
-    expect(text()).toContain('Capturing from now.');
+    expect(text()).toContain('Use the app to generate events');
     expect(text()).toContain('No events yet.');
   });
 

@@ -146,3 +146,12 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
 }
+
+// Forced colours empty the Pause switch's knob, which says by its side
+// whether updates are paused; a border draws it back.
+@media (forced-colors: active) {
+  :host ::ng-deep .cps-switch-slider::before {
+    box-sizing: border-box;
+    border: 0.4375rem solid;
+  }
+}

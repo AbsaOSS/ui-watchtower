@@ -25,6 +25,7 @@ import {
   uwtMatchesFilters
 } from '../uwt-inspector-filter/uwt-inspector-filter';
 import { uwtSafeStringify } from '../uwt-inspector-export/uwt-inspector-export';
+import { UwtInspectorRing } from '../uwt-inspector-ring/uwt-inspector-ring';
 
 /** Library defaults, applied under whatever the application configures. */
 export const UWT_DEFAULT_INSPECTOR_CONFIG: Omit<
@@ -33,7 +34,8 @@ export const UWT_DEFAULT_INSPECTOR_CONFIG: Omit<
 > = {
   enabled: true,
   maxEventsPerSection: 500,
-  maxPayloadCharsInView: 256 * 1024
+  maxPayloadCharsInView: 256 * 1024,
+  captureBeforeOpen: 0
 };
 
 /** How often arriving events reach the screen, in milliseconds. */
@@ -56,8 +58,9 @@ function perSection<T>(make: () => T): PerSection<T> {
 /**
  * The inspector's captured history. Held by the `UwtInspectorSession`, so
  * it lasts from opening to closing, whichever docks the inspector moves
- * between: created empty on open, subscribed to {@link UwtTelemetryMonitor}
- * for its lifetime, and discarded on close.
+ * between: created on open — empty, or with what {@link UwtInspectorRing}
+ * kept from before — subscribed to {@link UwtTelemetryMonitor} for its
+ * lifetime, and discarded on close.
  *
  * Events arrive whenever the application sends them; they are batched and
  * reach the screen at most every {@link UWT_INSPECTOR_FLUSH_MS}, so a
@@ -68,6 +71,7 @@ function perSection<T>(make: () => T): PerSection<T> {
 @Injectable()
 export class UwtInspectorStore {
   private readonly monitor = inject(UwtTelemetryMonitor);
+  private readonly ring = inject(UwtInspectorRing);
   private readonly config: UwtEventInspectorConfig = {
     ...UWT_DEFAULT_INSPECTOR_CONFIG,
     shortcuts: [],
@@ -81,7 +85,10 @@ export class UwtInspectorStore {
   private flushTimer?: ReturnType<typeof setTimeout>;
   private freshTimer?: ReturnType<typeof setTimeout>;
 
-  /** When capturing began: the popup opening, or the last clear. */
+  /**
+   * When capturing began: the popup opening, the app's start with
+   * `captureBeforeOpen`, or the last clear.
+   */
   readonly startedAt = signal(new Date().toISOString());
 
   /** What the popup shows: the buffers as of the last unpaused flush. */
@@ -148,6 +155,8 @@ export class UwtInspectorStore {
   });
 
   constructor() {
+    this.adopt();
+    // Straight after adopting: nothing can arrive in between.
     const subscription = this.monitor.events$.subscribe((event) =>
       this.receive(event)
     );
@@ -158,8 +167,9 @@ export class UwtInspectorStore {
     });
   }
 
-  /** Empties every section. Capturing continues. */
+  /** Empties every kind, and what was kept from before. Capturing continues. */
   clear(): void {
+    this.ring.clear();
     for (const id of UWT_INSPECTOR_SECTIONS) {
       this.buffers[id] = [];
       this.droppedCount[id] = 0;
@@ -290,6 +300,23 @@ export class UwtInspectorStore {
         renderError: error instanceof Error ? error.message : String(error)
       };
     }
+  }
+
+  /**
+   * Takes on what the ring kept from before opening: shown at once, not
+   * marked new, and not counted as received since opening.
+   */
+  private adopt(): void {
+    const kept = this.ring.snapshot();
+    if (kept.startedAt) {
+      this.startedAt.set(kept.startedAt);
+    }
+    this.pending = kept.events.map((event) => this.prepare(event));
+    this.drain();
+    for (const id of UWT_INSPECTOR_SECTIONS) {
+      this.droppedCount[id] += kept.dropped[id];
+    }
+    this.publish();
   }
 
   private flush(): void {

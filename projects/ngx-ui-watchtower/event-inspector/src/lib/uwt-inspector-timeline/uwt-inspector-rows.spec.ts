@@ -44,7 +44,11 @@ describe('uwtInspectorRow', () => {
       tone: undefined,
       eventType: 'com.uwt.bi',
       id: 's-1',
-      forwardedFrom: undefined
+      forwardedFrom: undefined,
+      // No feature to offer: this event has none.
+      filterBy: [
+        { path: 'eventName', name: 'Event name', value: 'theme_changed' }
+      ]
     });
   });
 
@@ -71,7 +75,11 @@ describe('uwtInspectorRow', () => {
       name: 'checkout',
       details: 'failure · 42 ms · 1 step',
       tone: 'error',
-      id: 's-1'
+      id: 's-1',
+      filterBy: [
+        { path: 'scenarioName', name: 'Scenario', value: 'checkout' },
+        { path: 'status', name: 'Status', value: 'failure' }
+      ]
     });
   });
 
@@ -121,7 +129,11 @@ describe('uwtInspectorRow', () => {
       details: 'warn · Careful now',
       tone: 'warn',
       eventType: '',
-      id: 'c-9'
+      id: 'c-9',
+      filterBy: [
+        { path: 'logger', name: 'Logger', value: 'checkout' },
+        { path: 'level', name: 'Level', value: 'warn' }
+      ]
     });
   });
 
@@ -136,7 +148,8 @@ describe('uwtInspectorRow', () => {
       kind: 'Error',
       name: 'TypeError',
       details: '→ RUM · x is undefined',
-      tone: 'error'
+      tone: 'error',
+      filterBy: []
     });
   });
 

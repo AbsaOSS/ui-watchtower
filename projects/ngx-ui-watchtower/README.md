@@ -377,6 +377,14 @@ and JSON export. It opens as a dialog, with a Transparency slider; its Dock
 buttons move it to its own window or a pane on the left, right or bottom (on a
 screen at least 640px wide).
 
+To also see what happened before you opened it, keep the latest events from
+the app's start — at the cost of copying every event handed over, popup open
+or not:
+
+```ts
+provideUwtEventInspector({ captureBeforeOpen: 100 }); // per kind
+```
+
 A pane pushes the page aside, but elements fixed to the window stay put. To
 keep them beside the pane, use the size it publishes on `<html>`
 (`--uwt-inspector-inset-left`, `-right` or `-bottom`):

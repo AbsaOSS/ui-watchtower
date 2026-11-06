@@ -1,8 +1,28 @@
-import { UwtTelemetryObservedEvent } from '@absaoss-cps/ngx-ui-watchtower';
+import {
+  UwtTelemetryEventKind,
+  UwtTelemetryObservedEvent
+} from '@absaoss-cps/ngx-ui-watchtower';
 import { UwtInspectorEntry } from '../uwt-inspector.models/uwt-inspector.models';
+import { uwtFieldName } from '../uwt-inspector-filter/uwt-inspector-filter';
 
 /** How a row's details are coloured. The words always say it too. */
 export type UwtInspectorTone = 'success' | 'warn' | 'error';
+
+/** A field an open row offers to filter by, e.g. `Event name: x`. */
+export interface UwtInspectorFilterBy {
+  path: string;
+  /** The field as people read it. */
+  name: string;
+  value: string;
+}
+
+/** The fields worth filtering by, for each kind of event. */
+const FILTER_BY: Partial<Record<UwtTelemetryEventKind, readonly string[]>> = {
+  bi: ['eventName', 'feature'],
+  scenario: ['scenarioName', 'status'],
+  'scenario-step': ['scenarioName', 'status'],
+  log: ['logger', 'level']
+};
 
 /** One timeline row: display text, plus the entry for the detail view. */
 export interface UwtInspectorRow {
@@ -19,6 +39,8 @@ export interface UwtInspectorRow {
   /** Secondary: the scenario id, or a log's correlation id. */
   id: string;
   forwardedFrom?: string;
+  /** The row's own values of the fields worth filtering by. */
+  filterBy: UwtInspectorFilterBy[];
   entry: UwtInspectorEntry;
 }
 
@@ -159,10 +181,19 @@ export function uwtInspectorTime(iso: string): string {
 export function uwtInspectorRow(entry: UwtInspectorEntry): UwtInspectorRow {
   const { event } = entry;
   let described: RowText;
+  let filterBy: UwtInspectorFilterBy[];
   try {
     described = describe(event);
+    filterBy = (FILTER_BY[event.kind] ?? [])
+      .map((path) => ({
+        path,
+        name: uwtFieldName(path),
+        value: text(event.payload, path)
+      }))
+      .filter((f) => f.value);
   } catch {
     described = { kind: '', name: '', details: '', id: '' };
+    filterBy = [];
   }
   return {
     sequence: event.sequence,
@@ -172,6 +203,7 @@ export function uwtInspectorRow(entry: UwtInspectorEntry): UwtInspectorRow {
     forwardedFrom: event.origin.forwarded
       ? (event.origin.application ?? 'another app')
       : undefined,
+    filterBy,
     entry
   };
 }

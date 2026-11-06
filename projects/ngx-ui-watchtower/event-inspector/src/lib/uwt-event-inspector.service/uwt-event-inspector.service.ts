@@ -31,6 +31,7 @@ import {
   UwtInspectorSession
 } from '../uwt-inspector-session/uwt-inspector-session';
 import { UwtInspectorPreferenceStorage } from '../uwt-inspector-preferences/uwt-inspector-preferences';
+import { UwtInspectorRing } from '../uwt-inspector-ring/uwt-inspector-ring';
 import {
   uwtSafe,
   uwtSafeVoid
@@ -68,6 +69,7 @@ export class UwtEventInspectorService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly session = inject(UwtInspectorSession);
   private readonly preferences = inject(UwtInspectorPreferenceStorage);
+  private readonly ring = inject(UwtInspectorRing);
   private readonly identity = inject(UWT_TELEMETRY_IDENTITY, {
     optional: true
   });
@@ -109,20 +111,24 @@ export class UwtEventInspectorService {
   }
 
   /**
-   * Starts listening for the shortcut. Called by
-   * {@link provideUwtEventInspector}; does nothing on the server,
-   * when disabled, with no shortcuts, or when already listening.
+   * Starts listening for the shortcut, and keeping events from before
+   * opening when `captureBeforeOpen` asks for it. Called by
+   * {@link provideUwtEventInspector}; does nothing on the server, when
+   * disabled, or a second time.
    */
   install(): void {
-    if (
-      this.installed ||
-      !this.isBrowser ||
-      !this.enabled ||
-      this.config.shortcuts.length === 0
-    ) {
+    if (this.installed || !this.isBrowser || !this.enabled) {
       return;
     }
     this.installed = true;
+    uwtSafeVoid('captureBeforeOpen', () =>
+      this.ring.start(
+        Math.min(this.config.captureBeforeOpen, this.config.maxEventsPerSection)
+      )
+    );
+    if (this.config.shortcuts.length === 0) {
+      return;
+    }
 
     // Capture phase, so it works even where a component stops propagation.
     // Outside Angular's zone, so ordinary typing triggers no change detection.

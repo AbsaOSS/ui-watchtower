@@ -36,7 +36,10 @@ export interface LabConfig {
   };
   inspector?: Pick<
     Partial<UwtEventInspectorConfig>,
-    'maxEventsPerSection' | 'maxPayloadCharsInView' | 'shortcuts'
+    | 'maxEventsPerSection'
+    | 'maxPayloadCharsInView'
+    | 'shortcuts'
+    | 'captureBeforeOpen'
   >;
   /** The lab's own: its log provider batches, and sends on `flush()`. */
   lab?: { logBatching?: boolean };

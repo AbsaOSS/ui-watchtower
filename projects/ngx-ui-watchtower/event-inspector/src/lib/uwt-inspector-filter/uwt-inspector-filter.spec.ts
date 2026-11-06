@@ -5,6 +5,7 @@ import {
 } from '../uwt-inspector.models/uwt-inspector.models';
 import {
   uwtDescribeFilter,
+  uwtFieldName,
   uwtInspectorSectionOf,
   uwtFlattenEvent,
   uwtKnownPaths,
@@ -229,5 +230,13 @@ describe('helpers', () => {
     ]);
     expect(paths).toContain('steps[].name');
     expect(new Set(paths).size).toBe(paths.length);
+  });
+
+  it("should name the library's own fields, and metadata, for people", () => {
+    expect(uwtFieldName('eventName')).toBe('Event name');
+    expect(uwtFieldName('steps[].name')).toBe('Step name');
+    expect(uwtFieldName('metadata.theme')).toBe('Metadata: theme');
+    // An app's own field keeps its path.
+    expect(uwtFieldName('details.cart.items')).toBe('details.cart.items');
   });
 });

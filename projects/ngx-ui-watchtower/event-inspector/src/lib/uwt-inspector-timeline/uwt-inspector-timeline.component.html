@@ -141,11 +141,36 @@
             </div>
           }
           @if (
-            row.entry.event.kind === 'error' && row.entry.event.relatedSequence
+            row.entry.event.kind === 'error' && row.entry.event.relatedSequence;
+            as related
           ) {
             <div>
               <dt>Mirrored from</dt>
-              <dd>log event #{{ row.entry.event.relatedSequence }}</dd>
+              <dd>
+                @if (logSequences().has(related)) {
+                  <button
+                    type="button"
+                    class="uwt-inspector-timeline__link"
+                    (click)="reveal(related)">
+                    log event #{{ related }}
+                  </button>
+                } @else {
+                  log event #{{ related }}
+                }
+              </dd>
+            </div>
+          }
+          @if (mirroredTo().get(row.sequence); as error) {
+            <div>
+              <dt>Mirrored to RUM as</dt>
+              <dd>
+                <button
+                  type="button"
+                  class="uwt-inspector-timeline__link"
+                  (click)="reveal(error)">
+                  event #{{ error }}
+                </button>
+              </dd>
             </div>
           }
           <div>
@@ -153,6 +178,23 @@
             <dd>#{{ row.sequence }}, {{ row.entry.sizeChars }} characters</dd>
           </div>
         </dl>
+        @if (row.filterBy.length > 0) {
+          <div
+            class="uwt-inspector-timeline__filter-by"
+            role="group"
+            aria-label="Filter by">
+            <span aria-hidden="true">Filter by</span>
+            @for (field of row.filterBy; track field.path) {
+              <cps-button
+                type="borderless"
+                size="xsmall"
+                icon="filter-funnel"
+                [label]="field.name + ': ' + field.value"
+                (clicked)="filterBy(field)">
+              </cps-button>
+            }
+          </div>
+        }
         @if (row.entry.renderError) {
           <p class="uwt-inspector-timeline__error">
             Couldn't prepare this event for display:

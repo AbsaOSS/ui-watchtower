@@ -1,13 +1,18 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
+  ElementRef,
   inject,
+  Injector,
   input,
   linkedSignal,
-  signal
+  signal,
+  viewChild
 } from '@angular/core';
 import {
+  CPS_LIVE_ANNOUNCER_SERVICE,
   CpsButtonComponent,
   CpsButtonToggleComponent,
   CpsButtonToggleOption,
@@ -31,7 +36,7 @@ import {
   uwtInspectorEventsNoun,
   UwtInspectorExporter
 } from '../uwt-inspector-export/uwt-inspector-exporter';
-import { uwtInspectorRow } from './uwt-inspector-rows';
+import { UwtInspectorFilterBy, uwtInspectorRow } from './uwt-inspector-rows';
 
 /** The kind toggle's labels. */
 const KIND_LABEL: Record<UwtInspectorSectionId, string> = {
@@ -43,7 +48,8 @@ const KIND_LABEL: Record<UwtInspectorSectionId, string> = {
 /**
  * Every captured event in one table, newest first: a kind toggle with
  * counts, one search and set of filters for every kind, an Export menu for
- * the kind shown, and a paginated table whose rows open on the payload.
+ * the kind shown, and a paginated table whose rows open on the payload,
+ * with ways to filter by its values and to reach the event it mirrors.
  */
 @Component({
   selector: 'uwt-inspector-timeline',
@@ -62,6 +68,13 @@ const KIND_LABEL: Record<UwtInspectorSectionId, string> = {
 export class UwtInspectorTimelineComponent {
   protected readonly store = inject(UwtInspectorStore);
   private readonly exporter = inject(UwtInspectorExporter);
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+  private readonly injector = inject(Injector);
+  private readonly announcer = inject(CPS_LIVE_ANNOUNCER_SERVICE, {
+    optional: true
+  });
+
+  private readonly table = viewChild.required(CpsTableComponent);
 
   /** JSON length, in characters, above which a payload is shown truncated. */
   readonly maxPayloadChars = input(
@@ -107,6 +120,25 @@ export class UwtInspectorTimelineComponent {
         : 0
   });
 
+  /** Rows per page, as the reader last chose. */
+  private readonly pageSize = signal(25);
+
+  /** The log events captured, to link an error back to its own. */
+  protected readonly logSequences = computed(
+    () => new Set(this.store.entries().logging.map((e) => e.event.sequence))
+  );
+
+  /** Each log event's sequence, to the error that mirrored it to RUM. */
+  protected readonly mirroredTo = computed(() => {
+    const mirrors = new Map<number, number>();
+    for (const { event } of this.store.entries().logging) {
+      if (event.kind === 'error' && event.relatedSequence) {
+        mirrors.set(event.relatedSequence, event.sequence);
+      }
+    }
+    return mirrors;
+  });
+
   protected readonly emptyMessage = computed(() => {
     const kind = this.store.kind();
     const noun = uwtInspectorEventsNoun(kind);
@@ -138,8 +170,64 @@ export class UwtInspectorTimelineComponent {
     this.store.setKind(kind);
   }
 
-  protected onPage(state: { first?: number }): void {
+  protected onPage(state: { first?: number; rows?: number }): void {
     this.first.set(state?.first ?? 0);
+    this.pageSize.set(state?.rows ?? this.pageSize());
+  }
+
+  /** Adds a filter on a value from an open row, unless it's there already. */
+  protected filterBy(field: UwtInspectorFilterBy): void {
+    const exists = this.store
+      .filters()
+      .fields.some(
+        (f) =>
+          f.path === field.path &&
+          f.operator === 'equals' &&
+          f.value === field.value
+      );
+    if (!exists) {
+      this.store.addFilter({
+        path: field.path,
+        operator: 'equals',
+        value: field.value
+      });
+    }
+  }
+
+  /**
+   * Shows an event's row, open: clears the search and filters if they hide
+   * it, turns to its page, opens it, and moves focus to its payload.
+   */
+  protected reveal(sequence: number): void {
+    if (!this.rows().some((r) => r.sequence === sequence)) {
+      this.store.clearFilters();
+      this.announce(`Filters cleared to show event #${sequence}.`);
+    }
+    const rows = this.rows();
+    const index = rows.findIndex((r) => r.sequence === sequence);
+    if (index < 0) {
+      return;
+    }
+    const size = this.pageSize();
+    this.first(); // settles the page reset that clearing the filters makes
+    this.first.set(Math.floor(index / size) * size);
+    const table = this.table().primengTable;
+    if (!table.isRowExpanded(rows[index])) {
+      table.toggleRow(rows[index]);
+    }
+    afterNextRender(
+      () => {
+        const content = this.host.nativeElement.querySelector(
+          `[data-testid="cps-table-row-expanded-content-${sequence}"]`
+        );
+        // Optional: some environments, such as jsdom, have no scrolling.
+        content?.previousElementSibling?.scrollIntoView?.({ block: 'start' });
+        content
+          ?.querySelector<HTMLElement>('pre')
+          ?.focus({ preventScroll: true });
+      },
+      { injector: this.injector }
+    );
   }
 
   protected goToNewest(): void {
@@ -156,6 +244,14 @@ export class UwtInspectorTimelineComponent {
 
   protected isFresh(sequence: number): boolean {
     return this.store.fresh().has(sequence);
+  }
+
+  private announce(message: string): void {
+    try {
+      this.announcer?.announce(message, 'polite');
+    } catch {
+      // Announcements are a courtesy; never let one break the inspector.
+    }
   }
 
   private download(): void {
