@@ -288,8 +288,9 @@ describe('UwtRumTelemetrySink', () => {
 
       const config = AwsRumCtor.mock.calls[0][3] as { telemetries: unknown[] };
       // Strict: an explicit `undefined` or `null` would replace the SDK's default.
-      expect(config.telemetries).toStrictEqual([
-        ['http', { recordAllRequests: true }]
+      expect(config.telemetries[0]).toStrictEqual([
+        'http',
+        { recordAllRequests: true }
       ]);
       expect(config).not.toHaveProperty('pagesToInclude');
       expect(config).not.toHaveProperty('pagesToExclude');
@@ -470,6 +471,29 @@ describe('UwtRumTelemetrySink', () => {
           'performance',
           ['http', { addXRayTraceIdHeader: [expect.any(RegExp)] }]
         ]
+      });
+    });
+
+    it("should add RUM's error plugin, capturing nothing itself, for recordError", async () => {
+      configure({ loadImpl: async () => bootstrap({ telemetries: ['http'] }) });
+      await sink.init();
+
+      const { telemetries } = AwsRumCtor.mock.calls[0][3] as {
+        telemetries: [string, [string, { ignore: () => boolean }]];
+      };
+      expect(telemetries[0]).toBe('http');
+      expect(telemetries[1][0]).toBe('errors');
+      expect(telemetries[1][1].ignore()).toBe(true);
+    });
+
+    it('should not add a second error plugin when the app names it in another case, which RUM accepts', async () => {
+      configure({
+        loadImpl: async () => bootstrap({ telemetries: [['Errors', {}]] })
+      });
+      await sink.init();
+
+      expect(AwsRumCtor.mock.calls[0][3]).toMatchObject({
+        telemetries: [['Errors', {}]]
       });
     });
 

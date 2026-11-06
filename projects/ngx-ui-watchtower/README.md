@@ -129,7 +129,11 @@ export class MyLogBackend implements UwtLogApiProvider {
 
 Batching, retries and authentication are up to your backend class. If it
 batches, add a `flush()` method — the library calls it when the page is
-hidden or closed.
+hidden or closed. Send from it with `navigator.sendBeacon` or a `keepalive`
+request every time, not only when the page says it is hidden: Safari still
+says `visible` while a page that is reloading or navigating away hides, and
+cancels a plain request then. For the same reason, the example above can lose
+a record written as the page goes, in Safari.
 
 ### Using a different destination
 
@@ -350,12 +354,46 @@ Fragment code doesn't change. Give each fragment its own `application` name.
 
 ## Seeing what is sent
 
-Run in DevTools, no reload needed:
+**In the console** — run in DevTools, no reload needed:
 
 ```js
 localStorage.setItem('debugScenario', 'true');
 localStorage.setItem('debugBI', 'true');
 localStorage.setItem('debugLogger', 'true'); // or 'checkout,cart' for some loggers
+```
+
+**In the app** — add the Event Inspector (needs `cps-ui-kit` 21.32+ or 22):
+
+```ts
+import { provideUwtEventInspector } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
+
+providers: [provideUwtEventInspector()];
+```
+
+Open it with **Shift+E+I** (hold Shift, press E, then I), outside a text field.
+It lists everything the app sends from that moment on in one timeline, newest
+first, showing every kind or just BI, scenarios or logs, with search, filters
+and JSON export. It opens as a dialog, with a Transparency slider; its Dock
+buttons move it to its own window or a pane on the left, right or bottom (on a
+screen at least 640px wide).
+
+To also see what happened before you opened it, keep the latest events from
+the app's start — at the cost of copying every event handed over, popup open
+or not:
+
+```ts
+provideUwtEventInspector({ captureBeforeOpen: 100 }); // per kind
+```
+
+A pane pushes the page aside, but elements fixed to the window stay put. To
+keep them beside the pane, use the size it publishes on `<html>`
+(`--uwt-inspector-inset-left`, `-right` or `-bottom`):
+
+```css
+.app-header {
+  left: var(--uwt-inspector-inset-left, 0px);
+  right: var(--uwt-inspector-inset-right, 0px);
+}
 ```
 
 ## Testing
@@ -381,6 +419,10 @@ TestBed.configureTestingModule({
 - It is safe under server-side rendering.
 - A scenario sends one event when it ends, not one per step — AWS RUM allows
   200 events per session by default.
+- RUM's own telemetry defaults to errors, performance and same-origin HTTP;
+  set `telemetries` in the RUM config to change it. Without `'errors'`, the
+  sink still loads RUM's error plugin, capturing nothing by itself, because
+  `mirrorErrorsToRum` needs it.
 
 ## License
 

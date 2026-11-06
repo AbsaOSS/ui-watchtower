@@ -14,6 +14,7 @@ import {
 } from 'rxjs';
 import { UWT_DEFAULT_TELEMETRY_CONFIG } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UwtScenarioRecord } from '../../models/uwt-scenario.models/uwt-scenario.models';
+import { UwtTelemetryMonitor } from '../../services/uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 import { UwtNoopTelemetrySink } from '../../sinks/uwt-telemetry/uwt-noop-telemetry.sink/uwt-noop-telemetry.sink';
 import { UWT_DEFAULT_REDACT_CONFIG } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import { UwtScenario } from '../uwt-scenario/uwt-scenario';
@@ -331,6 +332,7 @@ describe('traceScenario operator', () => {
           },
           redact: UWT_DEFAULT_REDACT_CONFIG,
           sink: new UwtNoopTelemetrySink(),
+          monitor: new UwtTelemetryMonitor(),
           onSettled: (_id, record) => settled.push(record)
         }
       );

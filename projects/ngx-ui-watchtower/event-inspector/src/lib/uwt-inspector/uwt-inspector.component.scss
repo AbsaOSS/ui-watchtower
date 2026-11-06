@@ -1,0 +1,157 @@
+:host {
+  display: block;
+  color: var(--cps-text-primary);
+}
+
+// In a pane or window: a header like cps-dialog's, and a body that scrolls.
+:host(.uwt-inspector--framed) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #fff;
+  font-family: 'Source Sans Pro', sans-serif;
+}
+
+.uwt-inspector__header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-left: 0.25rem solid var(--cps-color-surprise);
+  border-bottom: 0.0625rem solid var(--cps-color-line-mid);
+  color: var(--cps-color-text-dark);
+}
+
+.uwt-inspector__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.uwt-inspector__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+// cps-dialog spreads its header out, which centres the title between the
+// drag handle and the buttons; the panes and the window keep it left.
+::ng-deep .uwt-inspector-dialog .cps-dialog-header-left {
+  margin-inline: 0.5rem auto;
+}
+
+.uwt-inspector__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+:host(.uwt-inspector--framed) .uwt-inspector__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.uwt-inspector__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.uwt-inspector__status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.uwt-inspector__status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--cps-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.uwt-inspector__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--cps-radius-full, 50%);
+  background: var(--cps-state-success);
+  animation: uwt-inspector-pulse 1.6s ease-in-out infinite;
+
+  &--paused {
+    background: var(--cps-state-warn);
+    animation: none;
+  }
+}
+
+@keyframes uwt-inspector-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uwt-inspector__dot {
+    animation: none;
+  }
+}
+
+.uwt-inspector__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.uwt-inspector__paused {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--cps-radius-sm);
+  background: var(--cps-state-warn-surface);
+  color: var(--cps-text-primary);
+  font-size: 0.8125rem;
+}
+
+.uwt-inspector__hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--cps-text-secondary);
+}
+
+.uwt-inspector__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--cps-border-color);
+  font-size: 0.75rem;
+  color: var(--cps-text-secondary);
+
+  p {
+    margin: 0;
+    max-width: 75ch;
+  }
+
+  kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+}
+
+// Forced colours empty the Pause switch's knob, which says by its side
+// whether updates are paused; a border draws it back.
+@media (forced-colors: active) {
+  :host ::ng-deep .cps-switch-slider::before {
+    box-sizing: border-box;
+    border: 0.4375rem solid;
+  }
+}

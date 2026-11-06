@@ -24,7 +24,7 @@ configuration, log backend and AWS credentials.
 - **Product signal.** Record feature adoption and interaction events without
   putting business vocabulary inside the telemetry infrastructure itself.
 - **Developer debugging.** Let any developer see exactly what telemetry is
-  produced, in any environment, with a LocalStorage flag —
+  produced, in any environment, with a LocalStorage flag or an in-app popup —
   no rebuild, no config change, no production switch.
 - **Reusability.** Ship as a library any Angular application can install and
   configure.
@@ -85,24 +85,28 @@ flowchart TD
 | `UwtNoopTelemetrySink`        | Explicit opt-out — everything runs, nothing ships                                   |
 | `UwtLogApiProvider`           | The seam where the application supplies its log store — send, query, optional flush |
 | `UwtRumCredentialsProvider`   | The seam where the application supplies its AWS details                             |
+| `UwtTelemetryMonitor`         | A read-only stream of everything handed to a destination                            |
 
 Everything is wired through Angular DI, so a destination can be swapped in
 production and stubbed in tests.
 
 ### Entry points
 
-Two, each pulling in only what it needs:
+Three, each pulling in only what it needs:
 
-| Entry point                          | Contains                             | Needs                           |
-| ------------------------------------ | ------------------------------------ | ------------------------------- |
-| `@absaoss-cps/ngx-ui-watchtower`     | Everything except the one below      | Angular                         |
-| `@absaoss-cps/ngx-ui-watchtower/rum` | `UwtRumTelemetrySink`, its providers | `aws-rum-web`, an optional peer |
+| Entry point                                      | Contains                                | Needs                                                                       |
+| ------------------------------------------------ | --------------------------------------- | --------------------------------------------------------------------------- |
+| `@absaoss-cps/ngx-ui-watchtower`                 | Everything except the two below         | Angular                                                                     |
+| `@absaoss-cps/ngx-ui-watchtower/rum`             | `UwtRumTelemetrySink`, its providers    | `aws-rum-web`, an optional peer                                             |
+| `@absaoss-cps/ngx-ui-watchtower/event-inspector` | The [Event Inspector](#event-inspector) | `cps-ui-kit` (with `@angular/forms`, `@angular/animations`), optional peers |
 
 A bundler resolves every static import in a module graph, and a dynamic
 `import()`'s specifier, whether or not that code path ever runs. Keeping the
 RUM sink and its `await import('aws-rum-web')` out of the main entry is what
 lets an app using only `'broadcast'`/`'noop'` build without `aws-rum-web`
-installed.
+installed. The Event Inspector is split out the same way: it is the only UI
+in the package, and nothing in the main entry — bundle or `.d.ts` —
+references cps-ui-kit.
 
 ### Public API
 
@@ -110,24 +114,34 @@ Everything each entry point exports, by role.
 
 **`@absaoss-cps/ngx-ui-watchtower`**
 
-| Role                        | Exports                                                                                                                                                                                                                                                                                                     |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Setup                       | `provideUwtTelemetry`, `withLogging`, `withScenarios`, `withBIEvents`, `withRedaction`, `UwtTelemetryFeature`, `provideUwtTelemetrySink`, `UwtTelemetryLocalSinkMode` (`'broadcast' \| 'noop'`), `provideUwtTelemetryBroadcastHost`, `provideUwtTelemetryDestination` + `UwtTelemetryDestinationOptions`    |
-| Configuration               | `UWT_TELEMETRY_IDENTITY` + `UwtTelemetryIdentity`; `UWT_LOG_CONFIG` + `UwtLogConfig`; `UWT_SCENARIO_TELEMETRY_CONFIG` + `UwtScenarioTelemetryConfig`; `UWT_BI_TELEMETRY_CONFIG` + `UwtBITelemetryConfig`; `UWT_REDACT_CONFIG`; `UWT_DEFAULT_TELEMETRY_CONFIG` (every default)                               |
-| Scenarios                   | `UwtScenarioTelemetryService`, `UwtScenario`, `traceScenario` + `UwtTraceScenarioOptions`; models `UwtScenarioOptions`, `UwtScenarioOutcome`, `UwtScenarioStepDetail`, `UwtScenarioRecord`, `UwtScenarioStep`, `UwtScenarioStepEvent`, `UwtScenarioAggregate`, `UwtScenarioStatus`, `UwtScenarioStepStatus` |
-| BI events                   | `UwtBITelemetryService`; `UwtBIEvent`, `UwtBIEventDetail` (`scenarioId`, `feature`)                                                                                                                                                                                                                         |
-| Logging                     | `UwtLoggerService`, `UwtLogger`; `UwtLogDetail`, `UwtLogRecord`, `UwtLogLevel`, `UWT_LOG_LEVEL_ORDER`; `UWT_LOG_API_PROVIDER`, `UwtLogApiProvider`, `UwtLogQuery`; `UwtNoopLogApiProvider`, `UwtBroadcastLogApiProvider`                                                                                    |
-| Name registries             | `UwtScenarioNames` / `UwtScenarioName`, `UwtScenarioSteps` / `UwtStepName`, `UwtBIEventNames` / `UwtBIEventName`, `UwtLoggerNames` / `UwtLoggerName`                                                                                                                                                        |
-| Sinks                       | `UwtTelemetrySink` (abstract), `UwtNoopTelemetrySink`, `UwtBroadcastTelemetrySink`, `UwtTelemetryBroadcastHost`, `UWT_BROADCAST_CHANNEL`, `UWT_DEFAULT_BROADCAST_CHANNEL` (`'ngx-ui-watchtower'`); `uwtClassifyTelemetryEvent` + `UwtTelemetrySinkEvent`, for a sink to tell what it received               |
-| Shared models               | `UwtTelemetryMetadata`, `UwtTelemetryError`, `UwtTelemetryAttribution`; event types `UWT_DEFAULT_EVENT_NAMESPACE`, `UWT_TELEMETRY_EVENT_TYPE`, `uwtEventTypes()`, `UwtTelemetryEventTypes`                                                                                                                  |
-| Redaction, for custom sinks | `uwtRedactMetadata`, `uwtNormalizeError`, `uwtScrubString`, `uwtRedactConfigFor`, `UwtRedactConfig`, `UWT_DEFAULT_REDACT_CONFIG`, `UwtPiiValuePattern`, `UWT_REDACTED` (`'[redacted]'`, the replacement value)                                                                                              |
-| Utilities                   | `uwtUuid()`, `uwtIsDebugEnabled(flag, name?)` + `UwtDebugFlag` (`'debugLogger' \| 'debugScenario' \| 'debugBI'`)                                                                                                                                                                                            |
+| Role                        | Exports                                                                                                                                                                                                                                                                                                                          |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Setup                       | `provideUwtTelemetry`, `withLogging`, `withScenarios`, `withBIEvents`, `withRedaction`, `withTelemetryEnabled`, `UwtTelemetryFeature`, `provideUwtTelemetrySink`, `UwtTelemetryLocalSinkMode` (`'broadcast' \| 'noop'`), `provideUwtTelemetryBroadcastHost`, `provideUwtTelemetryDestination` + `UwtTelemetryDestinationOptions` |
+| Configuration               | `UWT_TELEMETRY_IDENTITY` + `UwtTelemetryIdentity`; `UWT_TELEMETRY_ENABLED`; `UWT_LOG_CONFIG` + `UwtLogConfig`; `UWT_SCENARIO_TELEMETRY_CONFIG` + `UwtScenarioTelemetryConfig`; `UWT_BI_TELEMETRY_CONFIG` + `UwtBITelemetryConfig`; `UWT_REDACT_CONFIG`; `UWT_DEFAULT_TELEMETRY_CONFIG` (every default)                           |
+| Scenarios                   | `UwtScenarioTelemetryService`, `UwtScenario`, `traceScenario` + `UwtTraceScenarioOptions`; models `UwtScenarioOptions`, `UwtScenarioOutcome`, `UwtScenarioStepDetail`, `UwtScenarioRecord`, `UwtScenarioStep`, `UwtScenarioStepEvent`, `UwtScenarioAggregate`, `UwtScenarioStatus`, `UwtScenarioStepStatus`                      |
+| BI events                   | `UwtBITelemetryService`; `UwtBIEvent`, `UwtBIEventDetail` (`scenarioId`, `feature`)                                                                                                                                                                                                                                              |
+| Logging                     | `UwtLoggerService`, `UwtLogger`; `UwtLogDetail`, `UwtLogRecord`, `UwtLogLevel`, `UWT_LOG_LEVEL_ORDER`; `UWT_LOG_API_PROVIDER`, `UwtLogApiProvider`, `UwtLogQuery`; `UwtNoopLogApiProvider`, `UwtBroadcastLogApiProvider`                                                                                                         |
+| Name registries             | `UwtScenarioNames` / `UwtScenarioName`, `UwtScenarioSteps` / `UwtStepName`, `UwtBIEventNames` / `UwtBIEventName`, `UwtLoggerNames` / `UwtLoggerName`                                                                                                                                                                             |
+| Sinks                       | `UwtTelemetrySink` (abstract), `UwtNoopTelemetrySink`, `UwtBroadcastTelemetrySink`, `UwtTelemetryBroadcastHost`, `UWT_BROADCAST_CHANNEL`, `UWT_DEFAULT_BROADCAST_CHANNEL` (`'ngx-ui-watchtower'`); `uwtClassifyTelemetryEvent` + `UwtTelemetrySinkEvent`, for a sink to tell what it received                                    |
+| Shared models               | `UwtTelemetryMetadata`, `UwtTelemetryError`, `UwtTelemetryAttribution`; event types `UWT_DEFAULT_EVENT_NAMESPACE`, `UWT_TELEMETRY_EVENT_TYPE`, `uwtEventTypes()`, `UwtTelemetryEventTypes`                                                                                                                                       |
+| Monitor                     | `UwtTelemetryMonitor`; `UwtTelemetryObservedEvent`, `UwtTelemetryPublishInput`, `UwtTelemetryEventKind`, `UwtTelemetryDestination`, `UwtTelemetryEventOrigin`, `UwtJsonValue`, `UwtJsonObject`                                                                                                                                   |
+| Redaction, for custom sinks | `uwtRedactMetadata`, `uwtNormalizeError`, `uwtScrubString`, `uwtRedactConfigFor`, `UwtRedactConfig`, `UWT_DEFAULT_REDACT_CONFIG`, `UwtPiiValuePattern`, `UWT_REDACTED` (`'[redacted]'`, the replacement value)                                                                                                                   |
+| Utilities                   | `uwtUuid()`, `uwtIsDebugEnabled(flag, name?)` + `UwtDebugFlag` (`'debugLogger' \| 'debugScenario' \| 'debugBI'`), `uwtMarkSessionStart(sessionId, now?)`, for a sink that knows when its sessions start                                                                                                                          |
 
 **`@absaoss-cps/ngx-ui-watchtower/rum`:** `provideUwtTelemetryRumSink`, `UwtRumTelemetrySink`,
 `UWT_RUM_CREDENTIALS_PROVIDER`, `UwtRumCredentialsProvider`,
 `UwtRumBootstrap` (`{ config, credentials? }`), `UwtRumAppMonitorConfig`,
 `UwtRumCredentials` (`accessKeyId`, `secretAccessKey`, `sessionToken`,
 `expiration`).
+
+**`@absaoss-cps/ngx-ui-watchtower/event-inspector`:** `provideUwtEventInspector`,
+`UwtEventInspectorService`, `UWT_EVENT_INSPECTOR_CONFIG`,
+`UwtEventInspectorConfig`, `UWT_DEFAULT_INSPECTOR_CONFIG`,
+`UwtInspectorShortcut`, `UWT_DEFAULT_INSPECTOR_SHORTCUTS`,
+`UwtInspectorDock`, `UwtInspectorExport`, `UwtInspectorSectionId`,
+`UwtInspectorKindFilter`, and the filter types
+`UwtInspectorFilterState`, `UwtInspectorFieldFilter`,
+`UwtInspectorFilterOperator` — see §12, "Event Inspector".
 
 ### Destinations
 
@@ -179,8 +193,10 @@ redacted), deduplicate BI events, time anything, or guard the library's
 calls — every call the library makes into it, `init` included, is wrapped
 fail-open. The one exception is `setUserId`/`getUserId`, which the
 application calls on the sink directly; a destination should not throw
-there. Log lines are not part of it: they go to the application's
-own log backend through `UWT_LOG_API_PROVIDER`, whatever the destination.
+there. The telemetry monitor observes the hand-off, so the Event Inspector
+works with any destination. Log lines are not part of it: they go to the
+application's own log backend through `UWT_LOG_API_PROVIDER`, whatever the
+destination.
 
 ```ts
 providers: [
@@ -190,6 +206,17 @@ providers: [
 ];
 ```
 
+### The telemetry monitor
+
+Every place that hands something to a destination — the scenario's emit,
+`track()`, the logger's delivery and its RUM mirror, and the broadcast host
+forwarding a fragment's events and logs — then publishes the same object to
+`UwtTelemetryMonitor`, inside the same fail-open block. So nothing is sent
+twice, and a hand-off that throws is not shown. A fragment's event appears
+once in each popup: as its own in the fragment's, as forwarded in the
+shell's — there with the shell's session and user, as sent (see Identity
+across realms).
+
 ### Packaging and internals
 
 - **Every export is explicit.** The barrels list their exports one by one —
@@ -198,10 +225,30 @@ providers: [
   broadcast plumbing stay internal so they can change freely. Redaction is
   the exception: a custom sink needs `uwtRedactMetadata`,
   `uwtNormalizeError`, `uwtScrubString` and `uwtRedactConfigFor`.
-- **The secondary entry keeps private copies of a few utilities.** ng-packagr
+- **Secondary entries keep private copies of a few utilities.** ng-packagr
   fixes each entry point's `rootDir` to its own `src`, so
-  `@absaoss-cps/ngx-ui-watchtower/rum` can't import the main entry's
-  internals by relative path and carries small copies of what it needs.
+  `@absaoss-cps/ngx-ui-watchtower/rum` and `@absaoss-cps/ngx-ui-watchtower/event-inspector` can't import the main
+  entry's internals by relative path and carry small copies of what they
+  need.
+- **cps-ui-kit comes from npm.** It is an optional peer of the package and a
+  dev dependency of the workspace, so the build and the unit tests resolve it
+  from `node_modules` and it is never compiled into the package. The
+  workspace uses cps-ui-kit 21, the lowest version the Event Inspector
+  supports, as it uses the lowest supported Angular.
+- **`cps-slider` is staged here for cps-ui-kit.** The kit has no slider, so
+  the Transparency control is a `cps-slider` written to the kit's
+  conventions — inputs, `valueChanged`, forms support, colour variables —
+  in its own folder, `event-inspector/src/lib/cps-slider/`, depending only
+  on Angular and the kit's public API, so it can move into cps-ui-kit as
+  is.
+- **The separate window is drawn by the app.** The inspector renders into
+  the window's document from the app's own Angular application, with that
+  document as its `DOCUMENT` and its own cps-ui-kit notification and
+  announcer services, so tooltips, menus and messages appear in the window.
+  The app's stylesheets are copied in and kept in step, since Angular adds
+  a component's styles when it first renders. One session holds the
+  captured history from opening to closing, so moving between docks — each
+  a fresh view — loses nothing.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
@@ -602,7 +649,7 @@ const outcomeFor: Record<JobState, UwtScenarioStatus> = {
 };
 
 jobUpdates.subscribe((update) =>
-  this.scenarios.get(update.id)?.settle(outcomeFor[update.state])
+  this.scenarios.find(update.id)?.settle(outcomeFor[update.state])
 );
 ```
 
@@ -864,6 +911,10 @@ The custom layers duplicate nothing built in: the library records no page
 views, does not re-capture unhandled errors, and collects no browser or
 device attributes.
 
+An app that sets its own `telemetries` without `'errors'` still gets RUM's
+error plugin, with its own capture off: `recordError` and
+`mirrorErrorsToRum` go through it, and RUM rejects them without it.
+
 ### From events to metrics
 
 - **Custom RUM events don't become CloudWatch metrics on their own.** They
@@ -1081,8 +1132,11 @@ for the session, `cwr_u` for the user id), the library keeps one
 `localStorage` entry, `ngx-ui-watchtower.sessionStarts`: up to five RUM
 session ids, each with the time it started, for `sessionElapsed`. It is
 written only while the RUM client's cookies are on, and an id stays until
-five newer sessions have replaced it. Debug flags are read from
-`localStorage`, never written.
+five newer sessions have replaced it. The Event Inspector adds one more,
+`ngx-ui-watchtower.eventInspector`, once someone moves, resizes or fades it:
+its dock, the dialog's transparency, each pane's size, and the separate
+window's size and position. Debug flags are read from `localStorage`, never
+written.
 
 ### Scanning values for personal data
 
@@ -1281,6 +1335,22 @@ returns. The frontend's AWS credentials stay scoped to writing RUM events.
 Reading through AWS also answers the wrong question: by the time a record is
 in CloudWatch it is minutes old and mixed in with everyone else's, which is
 rarely what someone asking for "the logs" actually wants.
+
+### The Event Inspector
+
+The popup shows exactly what is sent, after redaction — including session
+and user ids — and redacts nothing further, since a popup that hid fields
+would misreport what leaves the browser. That is acceptable in every
+environment because it exposes nothing new: the data is the current user's
+own, already in their browser and visible in the network panel. It stores
+nothing, sends nothing and grants no remote access.
+
+Avoid sharing your screen while it is open, and treat downloads as you would
+any file with ids in it; filenames carry only the application name, the
+kind exported and a timestamp
+(`ngx-ui-watchtower-events-<application>-<kind>-<yyyyMMdd-HHmmss>.json`,
+the kind being `all`, `bi`, `scenario` or `logging`). The shortcut prevents accidental opening; it is not access
+control — use `enabled` for that, or leave the provider out.
 
 ---
 
@@ -1590,7 +1660,11 @@ convention, for an application that wants the pre-fallback behavior back.
   becoming stable.
 - **Bounded.** A 100-item buffer keeps events, page views and errors recorded
   before the RUM client is ready, then replays them; it never grows past
-  that if initialization never completes.
+  that if initialization never completes. The telemetry monitor costs one
+  check per event while nobody watches; the popup keeps at most 500 events
+  of each kind, updates the screen at most every 250 ms, and releases
+  everything when it closes. Only `captureBeforeOpen` watches from startup,
+  keeping at most as many events as the popup would.
 
 The console report is itself wrapped in a try/catch — an application that has
 patched or otherwise broken `console.error` cannot turn a suppressed
@@ -1625,6 +1699,8 @@ How an application uses the library, end to end.
 npm install @absaoss-cps/ngx-ui-watchtower
 # optional, only if you use the AWS RUM sink
 npm install aws-rum-web
+# optional, only if you use the Event Inspector
+npm install cps-ui-kit
 ```
 
 ### Setup
@@ -1825,7 +1901,9 @@ export class MyLogBackend implements UwtLogApiProvider {
       body: JSON.stringify(record),
       // Survives page unload. Only while the page is hidden (it may be
       // closing): browsers reject keepalive requests once all in flight
-      // exceed 64 KiB, so a burst of records would be lost.
+      // exceed 64 KiB, so a burst of records would be lost. Safari still says
+      // `visible` while a reloading page hides, so a record written then can
+      // be lost there; batching, below, sends those from flush().
       keepalive: document.visibilityState === 'hidden'
     }).catch(() => undefined);
   }
@@ -1888,7 +1966,11 @@ export class MyLogBackend implements UwtLogApiProvider {
 The one moment you cannot catch from inside a provider is the tab closing.
 Implement the optional `flush()`, and the library calls it on `pagehide`, on
 `visibilitychange` going hidden (mobile browsers routinely kill a
-backgrounded tab without `pagehide`) and on teardown.
+backgrounded tab without `pagehide`) and on teardown. Send from it with a
+beacon or `keepalive` every time, as above, rather than only when
+`document.visibilityState` is `'hidden'`: Safari still says `visible` while a
+page that is reloading or navigating away hides, and cancels a plain request
+then.
 
 #### Sending loggers to different destinations
 
@@ -1978,6 +2060,280 @@ structural: the one method that sends a scenario event is the only one that
 writes to the console, so starting a scenario, opening a step or calling a
 method after settlement — none of which sends anything — print nothing. To
 see each step, turn on `emitLifecycleEvents`, which makes steps real events.
+
+### Event Inspector
+
+An in-app window showing, live, every BI event, scenario event and log
+record your app hands to its telemetry destinations — no DevTools, no
+backend access:
+
+```ts
+import { provideUwtEventInspector } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
+
+providers: [
+  provideUwtTelemetry({ application: 'my-app', environment, version }),
+  provideUwtEventInspector()
+];
+```
+
+It is built from cps-ui-kit — 21.32 or later on Angular 21, or 22 — so the
+app needs cps-ui-kit set up as for any cps-ui-kit dialog (styles, icons,
+animations). It supports the light theme
+only, for now: cps-dialog, which frames it, is light-only, and the kit's
+dark theme is not yet complete for the components inside it.
+
+#### Opening it
+
+**Shift + E + I** on every platform — hold Shift, press E, then I — for
+Event Inspector. No browser binds it. Keys are matched by physical position
+(`KeyboardEvent.code`): the keys where E and I sit on a QWERTY keyboard —
+the same on AZERTY and QWERTZ, elsewhere on Dvorak or Colemak. Shift must be
+the only modifier, and held-down repeats are ignored.
+
+It types text, so it is ignored in a text field — typing a capital "EI"
+there never opens it, even in a shadow root; press it with focus outside the
+field. Screen readers
+in browse mode keep letter keys for their own navigation; there, open it
+from a button that calls `open()`.
+
+It opens where it was last — a dialog the first time — and never blocks the
+app, so you can watch events arrive. With it open, the shortcut brings focus
+back to it from the app — to its search field — and closes it when focus is
+already inside, outside a text field.
+
+#### Where it opens
+
+The **Dock** buttons at its top right move it, like Chrome DevTools' dock
+side, and the choice is remembered in this browser:
+
+| Dock                | What you get                                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dialog (default)    | A non-modal dialog on the right, half the screen wide (at least 40rem, or nearly all of a small screen). Draggable, resizable and maximizable, with a Transparency slider. Escape closes it.                                   |
+| Separate window     | Its own browser window, which it fills: 1200×800 the first time, then wherever it was last. Closing the window closes the inspector, and so does reloading the app.                                                            |
+| Left, right, bottom | A pane beside or below the app, which moves aside to make room. Drag its inner edge, or focus it and use the arrow keys, to resize it between 30rem (12rem at the bottom) and 80% of the screen; each side remembers its size. |
+
+Moving it keeps everything captured, the filters and the pause; pages and
+expanded rows start afresh.
+
+A screen narrower than 640px has no room for a pane: the Dock buttons offer
+only the dialog and the window, and a pane remembered from a wider screen
+opens as a dialog there.
+
+A pane makes room by padding the page's `body` on its side, so content in
+the normal flow moves aside. A page can't shrink the browser's viewport —
+only the browser can, as DevTools does — so whatever is laid out against the
+window stays where it is: `position: fixed` headers and buttons, `100vw`
+widths and `100vh` heights reach under the pane, and media queries still see
+the whole window.
+
+For those, the pane publishes its size on `<html>` while it is open, in
+pixels: `--uwt-inspector-inset-left`, `--uwt-inspector-inset-right` or
+`--uwt-inspector-inset-bottom`, and leaves the others unset. An app opts in
+where it needs to; the `0px` fallback keeps everything as it was with no pane
+open:
+
+```css
+.app-header {
+  left: var(--uwt-inspector-inset-left, 0px);
+  right: var(--uwt-inspector-inset-right, 0px);
+}
+.help-button {
+  right: calc(1.5rem + var(--uwt-inspector-inset-right, 0px));
+  bottom: calc(1.5rem + var(--uwt-inspector-inset-bottom, 0px));
+}
+.app-shell {
+  height: calc(100vh - var(--uwt-inspector-inset-bottom, 0px));
+}
+```
+
+The separate window has to open from a click or key press — the shortcut and
+the Dock buttons both are — or the browser blocks it. The inspector then
+opens as a dialog, and the console says why.
+
+It works in every environment. To change the keys, turn the shortcut off, or
+limit who can open it:
+
+```ts
+provideUwtEventInspector({
+  // Your own combination — replaces the defaults.
+  shortcuts: [
+    {
+      code: 'KeyD',
+      ctrl: true,
+      alt: true,
+      shift: true,
+      label: 'Ctrl+Alt+Shift+D'
+    }
+  ],
+
+  // Or no keyboard at all, opening it from your own UI instead:
+  // shortcuts: [],   then   inject(UwtEventInspectorService).open();
+
+  // Read once at startup.
+  enabled: () => inject(AuthService).isSupportStaff()
+});
+```
+
+#### What it shows
+
+One timeline of everything sent from the moment the popup opens — or from
+the app's start, with `captureBeforeOpen` — newest first: BI events, scenarios and their steps, and log records with the errors
+they mirror to RUM. Each row shows the time, the kind, a name and the
+details — a BI event's first metadata, a scenario's status, duration and
+steps, a log's level and message — with a status or level coloured as well
+as written. With room to spare, it adds the event type and the scenario or
+correlation id. A new row is tinted for a moment, and screen readers hear
+that it is new. The table always fits the popup: a long value ends in an
+ellipsis, and hovering shows it in full. Expand a row for the full payload
+as JSON; its **Copy event** puts that one payload on the clipboard.
+
+An open row offers to **Filter by** its key values: a BI event's name and
+feature, a scenario's or step's name and status, a log's logger and level.
+An error mirrored to RUM links to the log event it came from, and the log
+event back to it. Following a link turns to that event's page, opens it and
+moves focus to its payload, clearing the search and filters first if they
+hide it.
+
+It shows 25 rows a page, with a pager once there is more than one. On a
+later page, a notice counts the new events at the top, with **Go to
+newest**.
+
+The tools above the table:
+
+- **All, BI, Scenarios, Logs** shows every kind or one, each with how many
+  of its events match the search and filters.
+- **Export** saves the kind shown as JSON: **Download JSON** as a file, or
+  **Copy JSON** to the clipboard, for when a browser blocks downloads. It
+  holds every event captured of that kind, oldest first, whatever the search
+  and filters, which are recorded in the file. Each event keeps its
+  `sequence` and `capturedAt`, so exports of different kinds can be
+  interleaved again.
+- **Search** matches any field's value or name, in every kind. **Add
+  filter** compares one field — `metadata.theme`, `status`, or
+  `steps[].name` for any item of a list — chosen by name, such as "Event
+  name", with its path below, which finds it too. The fields offered come
+  from the events of the kind shown. It closes once the filter is added,
+  and **How filters work**, beside it, explains them with examples.
+
+Two controls at the top apply to everything, because they are about
+capturing rather than viewing:
+
+- **Pause live updates** freezes the view while you read; events are still
+  captured. The status line then says when you paused as well as when
+  capturing began: "Paused at 22:08:41 · capturing since 22:08:10".
+- **Clear** empties the history; capturing continues.
+
+As a dialog, it also has **Transparency**, which lets the app show through,
+so you can watch the page and its events together. Text fades with it, so it
+goes up to 30%, and a higher value remembered from an older version is
+brought down to that. A maximized dialog covers the app, so it is opaque and
+hides the slider. The setting is remembered in this browser. Panes and the
+window don't cover the app, so they have none.
+
+Each kind keeps its latest 500 events (`maxEventsPerSection`), so a burst
+of one never pushes out another; the status line counts the oldest dropped.
+History is discarded when the popup closes.
+
+To see what happened before it opened, set `captureBeforeOpen`: from the
+app's start, it keeps up to that many events of each kind, which the popup
+shows on opening, with "capturing since" the start. They keep coming while
+the popup is closed; **Clear** empties them too. The cost is a copy of every
+event handed over, from startup, popup open or not — why it is off by
+default.
+
+Under forced colours, such as Windows' contrast themes, the current dock,
+the kind shown, the Pause switch and solid buttons keep the marks that show
+their state, in the system's colours.
+
+What it does **not** show:
+
+- Anything before the popup opened, unless `captureBeforeOpen` kept it.
+- RUM's own automatic events — page views, web vitals, HTTP and JS errors —
+  which never pass through this library.
+- Whether the server accepted an event. It shows what was handed to the sink
+  or log provider; RUM can still drop events, for example when it samples a
+  session out or reaches its event limit.
+
+In a composed page, the shell's popup also shows what its fragments send — BI
+and scenario events and log records alike, since the shell delivers them —
+each marked with `↪` and the fragment's name.
+
+#### Configuration
+
+| Option                  | Default                           | Meaning                                                                                                                                    |
+| ----------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`               | `true`                            | `false`, or a function read once at startup, turns the popup off — shortcut and `open()` alike                                             |
+| `shortcuts`             | `UWT_DEFAULT_INSPECTOR_SHORTCUTS` | Replaces the defaults; `[]` disables the keyboard                                                                                          |
+| `maxEventsPerSection`   | `500`                             | Events kept of each kind — BI, scenarios, logs; the oldest are dropped, and the status line counts them                                    |
+| `maxPayloadCharsInView` | `262144` (256 × 1024)             | A payload whose JSON is longer is shown truncated to its first `maxPayloadCharsInView` characters, at most 65,536; downloads stay complete |
+| `captureBeforeOpen`     | `0`                               | Events of each kind kept from the app's start, for the popup to show on opening; at most `maxEventsPerSection`, and copied from startup    |
+
+Characters here are UTF-16 code units (JavaScript's `length`), not bytes: the
+limit protects rendering, which costs by the length of the text. A cut never
+splits a surrogate pair.
+
+A shortcut is a `UwtInspectorShortcut` — `{ code, after?, ctrl?, alt?,
+shift?, meta?, label? }`, where `code` is a `KeyboardEvent.code` such as
+`'Digit8'` or `'KeyD'`, and an omitted modifier must be up. `after` is a key
+pressed just before `code` with the modifiers still held: the default is
+`{ code: 'KeyI', after: 'KeyE', shift: true }`. Without `ctrl` or `meta`, a
+key that types a character doesn't count in a text field; one that types
+nothing, such as `F9`, still does. AltGr, which many
+European Windows layouts report as Ctrl+Alt, never matches. Spread
+`UWT_DEFAULT_INSPECTOR_SHORTCUTS` to add one rather than replace them.
+
+`UwtEventInspectorService` opens it from code: `open()`, `close()`,
+`toggle()`, `setDock(dock)` — a `UwtInspectorDock`: `'dialog'`, `'window'`,
+`'left'`, `'right'` or `'bottom'` — an `isOpen` signal, and a `dock` signal
+for where it is shown, `undefined` while closed. `setDock` opens it there if
+it is closed, and remembers the choice like the Dock buttons; asked for the
+dock it is already in, it just focuses it. `dock` can differ from the dock
+asked for: a blocked window, or a pane on a narrow screen, shows as a
+dialog.
+
+An export is a `UwtInspectorExport`:
+
+```ts
+interface UwtInspectorExport {
+  format: 'ngx-ui-watchtower-event-inspector';
+  formatVersion: 2;
+  section: 'all' | 'bi' | 'scenario' | 'logging'; // the kind shown
+  exportedAt: string;
+  capture: { startedAt: string; endedAt: string; paused: boolean };
+  app: {
+    application: string;
+    environment: string;
+    version: string;
+    eventNamespace: string;
+  };
+  session: { sessionId?: string; userId?: string };
+  userAgent: string;
+  activeFilters: UwtInspectorFilterState; // recorded, not applied
+  count: { captured: number; droppedOldest: number };
+  events: UwtTelemetryObservedEvent[]; // oldest first
+}
+```
+
+Version 1, from before the timeline, exported one of three sections, so its
+`section` was never `'all'`.
+
+Field filters use the operators `contains` (the default), `equals`,
+`not-contains`, `exists` and `missing`, all case-insensitive; several filters
+combine with AND. A path such as `steps[].name` matches any item of a list.
+
+#### Reading events from code
+
+The popup is built on `UwtTelemetryMonitor`, from the main entry point, which
+anyone can observe — a test, or your own overlay:
+
+```ts
+inject(UwtTelemetryMonitor)
+  .events$.pipe(filter((e) => e.kind === 'scenario'))
+  .subscribe((e) => console.table(e.payload));
+```
+
+Each event is a deep copy of what was sent, so observers can't change it.
+While nothing subscribes, it costs one check per event.
 
 ### Testing
 
@@ -2165,6 +2521,13 @@ bootstrapApplication(FragmentRoot, {
 | Channel name     | **Must match.** The default (`'ngx-ui-watchtower'`) needs no argument; if the shell passes a custom name, pass the same — `provideUwtTelemetrySink('broadcast', { channelName })` |
 | `application`    | **Should differ** per fragment. The forwarding sink stamps its realm's `application`, `environment` and `appVersion` onto every event, so you can tell fragments apart            |
 
+**An Angular fragment served as a Web Fragment** must load its files by
+absolute URL. Its scripts run in the hidden iframe, whose location is the
+host page's, so a relative `main.js` in its `index.html` resolves against the
+shell's address — and loads the shell's own bundle. Build it with `deployUrl`
+(and `baseHref`) set to the prefix the gateway routes to it, such as
+`/_fragment/cart/`. The Watchtower Lab's fragment is built this way.
+
 A forwarded **error** has no metadata to carry that origin in —
 `recordError` takes none — so the RUM sink folds a differing origin into the
 error's name instead (`[cart] TypeError`).
@@ -2175,7 +2538,7 @@ error's name instead (`[cart] TypeError`).
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `provideUwtTelemetryRumSink()`       | Builds a second AWS client — one visitor becomes two sessions. Listed next to `'broadcast'`, it is a second destination, so bootstrap fails                                                 |
 | `UWT_RUM_CREDENTIALS_PROVIDER`       | Nothing in a fragment needs AWS credentials                                                                                                                                                 |
-| `UWT_LOG_API_PROVIDER`               | `'broadcast'` mode already binds it to the forwarding provider. One bound after it wins, and the fragment ships its own logs — the shell never sees them                                    |
+| `UWT_LOG_API_PROVIDER`               | `'broadcast'` mode already binds it to the forwarding provider. One bound after it wins, and the fragment ships its own logs — the shell, and its Event Inspector, never see them           |
 | `provideUwtTelemetryBroadcastHost()` | A host receives its own realm's messages too, so beside the forwarding sink it would forward them again, forever. It detects this, warns (`... cannot also host it ...`) and stays inactive |
 
 #### A realm that both forwards and hosts
@@ -2255,7 +2618,13 @@ never injects `UwtLoggerService` sends none in the first place.
 With `mirrorErrorsToRum`, each error-level log line leaves a fragment as two
 messages — the record for the log provider, then its mirrored error for the
 sink — with no id in common. Each destination still receives it once: the
-log backend gets the record, RUM gets the error.
+log backend gets the record, RUM gets the error. The host links them for its
+monitor anyway, so the shell's Event Inspector shows the mirror against
+its record as the fragment's own does: an `error` arriving straight after an
+error-level record from the same realm, with the name and message the logger
+mirrors for it, gets that record's sequence as `relatedSequence`. Both are
+posted in the same task, so nothing can arrive between them. A mirror that
+doesn't match exactly is shown unlinked, never linked wrongly.
 
 ### A fragment that also deploys standalone
 

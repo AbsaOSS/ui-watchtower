@@ -9,6 +9,9 @@
       ],
       "@absaoss-cps/ngx-ui-watchtower/rum": [
         "./projects/ngx-ui-watchtower/rum/src/public-api.ts"
+      ],
+      "@absaoss-cps/ngx-ui-watchtower/event-inspector": [
+        "./projects/ngx-ui-watchtower/event-inspector/src/public-api.ts"
       ]
     },
     "esModuleInterop": true,
@@ -42,6 +45,11 @@
     { "path": "./projects/ngx-ui-watchtower/tsconfig.lib.json" },
     { "path": "./projects/ngx-ui-watchtower/tsconfig.spec.json" },
     { "path": "./projects/ngx-ui-watchtower/rum/tsconfig.lib.json" },
-    { "path": "./projects/ngx-ui-watchtower/rum/tsconfig.spec.json" }
+    { "path": "./projects/ngx-ui-watchtower/rum/tsconfig.spec.json" },
+    { "path": "./projects/ngx-ui-watchtower/event-inspector/tsconfig.lib.json" },
+    { "path": "./projects/ngx-ui-watchtower/event-inspector/tsconfig.spec.json" },
+    { "path": "./projects/watchtower-lab/tsconfig.app.json" },
+    { "path": "./projects/watchtower-lab-fragment/tsconfig.app.json" },
+    { "path": "./playwright/tsconfig.json" }
   ]
 }

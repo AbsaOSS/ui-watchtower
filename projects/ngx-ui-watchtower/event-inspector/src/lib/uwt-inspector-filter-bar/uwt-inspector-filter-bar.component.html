@@ -1,0 +1,115 @@
+<div class="uwt-inspector-filter-bar">
+  <div class="uwt-inspector-filter-bar__row">
+    <cps-input
+      class="uwt-inspector-filter-bar__search uwt-inspector-search"
+      ariaLabel="Search events"
+      placeholder="Search all fields"
+      prefixIcon="search"
+      [clearable]="true"
+      [hideDetails]="true"
+      [value]="filters().text"
+      (valueChanged)="onSearch($event)">
+    </cps-input>
+    <cps-button
+      #addFilter
+      type="outlined"
+      size="small"
+      icon="filter-funnel"
+      label="Add filter"
+      [ariaExpanded]="builderOpen()"
+      (clicked)="builderOpen.set(!builderOpen())">
+    </cps-button>
+  </div>
+
+  @if (builderOpen()) {
+    <div
+      class="uwt-inspector-filter-bar__builder"
+      role="group"
+      aria-label="New filter"
+      (keydown.enter)="add()">
+      <cps-autocomplete
+        class="uwt-inspector-filter-bar__path"
+        label="Field"
+        placeholder="Choose a field"
+        [options]="pathOptions()"
+        [withOptionsAliases]="true"
+        [returnObject]="false"
+        [hideDetails]="true"
+        [value]="path()"
+        (valueChanged)="onPath($event)">
+      </cps-autocomplete>
+      <cps-select
+        class="uwt-inspector-filter-bar__operator"
+        label="Condition"
+        [options]="operators"
+        [returnObject]="false"
+        [hideDetails]="true"
+        [value]="operator()"
+        (valueChanged)="onOperator($event)">
+      </cps-select>
+      @if (needsValue()) {
+        <cps-input
+          class="uwt-inspector-filter-bar__value"
+          label="Value"
+          placeholder="Text to compare"
+          [hideDetails]="true"
+          [value]="value()"
+          (valueChanged)="value.set($event)">
+        </cps-input>
+      }
+      <cps-button
+        size="small"
+        label="Add"
+        [disabled]="!canAdd()"
+        (clicked)="add()">
+      </cps-button>
+    </div>
+    <!-- Beside the fields, not among them: Enter here opens it, never adds. -->
+    <details class="uwt-inspector-filter-bar__help">
+      <summary>How filters work</summary>
+      <p>
+        Search matches any field's value or name, ignoring case. A filter
+        compares one field, and every filter must match. For example:
+      </p>
+      <ul>
+        <li>
+          <strong>Event name</strong> equals <code>theme_changed</code> shows
+          that event only.
+        </li>
+        <li>
+          <strong>Step name</strong> contains <code>pay</code> shows scenarios
+          with any step like it; its path, <code>steps[].name</code>, covers
+          every step, and <code>steps[2].name</code> only the third.
+        </li>
+      </ul>
+      <p>
+        Filters narrow what is shown. Export still holds every event captured of
+        the kind shown.
+      </p>
+    </details>
+  }
+
+  @if (chips().length > 0 || anyActive()) {
+    <div class="uwt-inspector-filter-bar__active">
+      <span class="uwt-inspector-filter-bar__label">Filters:</span>
+      <ul class="uwt-inspector-filter-bar__chips" aria-label="Active filters">
+        @for (chip of chips(); track chip.id) {
+          <li>
+            <cps-chip
+              [label]="chip.text"
+              [closable]="true"
+              [closeButtonAriaLabel]="'Remove filter ' + chip.text"
+              (closed)="store.removeFilter(chip.id)">
+            </cps-chip>
+          </li>
+        }
+      </ul>
+      <cps-button
+        type="borderless"
+        size="xsmall"
+        label="Clear filters"
+        (clicked)="clearAll()">
+      </cps-button>
+    </div>
+  }
+</div>

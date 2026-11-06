@@ -1,0 +1,81 @@
+// Styled like cps-button-toggle: calm outline, the current option filled.
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-family: 'Source Sans Pro', sans-serif;
+  color: var(--cps-color-text-dark);
+}
+
+.uwt-inspector-dock__group {
+  display: inline-flex;
+}
+
+.uwt-inspector-dock__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0.0625rem solid var(--cps-color-calm);
+  background-color: #fff;
+  color: var(--cps-color-calm);
+  cursor: pointer;
+
+  & + & {
+    margin-left: -0.0625rem;
+  }
+
+  &:first-child {
+    border-radius: 0.25rem 0 0 0.25rem;
+  }
+
+  &:last-child {
+    border-radius: 0 0.25rem 0.25rem 0;
+  }
+
+  &:hover {
+    background-color: var(--cps-color-calm-lighten5);
+  }
+
+  &[aria-pressed='true'] {
+    background-color: var(--cps-color-calm);
+    color: #fff;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 0.0625rem solid var(--cps-color-calm);
+    outline-offset: 0.125rem;
+    box-shadow: 0 0 0 0.25rem var(--cps-color-calm-highlighten);
+  }
+
+  svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.2;
+  }
+
+  .filled {
+    fill: currentColor;
+    stroke: none;
+  }
+}
+
+// Forced colours drop the fill that marks the current dock: it takes the
+// system's selection colours instead.
+@media (forced-colors: active) {
+  .uwt-inspector-dock__option[aria-pressed='true'] {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background-color: Highlight;
+    color: HighlightText;
+  }
+}

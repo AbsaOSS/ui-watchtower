@@ -18,6 +18,7 @@ import {
   UwtTelemetryEventTypes,
   UwtTelemetryMetadata
 } from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
+import { UwtTelemetryMonitor } from '../../services/uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import {
   uwtDebugWrite,
@@ -63,6 +64,8 @@ export interface UwtScenarioDeps {
   runOutsideAngular?: <T>(callback: () => T) => T;
   /** Called once with the scenario's id when it reaches a terminal state. */
   onSettled: (scenarioId: string, record: UwtScenarioRecord) => void;
+  /** Told about every event right after it is handed to the sink. */
+  monitor: UwtTelemetryMonitor;
   /** Telemetry is switched off: the scenario records, times and sends nothing. */
   inert?: boolean;
 }
@@ -873,10 +876,11 @@ export class UwtScenario {
 
   /**
    * Sends a payload to the sink, first logging that exact same object if
-   * `debugScenario` is on.
+   * `debugScenario` is on, then telling the monitor it was handed over.
    *
-   * The only place either happens, so console output and sink output can
-   * never drift apart: one object, one call site.
+   * The only place any of the three happens, so console output, sink output
+   * and what an observer sees can never drift apart: one object, one call
+   * site.
    *
    * @param emission the payload and which of the two events it is
    * @param summary a short human-readable prefix for the console line
@@ -891,6 +895,12 @@ export class UwtScenario {
       writeToConsole(summary, eventType, emission.payload)
     );
     this.deps.sink.record(eventType, emission.payload);
+    this.deps.monitor.publish({
+      ...emission,
+      eventType,
+      destination: 'sink',
+      origin: { forwarded: false }
+    });
   }
 }
 

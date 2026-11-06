@@ -1,0 +1,278 @@
+import { DOCUMENT } from '@angular/common';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  ElementRef,
+  inject,
+  input,
+  signal,
+  viewChild
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  CPS_LIVE_ANNOUNCER_SERVICE,
+  CpsButtonComponent,
+  CpsDialogConfig,
+  CpsDialogRef,
+  CpsSwitchComponent
+} from 'cps-ui-kit';
+import { CpsSliderComponent } from '../cps-slider/cps-slider.component';
+import {
+  UWT_EVENT_INSPECTOR_CONFIG,
+  UwtInspectorDock
+} from '../uwt-inspector.models/uwt-inspector.models';
+import {
+  UWT_DEFAULT_INSPECTOR_CONFIG,
+  UWT_INSPECTOR_SECTIONS,
+  UwtInspectorStore
+} from '../uwt-inspector-store/uwt-inspector-store';
+import { UwtInspectorTimelineComponent } from '../uwt-inspector-timeline/uwt-inspector-timeline.component';
+import {
+  UWT_INSPECTOR_SECTION_NOUN,
+  UwtInspectorExporter
+} from '../uwt-inspector-export/uwt-inspector-exporter';
+import { uwtInspectorTime } from '../uwt-inspector-timeline/uwt-inspector-rows';
+import {
+  UWT_DEFAULT_INSPECTOR_SHORTCUTS,
+  uwtIsApplePlatform,
+  uwtShortcutLabel
+} from '../uwt-inspector-shortcut/uwt-inspector-shortcut';
+import { UwtInspectorDockSwitcherComponent } from '../uwt-inspector-dock-switcher/uwt-inspector-dock-switcher.component';
+import { UwtInspectorLogoComponent } from '../uwt-inspector-logo/uwt-inspector-logo.component';
+import { UwtInspectorSession } from '../uwt-inspector-session/uwt-inspector-session';
+import {
+  UWT_INSPECTOR_MAX_TRANSPARENCY,
+  UwtInspectorPreferenceStorage
+} from '../uwt-inspector-preferences/uwt-inspector-preferences';
+
+/** Screen readers hear about new events at most this often, in ms. */
+const ANNOUNCE_EVERY_MS = 10_000;
+
+/**
+ * The Event Inspector's content, shown by {@link UwtEventInspectorService}
+ * in a non-modal cps-dialog, a pane or its own window. Capturing is
+ * controlled here — pause and clear apply to everything — while the
+ * timeline below shows, filters and exports the events.
+ *
+ * The captured history belongs to the {@link UwtInspectorSession}, so it
+ * survives moving between docks and is discarded on close. Uses no
+ * telemetry service itself, so opening or using it never produces events
+ * of its own.
+ */
+@Component({
+  selector: 'uwt-inspector',
+  imports: [
+    CpsButtonComponent,
+    CpsSliderComponent,
+    CpsSwitchComponent,
+    UwtInspectorDockSwitcherComponent,
+    UwtInspectorLogoComponent,
+    UwtInspectorTimelineComponent
+  ],
+  providers: [
+    {
+      provide: UwtInspectorStore,
+      useFactory: () => inject(UwtInspectorSession).store
+    },
+    UwtInspectorExporter
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.uwt-inspector--framed]': 'framed()' },
+  templateUrl: './uwt-inspector.component.html',
+  styleUrl: './uwt-inspector.component.scss'
+})
+export class UwtInspectorComponent {
+  /** Where it is shown; a cps-dialog creates it without inputs. */
+  readonly dock = input<UwtInspectorDock>('dialog');
+
+  protected readonly store = inject(UwtInspectorStore);
+
+  private readonly document = inject(DOCUMENT);
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+  private readonly session = inject(UwtInspectorSession);
+  private readonly preferences = inject(UwtInspectorPreferenceStorage);
+  private readonly announcer = inject(CPS_LIVE_ANNOUNCER_SERVICE, {
+    optional: true
+  });
+
+  /** The dialog's own config: cps-dialog binds its `style` to the window. */
+  private readonly dialogConfig = inject(CpsDialogConfig, { optional: true });
+  private readonly dialogRef = inject(CpsDialogRef, { optional: true });
+
+  private readonly config = {
+    ...UWT_DEFAULT_INSPECTOR_CONFIG,
+    shortcuts: UWT_DEFAULT_INSPECTOR_SHORTCUTS,
+    ...inject(UWT_EVENT_INSPECTOR_CONFIG, { optional: true })
+  };
+
+  /** A pane or window brings no header of its own, so this draws one. */
+  protected readonly framed = computed(() => this.dock() !== 'dialog');
+
+  /** Whether the app's window has room for a pane. */
+  protected readonly panesFit =
+    this.session.controls?.panesFit ?? signal(true).asReadonly();
+
+  protected readonly maxPayloadChars = this.config.maxPayloadCharsInView;
+
+  protected readonly since = computed(() =>
+    uwtInspectorTime(this.store.startedAt()).slice(0, 8)
+  );
+
+  /** The oldest events dropped to stay within each kind's limit. */
+  protected readonly dropped = computed(() => {
+    const dropped = this.store.dropped();
+    return UWT_INSPECTOR_SECTIONS.reduce((n, id) => n + dropped[id], 0);
+  });
+
+  protected readonly pausedAt = computed(() => {
+    const at = this.store.pausedAt();
+    return at && uwtInspectorTime(at).slice(0, 8);
+  });
+
+  protected readonly shortcut = uwtShortcutLabel(
+    this.config.shortcuts,
+    uwtIsApplePlatform(this.document.defaultView?.navigator)
+  );
+
+  protected readonly maxTransparency = UWT_INSPECTOR_MAX_TRANSPARENCY;
+  protected readonly transparency = signal(
+    this.preferences.read().transparency
+  );
+
+  /** A maximized dialog covers the app, so it isn't see-through. */
+  protected readonly maximized = signal(false);
+
+  private readonly dialogLogo = viewChild('dialogLogo', { read: ElementRef });
+
+  private lastAnnounced = { bi: 0, scenario: 0, logging: 0 };
+
+  constructor() {
+    const timer = setInterval(() => this.announceNew(), ANNOUNCE_EVERY_MS);
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    this.applyTransparency(this.transparency());
+    this.dialogRef?.onMaximize
+      .pipe(takeUntilDestroyed())
+      .subscribe((maximized) => {
+        this.maximized.set(maximized);
+        this.applyTransparency(maximized ? 0 : this.transparency());
+      });
+    afterNextRender(() => this.placeDialogLogo());
+  }
+
+  /** Whether keyboard focus is anywhere in the inspector, header included. */
+  containsFocus(): boolean {
+    return this.frame().contains(this.document.activeElement);
+  }
+
+  /** Moves focus to the search field. */
+  focusSearch(): void {
+    const input = this.host.nativeElement.querySelector<HTMLInputElement>(
+      '.uwt-inspector-search input'
+    );
+    (input ?? this.frame()).focus();
+  }
+
+  protected setDock(dock: UwtInspectorDock): void {
+    this.session.controls?.setDock(dock);
+  }
+
+  protected close(): void {
+    this.session.controls?.close();
+  }
+
+  protected setPaused(paused: boolean): void {
+    this.store.setPaused(paused);
+    this.announce(
+      paused
+        ? 'Live updates paused. Events are still captured.'
+        : 'Live updates resumed.'
+    );
+  }
+
+  protected clear(): void {
+    this.store.clear();
+    this.lastAnnounced = { bi: 0, scenario: 0, logging: 0 };
+    this.announce('History cleared. Capturing continues.');
+  }
+
+  /** Lets the app show through the dialog, and remembers the choice. */
+  protected setTransparency(percent: number): void {
+    this.transparency.set(percent);
+    this.applyTransparency(percent);
+    this.preferences.update({ transparency: percent });
+  }
+
+  /**
+   * A new `style` object, rather than this component's own styles, so the
+   * dialog's header and frame turn see-through too. Only a dialog has one.
+   */
+  private applyTransparency(percent: number): void {
+    if (this.dialogConfig) {
+      this.dialogConfig.style = {
+        ...this.dialogConfig.style,
+        opacity: String((100 - percent) / 100)
+      };
+    }
+  }
+
+  /**
+   * cps-dialog draws the dialog's header, and its icon slot takes only an
+   * icon name, so the mark moves into that slot, before the title. Without
+   * the slot the mark goes.
+   */
+  private placeDialogLogo(): void {
+    const logo: HTMLElement | undefined = this.dialogLogo()?.nativeElement;
+    if (!logo) {
+      return;
+    }
+    const slot = this.host.nativeElement
+      .closest('.cps-dialog')
+      ?.querySelector('.cps-dialog-header-icon');
+    if (slot) {
+      slot.append(logo);
+    } else {
+      logo.remove();
+    }
+  }
+
+  /** One polite summary of what arrived since the last one, if anything. */
+  private announceNew(): void {
+    if (this.store.paused()) {
+      return;
+    }
+    const received = this.store.received();
+    const parts = UWT_INSPECTOR_SECTIONS.map((id) => ({
+      id,
+      n: received[id] - this.lastAnnounced[id]
+    })).filter((p) => p.n > 0);
+    this.lastAnnounced = { ...received };
+    if (parts.length === 0) {
+      return;
+    }
+    const total = parts.reduce((sum, p) => sum + p.n, 0);
+    const detail = parts
+      .map((p) => `${p.n} ${UWT_INSPECTOR_SECTION_NOUN[p.id]}`)
+      .join(', ');
+    this.announce(`${total} new event${total === 1 ? '' : 's'}: ${detail}.`);
+  }
+
+  private announce(message: string): void {
+    try {
+      this.announcer?.announce(message, 'polite');
+    } catch {
+      // Announcements are a courtesy; never let one break the inspector.
+    }
+  }
+
+  /** The dialog or pane around this content, or the content itself. */
+  private frame(): HTMLElement {
+    return (
+      this.host.nativeElement.closest<HTMLElement>(
+        '[role="dialog"], [role="region"]'
+      ) ?? this.host.nativeElement
+    );
+  }
+}
