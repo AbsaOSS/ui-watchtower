@@ -3,7 +3,8 @@
   "extends": "../../../tsconfig.json",
   "compilerOptions": {
     "outDir": "../../../out-tsc/spec-rum",
-    "rootDir": "..",
+    // Includes the core: tests and typecheck read its source.
+    "rootDir": "../..",
     "types": ["jest"],
     "resolveJsonModule": true,
     "isolatedModules": false

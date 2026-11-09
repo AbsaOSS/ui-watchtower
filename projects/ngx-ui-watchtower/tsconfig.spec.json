@@ -3,7 +3,8 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "../../out-tsc/spec",
-    "rootDir": "./src",
+    // Includes the core: tests and typecheck read its source.
+    "rootDir": "..",
     "types": ["jest", "node"],
     "resolveJsonModule": true
   },

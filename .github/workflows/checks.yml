@@ -72,6 +72,18 @@ jobs:
           # Tests already ran above; the action only formats the report.
           skip-step: all
 
+      - name: Comment core coverage on PR
+        uses: ArtiomTr/jest-coverage-report-action@v2
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        with:
+          custom-title: Core coverage report
+          coverage-file: ./coverage/ui-watchtower/report.json
+          # The same file as the base: no comparison with a base branch,
+          # which would run the Angular package's tests.
+          base-coverage-file: ./coverage/ui-watchtower/report.json
+          skip-step: all
+
   lint:
     name: Lint and format
     runs-on: ubuntu-latest
