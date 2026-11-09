@@ -108,6 +108,30 @@ jobs:
       - name: Smoke-test the packed packages
         run: npm run smoke
 
+  release:
+    name: Release config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          # The release check compares bootstrap-sha with the tagged commit.
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+
+      # Plain Node: neither needs the workspace's dependencies.
+      - name: Test the publish script and the release workflow's wiring
+        run: npm run test:release
+
+      # Replays releases through the Release Please version the release
+      # workflow runs, on this repository's config.
+      - name: Check the release config
+        run: npm run release:check
+
   lint:
     name: Lint and format
     runs-on: ubuntu-latest

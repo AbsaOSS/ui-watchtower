@@ -245,6 +245,13 @@ providers: [
   application, prerendered as a fragment without `aws-rum-web` — which then
   holds no RUM code — and as a shell with `/rum`, whose RUM client is a chunk
   loaded on demand.
+- **Both packages share one version and release together.** Release Please
+  links their versions: a change to either releases both, and the same
+  release PR moves this package's dependency on the core to `^` the new
+  version. The release workflow publishes the core first and this package
+  only after it, so this package never depends on a core version npm doesn't
+  have. Publishing skips what npm already has, so running the workflow again
+  on the release tag completes a partial release.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
