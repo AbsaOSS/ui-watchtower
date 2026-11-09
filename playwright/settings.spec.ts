@@ -316,11 +316,17 @@ test('a pattern that is not a RegExp is left out with a warning, and the lab sti
   );
 });
 
-test('applying an overlay keeps the other startup options, which in-app links drop', async ({
+test('the start page keeps the startup options', async ({ page }) => {
+  await page.goto('/?destination=noop');
+  await expect(page).toHaveURL(/\/scenarios\?destination=noop$/);
+});
+
+test('in-app links keep the startup options, and so does applying an overlay', async ({
   page
 }) => {
   await openLab(page, 'bi?destination=noop');
   await navigate(page, 'Settings');
+  expect(new URL(page.url()).searchParams.get('destination')).toBe('noop');
   await page
     .getByRole('textbox', { name: '?config= (JSON)' })
     .fill('{ "bi": { "dedupWindowMs": 0 } }');

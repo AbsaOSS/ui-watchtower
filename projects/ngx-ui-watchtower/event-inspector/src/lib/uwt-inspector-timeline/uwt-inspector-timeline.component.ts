@@ -249,8 +249,18 @@ export class UwtInspectorTimelineComponent {
     );
   }
 
+  /** To the first page, whose notice then goes: focus to the newest event. */
   protected goToNewest(): void {
     this.first.set(0);
+    afterNextRender(
+      () =>
+        this.host.nativeElement
+          .querySelector<HTMLElement>(
+            '[data-testid^="cps-table-row-expand-btn-"]'
+          )
+          ?.focus(),
+      { injector: this.injector }
+    );
   }
 
   protected toggleExport(menu: CpsMenuComponent, event: Event): void {

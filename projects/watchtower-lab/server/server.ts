@@ -20,6 +20,15 @@ const angularApp = new AngularNodeAppEngine();
 
 app.use(labBackend);
 app.use(labFragments);
+// The app's own catch-all redirect drops the query, and with it the startup
+// options (`?destination=`, `?config=`, …): the start page keeps them.
+app.get('/', (req, res) => {
+  const query = req.originalUrl.indexOf('?');
+  res.redirect(
+    302,
+    `/scenarios${query < 0 ? '' : req.originalUrl.slice(query)}`
+  );
+});
 app.use(
   express.static(browserDistFolder, {
     index: false,

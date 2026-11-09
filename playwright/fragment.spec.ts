@@ -96,9 +96,16 @@ for (const { name, path, fragment: locate } of COMPOSITIONS) {
 }
 
 test('the fragment on its own, with no shell, carries on and sends nothing', async ({
-  page,
-  backend
+  page
 }) => {
+  // Its own requests, not the backend's: a page that closed before this
+  // test may still be sending.
+  const sent: string[] = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST') {
+      sent.push(r.url());
+    }
+  });
   await page.goto('/fragment-frame/');
   await expect(page.locator('h1')).toHaveText('lab-fragment');
   await press(page, 'Track a BI event');
@@ -106,6 +113,5 @@ test('the fragment on its own, with no shell, carries on and sends nothing', asy
 
   await page.waitForTimeout(2000);
   await expect(page.locator('p').first()).toContainText('Session — · user —');
-  expect(await backend.rum()).toEqual([]);
-  expect(await backend.logs()).toEqual([]);
+  expect(sent).toEqual([]);
 });

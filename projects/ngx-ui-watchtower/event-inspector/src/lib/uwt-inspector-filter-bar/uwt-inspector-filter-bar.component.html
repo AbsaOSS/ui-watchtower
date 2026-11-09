@@ -99,7 +99,7 @@
               [label]="chip.text"
               [closable]="true"
               [closeButtonAriaLabel]="'Remove filter ' + chip.text"
-              (closed)="store.removeFilter(chip.id)">
+              (closed)="remove(chip.id)">
             </cps-chip>
           </li>
         }

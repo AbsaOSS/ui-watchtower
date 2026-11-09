@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { UwtInspectorJsonComponent } from './uwt-inspector-json.component';
@@ -118,5 +119,35 @@ describe('UwtInspectorJsonComponent', () => {
 
     expect(writeText).toHaveBeenCalledWith('{\n  "a": 1\n}');
     expect(fixture.nativeElement.textContent).toContain('Payload copied');
+  });
+
+  it("should copy through its own window's clipboard, as a separate window has its own", async () => {
+    const frame = document.body.appendChild(document.createElement('iframe'));
+    const own = jest.fn(() => Promise.resolve());
+    const app = jest.fn(() => Promise.resolve());
+    Object.assign(frame.contentWindow!.navigator, {
+      clipboard: { writeText: own }
+    });
+    Object.assign(navigator, { clipboard: { writeText: app } });
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [UwtInspectorJsonComponent, NoopAnimationsModule]
+    });
+    TestBed.overrideComponent(UwtInspectorJsonComponent, {
+      add: {
+        providers: [{ provide: DOCUMENT, useValue: frame.contentDocument }]
+      }
+    });
+    const inWindow = TestBed.createComponent(UwtInspectorJsonComponent);
+    inWindow.componentRef.setInput('value', { a: 1 });
+    inWindow.detectChanges();
+
+    await (
+      inWindow.componentInstance as unknown as { copy(): Promise<void> }
+    ).copy();
+
+    expect(own).toHaveBeenCalledWith('{\n  "a": 1\n}');
+    expect(app).not.toHaveBeenCalled();
+    frame.remove();
   });
 });

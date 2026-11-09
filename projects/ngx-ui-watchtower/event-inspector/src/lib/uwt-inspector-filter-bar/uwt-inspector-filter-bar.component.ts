@@ -143,6 +143,22 @@ export class UwtInspectorFilterBarComponent {
     this.path.set('');
     this.operator.set('contains');
     this.value.set('');
+    this.focusAddFilter();
+  }
+
+  protected remove(id: string): void {
+    this.store.removeFilter(id);
+    this.focusAddFilter();
+  }
+
+  protected clearAll(): void {
+    clearTimeout(this.searchTimer);
+    this.store.clearFilters();
+    this.focusAddFilter();
+  }
+
+  /** Focus to Add filter, as the control just used goes away. */
+  private focusAddFilter(): void {
     afterNextRender(
       () =>
         (this.addFilterButton()?.nativeElement as HTMLElement | undefined)
@@ -150,10 +166,5 @@ export class UwtInspectorFilterBarComponent {
           ?.focus(),
       { injector: this.injector }
     );
-  }
-
-  protected clearAll(): void {
-    clearTimeout(this.searchTimer);
-    this.store.clearFilters();
   }
 }

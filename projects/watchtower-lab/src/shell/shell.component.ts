@@ -125,6 +125,7 @@ function inEffect(now?: string, next?: string): string {
                   <li>
                     <a
                       [routerLink]="page.path"
+                      queryParamsHandling="preserve"
                       routerLinkActive="active"
                       ariaCurrentWhenActive="page"
                       >{{ page.label }}</a

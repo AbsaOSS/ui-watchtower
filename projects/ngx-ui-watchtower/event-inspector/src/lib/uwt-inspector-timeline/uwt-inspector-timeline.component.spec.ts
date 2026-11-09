@@ -177,11 +177,18 @@ describe('UwtInspectorTimelineComponent', () => {
     publish(30);
     expect(el().textContent).toContain('25 new at the top of the list.');
 
-    Array.from(el().querySelectorAll('button'))
-      .find((b) => b.textContent?.trim() === 'Go to newest')
-      ?.click();
+    const newest = Array.from(el().querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Go to newest'
+    )!;
+    newest.focus();
+    newest.click();
     fixture.detectChanges();
+    TestBed.tick();
     expect(ui().first()).toBe(0);
+    // Its notice gone, focus is on the newest event, not the page.
+    expect(document.activeElement?.getAttribute('data-testid')).toMatch(
+      /^cps-table-row-expand-btn-/
+    );
   });
 
   describe('an open row', () => {

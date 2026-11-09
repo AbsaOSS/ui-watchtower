@@ -95,17 +95,20 @@ export class LabResultsComponent {
   private readonly arrived = computed(() => {
     const rum = this.wire.rum();
     const details = new Set(rum.map((e) => JSON.stringify(e.details)));
-    const errors = new Set(
-      rum
-        .filter((e) => e.type.endsWith('js_error_event'))
-        .map((e) => field(e.details, 'message'))
-    );
+    const errors = rum.filter((e) => e.type.endsWith('js_error_event'));
     const logs = new Set(this.wire.logs().map((r) => JSON.stringify(r)));
     return (event: UwtTelemetryObservedEvent): boolean =>
       event.destination === 'log-provider'
         ? logs.has(JSON.stringify(event.payload))
         : event.kind === 'error'
-          ? errors.has(field(event.payload, 'message'))
+          ? // Only its message is known, and an earlier error can share it:
+            // one that arrived after this one was sent.
+            errors.some(
+              (e) =>
+                field(e.details, 'message') ===
+                  field(event.payload, 'message') &&
+                Date.parse(e.receivedAt) >= Date.parse(event.capturedAt)
+            )
           : details.has(JSON.stringify(event.payload));
   });
 

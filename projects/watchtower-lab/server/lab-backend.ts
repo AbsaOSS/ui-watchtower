@@ -214,6 +214,21 @@ function queryLogs(query: Request['query']): LogRecord[] {
 
 export const labBackend = Router();
 
+// Only the lab's own pages, and the suite, which sends no Origin, change its
+// state: another site's page could otherwise point RUM at its own endpoint.
+labBackend.use('/__lab', (req, res, next) => {
+  const origin = req.get('origin');
+  if (
+    req.method === 'POST' &&
+    origin &&
+    new URL(origin).host !== req.get('host')
+  ) {
+    res.status(403).end();
+    return;
+  }
+  next();
+});
+
 labBackend.get('/rum/init', (req, res) => {
   // Lab-only: what the broker was set to, for the header to show what this
   // page load got. A real broker sends nothing like it.

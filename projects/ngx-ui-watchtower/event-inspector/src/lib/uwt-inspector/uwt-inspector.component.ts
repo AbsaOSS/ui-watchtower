@@ -7,6 +7,7 @@ import {
   DestroyRef,
   ElementRef,
   inject,
+  Injector,
   input,
   signal,
   viewChild
@@ -152,6 +153,10 @@ export class UwtInspectorComponent {
 
   private readonly dialogLogo = viewChild('dialogLogo', { read: ElementRef });
 
+  private readonly pauseSwitch = viewChild('pauseSwitch', { read: ElementRef });
+
+  private readonly injector = inject(Injector);
+
   private lastAnnounced = { bi: 0, scenario: 0, logging: 0 };
 
   constructor() {
@@ -203,6 +208,18 @@ export class UwtInspectorComponent {
     ) {
       this.close();
     }
+  }
+
+  /** Resumes from the notice, which then goes: focus to the Pause switch. */
+  protected resume(): void {
+    this.setPaused(false);
+    afterNextRender(
+      () =>
+        (this.pauseSwitch()?.nativeElement as HTMLElement | undefined)
+          ?.querySelector('input')
+          ?.focus(),
+      { injector: this.injector }
+    );
   }
 
   protected setPaused(paused: boolean): void {

@@ -39,6 +39,25 @@ test('a page lists what it sent beside its buttons, ticked once it arrives, and 
   expect(column.y).toBeLessThan(button.y + button.height);
 });
 
+test('an error is ticked once it arrives, not for an earlier one with the same message', async ({
+  page
+}) => {
+  await openLab(page, 'logging');
+  await sessionStarted(page);
+  const error = page.locator('lab-results li', {
+    hasText: 'Connection reset'
+  });
+  await press(page, 'error, with an Error');
+  await expect(error).toContainText('✓ received', { timeout: 10_000 });
+
+  // Now nothing leaves the page, so the same error is sent, never received.
+  await openLab(page, 'logging?destination=noop');
+  await press(page, 'error, with an Error');
+  await expect(error).toContainText('sent');
+  await page.waitForTimeout(3000);
+  await expect(error).not.toContainText('✓ received');
+});
+
 test('a narrower header folds its chips behind Run settings', async ({
   page
 }) => {
@@ -93,7 +112,18 @@ test('the status bar stays on one line, as label and value pairs', async ({
   ]) {
     await expect(status).toContainText(label);
   }
-  expect((await status.boundingBox())!.height).toBe(36);
+  await sessionStarted(page);
+  // Every pair on the one line, and inside the bar: the ids give way first.
+  const bar = (await status.boundingBox())!;
+  const pairs = await status
+    .locator('span')
+    .evaluateAll((spans) =>
+      spans.map((s) => s.getBoundingClientRect()).map((r) => [r.top, r.right])
+    );
+  for (const [top, right] of pairs) {
+    expect(top).toBeCloseTo(pairs[0][0], 0);
+    expect(right).toBeLessThanOrEqual(bar.x + bar.width + 0.5);
+  }
 });
 
 test('at phone width, no page is wider than the screen', async ({ page }) => {

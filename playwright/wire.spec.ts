@@ -60,6 +60,19 @@ test('Settings sets the broker, all at once with Apply and reload; the header te
   );
 });
 
+test("another site's page can't change the mock backend", async ({
+  request,
+  backend
+}) => {
+  const res = await request.post('/__lab/broker-mode', {
+    data: { mode: 'null' },
+    headers: { Origin: 'https://elsewhere.example' }
+  });
+
+  expect(res.status()).toBe(403);
+  expect((await backend.state()).brokerMode).toBe('ok');
+});
+
 test('a broker overlay that is not JSON stops Apply, and sets nothing', async ({
   page,
   backend

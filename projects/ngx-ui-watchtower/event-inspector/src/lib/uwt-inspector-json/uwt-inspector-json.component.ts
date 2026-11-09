@@ -2,6 +2,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DOCUMENT,
+  inject,
   input,
   signal
 } from '@angular/core';
@@ -85,9 +87,15 @@ export class UwtInspectorJsonComponent {
     this.truncated() ? cutAt(this.full(), this.viewChars()) : this.full()
   );
 
+  /**
+   * The inspector's own window: in a separate window, the app's clipboard
+   * refuses, as the app's page doesn't have focus.
+   */
+  private readonly view = inject(DOCUMENT).defaultView;
+
   protected async copy(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(this.full());
+      await (this.view ?? window).navigator.clipboard.writeText(this.full());
       this.copied.set('copied');
     } catch {
       this.copied.set('failed');

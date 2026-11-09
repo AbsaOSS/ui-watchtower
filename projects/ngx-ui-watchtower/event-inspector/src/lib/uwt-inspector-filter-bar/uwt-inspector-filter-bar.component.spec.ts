@@ -22,6 +22,10 @@ describe('UwtInspectorFilterBarComponent', () => {
       }[];
     };
   const el = () => fixture.nativeElement as HTMLElement;
+  const addFilter = () =>
+    Array.from(el().querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Add filter'
+    );
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -59,7 +63,7 @@ describe('UwtInspectorFilterBarComponent', () => {
 
     expect(bar().builderOpen()).toBe(false);
     expect(el().querySelector('[aria-label="New filter"]')).toBeNull();
-    expect(document.activeElement?.textContent?.trim()).toBe('Add filter');
+    expect(document.activeElement).toBe(addFilter());
 
     bar().builderOpen.set(true);
     fixture.detectChanges();
@@ -109,6 +113,7 @@ describe('UwtInspectorFilterBarComponent', () => {
     bar().value.set('dark');
     bar().add();
     fixture.detectChanges();
+    TestBed.tick();
 
     expect(store.filters().fields).toEqual([
       expect.objectContaining({
@@ -124,9 +129,13 @@ describe('UwtInspectorFilterBarComponent', () => {
       'Remove filter metadata.theme equals "dark"'
     );
 
+    close.focus();
     close.click();
     fixture.detectChanges();
+    TestBed.tick();
     expect(store.filters().fields).toHaveLength(0);
+    // The chip gone, focus is on Add filter, not the page.
+    expect(document.activeElement).toBe(addFilter());
   });
 
   it('should clear the text and every filter together', () => {
@@ -136,9 +145,13 @@ describe('UwtInspectorFilterBarComponent', () => {
 
     const clearBtn = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('button')
-    ).find((b) => b.textContent?.trim() === 'Clear filters');
-    clearBtn?.click();
+    ).find((b) => b.textContent?.trim() === 'Clear filters')!;
+    clearBtn.focus();
+    clearBtn.click();
+    fixture.detectChanges();
+    TestBed.tick();
 
     expect(store.filters()).toEqual({ text: '', fields: [] });
+    expect(document.activeElement).toBe(addFilter());
   });
 });

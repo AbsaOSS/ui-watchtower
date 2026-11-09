@@ -57,6 +57,7 @@
         </cps-slider>
       }
       <cps-switch
+        #pauseSwitch
         label="Pause live updates"
         [value]="store.paused()"
         (valueChanged)="setPaused($event)">
@@ -73,7 +74,9 @@
   </div>
 
   @if (store.paused() && store.newWhilePaused() > 0) {
-    <div class="uwt-inspector__paused" role="status">
+    <!-- No live region: its count changes with each event, and resuming
+         announces what arrived. -->
+    <div class="uwt-inspector__paused">
       <span
         >{{ store.newWhilePaused() }} new event{{
           store.newWhilePaused() === 1 ? '' : 's'
@@ -84,7 +87,7 @@
         type="borderless"
         size="xsmall"
         label="Resume"
-        (clicked)="setPaused(false)">
+        (clicked)="resume()">
       </cps-button>
     </div>
   }

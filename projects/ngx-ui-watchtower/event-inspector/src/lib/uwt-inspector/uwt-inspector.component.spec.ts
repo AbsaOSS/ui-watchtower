@@ -315,10 +315,22 @@ describe('UwtInspectorComponent', () => {
     settle();
     expect(bodyRows()).toBe(1);
     expect(text()).toContain('1 new event held back while paused.');
+    // Not a live region: its count changes with every event, and resuming
+    // announces what arrived meanwhile.
+    expect(
+      el().querySelector('.uwt-inspector__paused')?.getAttribute('role')
+    ).toBeNull();
 
-    ui().setPaused(false);
+    const resume = Array.from(el().querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Resume'
+    )!;
+    resume.focus();
+    resume.click();
     fixture.detectChanges();
+    TestBed.tick();
     expect(bodyRows()).toBe(2);
+    // The notice gone, focus is on the Pause switch, not the page.
+    expect(document.activeElement).toBe(el().querySelector('cps-switch input'));
   });
 
   it('should say when it was paused, as well as when capturing began', () => {
