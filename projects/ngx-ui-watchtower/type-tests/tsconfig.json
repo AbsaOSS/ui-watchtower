@@ -1,0 +1,14 @@
+/*
+ * Consumer type tests, compiled against the public entry points by the
+ * Angular compiler (`ngc`), so Angular's own checks apply as in a consumer
+ * build. `compat.ts` and `empty-registry.ts` share this compilation; the
+ * augmentation in `augmented.ts` would leak into them, so it has its own.
+ */
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": []
+  },
+  "files": ["compat.ts", "empty-registry.ts"]
+}

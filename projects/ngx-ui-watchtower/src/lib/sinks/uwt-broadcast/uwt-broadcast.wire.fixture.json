@@ -1,0 +1,254 @@
+[
+  {
+    "from": "shell",
+    "message": {
+      "kind": "identity",
+      "sessionId": "shell-session",
+      "userId": "<undefined>"
+    }
+  },
+  {
+    "from": "fragment",
+    "message": {
+      "kind": "identity-request"
+    }
+  },
+  {
+    "from": "shell",
+    "message": {
+      "kind": "identity",
+      "sessionId": "shell-session",
+      "userId": "<undefined>"
+    }
+  },
+  {
+    "from": "fragment",
+    "message": {
+      "eventType": "com.uwt.scenario",
+      "kind": "event",
+      "metadata": {
+        "appVersion": "1.0.0",
+        "application": "realm",
+        "environment": "test"
+      },
+      "payload": {
+        "aggregates": "<undefined>",
+        "application": "realm",
+        "delta": "<number>",
+        "elapsed": "<number>",
+        "endTime": "<string>",
+        "feature": "<undefined>",
+        "metadata": {
+          "cart": "c-1",
+          "items": 2
+        },
+        "operation": "<undefined>",
+        "parentScenarioId": "<undefined>",
+        "previousStep": "pay",
+        "route": "<undefined>",
+        "scenarioId": "<id 1>",
+        "scenarioName": "checkout",
+        "sessionId": "shell-session",
+        "startTime": "<string>",
+        "status": "success",
+        "stepCount": 1,
+        "steps": [
+          {
+            "elapsed": "<number>",
+            "endOffset": "<number>",
+            "name": "scenario-start",
+            "startOffset": "<number>",
+            "status": "success",
+            "stepDelta": "<number>"
+          },
+          {
+            "elapsed": "<number>",
+            "endOffset": "<number>",
+            "metadata": {
+              "method": "card"
+            },
+            "name": "pay",
+            "startOffset": "<number>",
+            "status": "success",
+            "stepDelta": "<number>"
+          },
+          {
+            "elapsed": "<number>",
+            "endOffset": "<number>",
+            "metadata": {
+              "items": 2
+            },
+            "name": "scenario-end",
+            "startOffset": "<number>",
+            "status": "success",
+            "stepDelta": "<number>"
+          }
+        ],
+        "userId": "<undefined>"
+      }
+    }
+  },
+  {
+    "from": "fragment",
+    "message": {
+      "eventType": "com.uwt.bi",
+      "kind": "event",
+      "metadata": {
+        "appVersion": "1.0.0",
+        "application": "realm",
+        "environment": "test"
+      },
+      "payload": {
+        "application": "realm",
+        "eventName": "export_clicked",
+        "eventTime": "<string>",
+        "feature": "<undefined>",
+        "metadata": {
+          "format": "csv"
+        },
+        "scenarioId": "<undefined>",
+        "sessionId": "shell-session",
+        "userId": "<undefined>"
+      }
+    }
+  },
+  {
+    "from": "fragment",
+    "message": {
+      "kind": "log",
+      "record": {
+        "application": "realm",
+        "context": "<undefined>",
+        "correlationId": "<undefined>",
+        "environment": "test",
+        "error": "<undefined>",
+        "level": "warn",
+        "logger": "checkout",
+        "message": "Slow payment",
+        "metadata": {
+          "ms": 900
+        },
+        "sessionId": "shell-session",
+        "timestamp": "<string>",
+        "userId": "<undefined>",
+        "version": "1.0.0"
+      }
+    }
+  },
+  {
+    "from": "fragment",
+    "message": {
+      "kind": "log",
+      "record": {
+        "application": "realm",
+        "context": "<undefined>",
+        "correlationId": "<undefined>",
+        "environment": "test",
+        "error": {
+          "message": "Declined",
+          "name": "Error",
+          "stack": "Error: Declined\n    at /Users/madfamily/Documents/ui-watchtower/projects/ngx-ui-watchtower/src/lib/sinks/uwt-broadcast/uwt-broadcast.wire.spec.ts:299:45"
+        },
+        "level": "error",
+        "logger": "checkout",
+        "message": "Payment failed",
+        "metadata": "<undefined>",
+        "sessionId": "shell-session",
+        "timestamp": "<string>",
+        "userId": "<undefined>",
+        "version": "1.0.0"
+      }
+    }
+  },
+  {
+    "from": "fragment",
+    "message": {
+      "kind": "user",
+      "userId": "user-1"
+    }
+  },
+  {
+    "from": "shell",
+    "message": {
+      "kind": "identity",
+      "sessionId": "shell-session",
+      "userId": "user-1"
+    }
+  },
+  {
+    "from": "fragment",
+    "message": {
+      "beacon": true,
+      "kind": "flush"
+    }
+  },
+  {
+    "from": "fragment",
+    "message": {
+      "kind": "log-flush"
+    }
+  },
+  {
+    "from": "fragment",
+    "message": {
+      "filter": {
+        "limit": 1,
+        "logger": "checkout"
+      },
+      "id": "<id 2>",
+      "kind": "log-query"
+    }
+  },
+  {
+    "from": "shell",
+    "message": {
+      "id": "<id 2>",
+      "kind": "log-query-result",
+      "records": [
+        {
+          "application": "realm",
+          "environment": "test",
+          "level": "warn",
+          "logger": "checkout",
+          "message": "Slow payment",
+          "metadata": {
+            "ms": 900
+          },
+          "sessionId": "shell-session",
+          "timestamp": "<string>",
+          "version": "1.0.0"
+        }
+      ]
+    }
+  },
+  {
+    "from": "fragment",
+    "message": {
+      "eventType": "com.uwt.bi",
+      "kind": "event",
+      "metadata": {
+        "appVersion": "1.0.0",
+        "application": "realm",
+        "environment": "test"
+      },
+      "payload": {
+        "application": "realm",
+        "eventName": "theme_changed",
+        "eventTime": "<string>",
+        "feature": "<undefined>",
+        "metadata": "<undefined>",
+        "scenarioId": "<undefined>",
+        "sessionId": "shell-session",
+        "userId": "user-1"
+      }
+    }
+  },
+  {
+    "from": "shell",
+    "message": {
+      "kind": "identity",
+      "sessionId": "shell-session-2",
+      "userId": "user-1"
+    }
+  }
+]

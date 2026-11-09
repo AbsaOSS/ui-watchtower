@@ -41,16 +41,34 @@ The package is built to `dist/ngx-ui-watchtower`.
 
 ## Scripts
 
-| Script                  | What it does                                         |
-| ----------------------- | ---------------------------------------------------- |
-| `npm run build`         | Builds the package (production, partial compilation) |
-| `npm run watch`         | Rebuilds on change (development)                     |
-| `npm run test`          | Runs the unit tests (Jest)                           |
-| `npm run test:coverage` | Runs the unit tests with coverage, as CI does        |
-| `npm run typecheck`     | Type-checks every library and spec tsconfig          |
-| `npm run lint`          | ESLint, no warnings allowed                          |
-| `npm run format`        | Formats with Prettier                                |
-| `npm run format:check`  | Checks formatting without writing                    |
+| Script                  | What it does                                                    |
+| ----------------------- | --------------------------------------------------------------- |
+| `npm run build`         | Builds the package (production, partial compilation)            |
+| `npm run watch`         | Rebuilds on change (development)                                |
+| `npm run test`          | Runs the unit tests (Jest)                                      |
+| `npm run test:coverage` | Runs the unit tests with coverage, as CI does                   |
+| `npm run typecheck`     | Type-checks every library and spec tsconfig, and the type tests |
+| `npm run api:check`     | Compares the built public API with its committed snapshot       |
+| `npm run api:update`    | Writes that snapshot again, for an intended API change          |
+| `npm run lint`          | ESLint, no warnings allowed                                     |
+| `npm run format`        | Formats with Prettier                                           |
+| `npm run format:check`  | Checks formatting without writing                               |
+
+Three checks guard what consumers depend on:
+
+- **Type tests** (`projects/ngx-ui-watchtower/type-tests/`) compile, with the
+  Angular compiler, a consumer that uses every public export, and one that
+  augments the name registries: registered names accepted, others rejected,
+  `string` while nothing is registered.
+- **The API snapshot** (`projects/ngx-ui-watchtower/public-api.snapshot.json`)
+  records every export of the built package with its members and
+  signatures. After an intended change, run `npm run api:update` and review
+  the diff.
+- **The broadcast wire fixture**
+  (`projects/ngx-ui-watchtower/src/lib/sinks/uwt-broadcast/uwt-broadcast.wire.fixture.json`) records
+  every message a shell and a fragment exchange. Shells and fragments are
+  deployed separately, so it changes only with a deliberate protocol change:
+  `UPDATE_WIRE_FIXTURE=1 npm test` records it again.
 
 ## Before you push
 
@@ -62,6 +80,7 @@ npm run typecheck
 npm run lint
 npm run format:check
 npm run build
+npm run api:check
 ```
 
 CI runs the same checks on every pull request and every push to `main`.
