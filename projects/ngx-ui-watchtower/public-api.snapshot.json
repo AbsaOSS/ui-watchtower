@@ -450,8 +450,6 @@
     "UwtTelemetrySink": [
       "abstract class",
       "new (): UwtTelemetrySink",
-      "static ɵfac: unknown",
-      "static ɵprov: ɵɵInjectableDeclaration<UwtTelemetrySink>",
       "abstract flush(beacon?: boolean | undefined): void",
       "abstract getSessionId(): string | undefined",
       "abstract getUserId(): string | undefined",

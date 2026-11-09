@@ -12,11 +12,13 @@ import {
   take,
   throwError
 } from 'rxjs';
-import { UWT_DEFAULT_TELEMETRY_CONFIG } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
-import { UwtScenarioRecord } from '../../models/uwt-scenario.models/uwt-scenario.models';
+import {
+  UWT_DEFAULT_REDACT_CONFIG,
+  UWT_DEFAULT_TELEMETRY_CONFIG,
+  UwtScenario,
+  UwtScenarioRecord
+} from '@absaoss-cps/ui-watchtower';
 import { UwtNoopTelemetrySink } from '../../sinks/uwt-telemetry/uwt-noop-telemetry.sink/uwt-noop-telemetry.sink';
-import { UWT_DEFAULT_REDACT_CONFIG } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-import { UwtScenario } from '../uwt-scenario/uwt-scenario';
 import { traceScenario } from './uwt-scenario-operators';
 
 describe('traceScenario operator', () => {

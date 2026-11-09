@@ -203,7 +203,9 @@ declare module '@absaoss-cps/ngx-ui-watchtower' {
 export {};
 ```
 
-Until you declare any, plain strings are accepted.
+Until you declare any, plain strings are accepted. The registries are
+declared in `@absaoss-cps/ui-watchtower`, the engine this package builds on,
+and re-exported here: augmenting this package, as above, covers both.
 
 ## Scenarios
 

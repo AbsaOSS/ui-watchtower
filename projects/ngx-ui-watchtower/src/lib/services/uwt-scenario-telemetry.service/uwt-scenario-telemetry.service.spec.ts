@@ -1,29 +1,25 @@
 import { Injectable, NgZone } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { UwtScenarioTelemetryConfig } from '../../config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
+import {
+  UWT_REDACTED,
+  UWT_TELEMETRY_EVENT_TYPE,
+  UwtLogApiProvider,
+  UwtLogQuery,
+  UwtLogRecord,
+  UwtScenarioRecord,
+  UwtScenarioStatus,
+  UwtScenarioTelemetryConfig,
+  UwtTelemetryError,
+  UwtTelemetryMetadata,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
 import {
   provideUwtTelemetry,
   withRedaction,
   withScenarios
 } from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
-import {
-  UwtScenarioRecord,
-  UwtScenarioStatus
-} from '../../models/uwt-scenario.models/uwt-scenario.models';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
-import {
-  UWT_LOG_API_PROVIDER,
-  UwtLogApiProvider,
-  UwtLogQuery
-} from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
-import { UWT_REDACTED } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
+import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { UwtScenarioTelemetryService } from './uwt-scenario-telemetry.service';
-import {
-  UWT_TELEMETRY_EVENT_TYPE,
-  UwtTelemetryError,
-  UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
 
 /** Captures what the library emitted, so a test can assert on it. */
 @Injectable()

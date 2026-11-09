@@ -1,8 +1,9 @@
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import {
   UwtTelemetryError,
-  UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
+  UwtTelemetryMetadata,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
 import { UWT_TELEMETRY_IDENTITY } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { uwtSafeVoid } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import {
@@ -10,7 +11,6 @@ import {
   uwtConnectBroadcastChannel,
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
-import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 
 /**
  * Telemetry sink for a follower realm — a micro-frontend fragment, a webview

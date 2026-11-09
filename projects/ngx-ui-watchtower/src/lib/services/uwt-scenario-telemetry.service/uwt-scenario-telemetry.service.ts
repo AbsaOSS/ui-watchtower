@@ -2,25 +2,26 @@ import { DOCUMENT } from '@angular/common';
 import { inject, Injectable, NgZone, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import {
+  uwtDeepClone,
+  uwtRedactConfigFor,
+  UwtScenario,
+  UwtScenarioName,
+  UwtScenarioOptions,
+  UwtScenarioRecord,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
+import {
   UWT_REDACT_CONFIG,
   uwtTelemetryEnabled,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_SCENARIO_TELEMETRY_CONFIG } from '../../config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
-import type {
-  UwtScenarioName,
-  UwtScenarioOptions,
-  UwtScenarioRecord
-} from '../../models/uwt-scenario.models/uwt-scenario.models';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import {
-  uwtDeepClone,
+  uwtDevModeReporter,
   uwtIsBrowser,
   uwtIsDevMode,
   uwtSafeVoid
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
-import { uwtRedactConfigFor } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-import { UwtScenario } from '../../scenario/uwt-scenario/uwt-scenario';
 
 /**
  * How many scenarios may be in flight before a development-mode warning
@@ -137,8 +138,9 @@ export class UwtScenarioTelemetryService implements OnDestroy {
       scenarioTelemetryConfig: this.scenarioTelemetryConfig,
       redact: this.redact,
       sink: this.sink,
-      runOutsideAngular: (callback) =>
+      runOutside: (callback) =>
         this.zone?.runOutsideAngular(callback) ?? callback(),
+      report: uwtDevModeReporter,
       onSettled: (scenarioId, record) => {
         this.active.delete(scenarioId);
         if (!this._settled$.observed) {

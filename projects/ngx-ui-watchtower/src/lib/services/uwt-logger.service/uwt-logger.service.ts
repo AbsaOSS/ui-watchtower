@@ -1,28 +1,26 @@
 import { DOCUMENT } from '@angular/common';
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import {
+  UWT_LOG_LEVEL_ORDER,
+  UwtLogDetail,
+  UwtLogger,
+  UwtLoggerName,
+  UwtLogLevel,
+  UwtLogQuery,
+  UwtLogRecord,
+  uwtRedactConfigFor,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
+import {
   UWT_REDACT_CONFIG,
   uwtTelemetryEnabled,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_LOG_CONFIG } from '../../config/uwt-log.config/uwt-log.config';
-import {
-  UWT_LOG_LEVEL_ORDER,
-  type UwtLogger,
-  type UwtLoggerName,
-  type UwtLogDetail,
-  type UwtLogLevel,
-  type UwtLogRecord
-} from '../../models/uwt-log.models/uwt-log.models';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
-import {
-  UWT_LOG_API_PROVIDER,
-  UwtLogQuery
-} from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { uwtDebugWrite } from '../../utils/uwt-debug-flag.util/uwt-debug-flag.util';
 import {
   uwtNormalizeError,
-  uwtRedactConfigFor,
   uwtRedactMetadata,
   uwtScrubString
 } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';

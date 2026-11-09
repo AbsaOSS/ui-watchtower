@@ -12,10 +12,13 @@ import {
  * selects its per-logger level. Declaring the vocabulary turns a typo'd
  * name into a compile error instead of a filter that silently never matches.
  *
+ * An Angular application augments `@absaoss-cps/ngx-ui-watchtower` instead,
+ * which re-exports this registry: either module path reaches the same one.
+ *
  * @example
  * ```typescript
  * // src/app/telemetry.schema.ts
- * declare module '@absaoss-cps/ngx-ui-watchtower' {
+ * declare module '@absaoss-cps/ui-watchtower' {
  *   interface UwtLoggerNames {
  *     checkout: true;
  *     admin: true;
@@ -80,7 +83,7 @@ export interface UwtLogDetail {
   /**
    * Identifier joining this log line to other telemetry. Pass a
    * {@link UwtScenario.id} here to tie this line to a scenario, and the
-   * same id reaches {@link UwtLoggerService.query} to read the journey
+   * same id reaches the logging `query` to read the journey
    * back across every logger that wrote during it.
    */
   correlationId?: string;
@@ -116,9 +119,8 @@ export interface UwtLogRecord
 }
 
 /**
- * The application-facing logging API — what
- * {@link UwtLoggerService.getLogger} hands back, so application code holds
- * this contract without naming the service.
+ * The application-facing logging API — what `getLogger` hands back, so
+ * application code holds this contract without naming what created it.
  *
  * An instance *is* its name. The name is fixed when the logger is created
  * and stamped on every record it writes, so a record's `logger` can never

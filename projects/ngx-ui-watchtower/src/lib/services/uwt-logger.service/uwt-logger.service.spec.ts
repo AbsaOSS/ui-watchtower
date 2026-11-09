@@ -1,29 +1,25 @@
 import { Injectable } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { UwtLogConfig } from '../../config/uwt-log.config/uwt-log.config';
+import {
+  UWT_REDACTED,
+  UwtLogApiProvider,
+  UwtLogConfig,
+  UwtLogDetail,
+  UwtLogger,
+  UwtLogQuery,
+  UwtLogRecord,
+  UwtTelemetryError,
+  UwtTelemetryMetadata,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
 import {
   provideUwtTelemetry,
   withLogging,
   withRedaction
 } from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
-import {
-  UWT_LOG_API_PROVIDER,
-  UwtLogApiProvider,
-  UwtLogQuery
-} from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import * as uwtTelemetryRedactUtil from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-import { UWT_REDACTED } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import { UwtLoggerService } from './uwt-logger.service';
-import {
-  UwtTelemetryError,
-  UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import type {
-  UwtLogDetail,
-  UwtLogger,
-  UwtLogRecord
-} from '../../models/uwt-log.models/uwt-log.models';
 
 /** Captures what the library emitted, so a test can assert on it. */
 @Injectable()

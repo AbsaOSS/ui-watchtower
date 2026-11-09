@@ -1,4 +1,3 @@
-import { Injectable } from '@angular/core';
 import {
   UwtTelemetryError,
   UwtTelemetryMetadata
@@ -11,9 +10,11 @@ import {
  * integration be replaced or stubbed with no change to the telemetry
  * services or the applications that use them.
  *
+ * A plain class: extend it, or implement it, in any framework. Angular uses
+ * it as the injection token for the destination.
+ *
  * @group Services
  */
-@Injectable()
 export abstract class UwtTelemetrySink {
   /**
    * Records one custom event. Must be non-throwing and non-blocking.

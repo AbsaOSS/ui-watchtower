@@ -147,7 +147,7 @@
         "error": {
           "message": "Declined",
           "name": "Error",
-          "stack": "Error: Declined\n    at /Users/madfamily/Documents/ui-watchtower/projects/ngx-ui-watchtower/src/lib/sinks/uwt-broadcast/uwt-broadcast.wire.spec.ts:299:45"
+          "stack": "<string>"
         },
         "level": "error",
         "logger": "checkout",

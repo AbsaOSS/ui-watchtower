@@ -1,26 +1,22 @@
-import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
+import {
+  UWT_DEFAULT_TELEMETRY_CONFIG,
+  uwtClassifyTelemetryEvent,
+  UwtLogApiProvider,
+  UwtLogQuery,
+  UwtLogRecord,
+  UwtTelemetryError,
+  UwtTelemetryMetadata,
+  UwtTelemetrySink,
+  UwtTelemetrySinkEvent
+} from '@absaoss-cps/ui-watchtower';
 import { ApplicationInitStatus, Injectable, PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { UwtLoggerService } from '../../services/uwt-logger.service/uwt-logger.service';
 import { UwtScenarioTelemetryService } from '../../services/uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';
 import { UwtBITelemetryService } from '../../services/uwt-bi-telemetry.service/uwt-bi-telemetry.service';
-import {
-  UwtTelemetryError,
-  UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import {
-  uwtClassifyTelemetryEvent,
-  UwtTelemetrySinkEvent
-} from '../../utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
 import { UwtNoopTelemetrySink } from '../../sinks/uwt-telemetry/uwt-noop-telemetry.sink/uwt-noop-telemetry.sink';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+import { UWT_LOG_API_PROVIDER } from '../uwt-log-api.provider/uwt-log-api.provider';
 import {
-  UWT_LOG_API_PROVIDER,
-  UwtLogApiProvider,
-  UwtLogQuery
-} from '../uwt-log-api.provider/uwt-log-api.provider';
-import {
-  UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_REDACT_CONFIG,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';

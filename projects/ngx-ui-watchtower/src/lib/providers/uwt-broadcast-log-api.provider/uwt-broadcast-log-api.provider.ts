@@ -1,13 +1,11 @@
 import { inject, Injectable, NgZone, OnDestroy } from '@angular/core';
-import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
 import {
   UwtLogApiProvider,
-  UwtLogQuery
-} from '../uwt-log-api.provider/uwt-log-api.provider';
-import {
-  uwtSafeVoid,
+  UwtLogQuery,
+  UwtLogRecord,
   uwtUuid
-} from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+} from '@absaoss-cps/ui-watchtower';
+import { uwtSafeVoid } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import {
   UwtBroadcastConnection,
   uwtConnectBroadcastChannel,
