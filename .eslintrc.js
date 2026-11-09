@@ -69,6 +69,31 @@ module.exports = {
       }
     },
     {
+      // The core's AWS RUM entry point: aws-rum-web, and still no framework.
+      files: ['projects/ui-watchtower/rum/**/*.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: [
+                  '@angular/*',
+                  'zone.js',
+                  '@absaoss-cps/ngx-ui-watchtower',
+                  '@absaoss-cps/ngx-ui-watchtower/*',
+                  'rxjs',
+                  'rxjs/*'
+                ],
+                message:
+                  'The core is framework-independent, and this entry point loads no other optional peer.'
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       // The core's RxJS entry point: RxJS, and still no framework.
       files: ['projects/ui-watchtower/rxjs/**/*.ts'],
       rules: {

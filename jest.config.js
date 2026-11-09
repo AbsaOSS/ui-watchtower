@@ -7,6 +7,8 @@ module.exports = {
       '<rootDir>/projects/ui-watchtower/src/public-api.ts',
     '^@absaoss-cps/ui-watchtower/rxjs$':
       '<rootDir>/projects/ui-watchtower/rxjs/src/public-api.ts',
+    '^@absaoss-cps/ui-watchtower/rum$':
+      '<rootDir>/projects/ui-watchtower/rum/src/public-api.ts',
     '^@absaoss-cps/ngx-ui-watchtower$':
       '<rootDir>/projects/ngx-ui-watchtower/src/public-api.ts',
     '^@absaoss-cps/ngx-ui-watchtower/rum$':

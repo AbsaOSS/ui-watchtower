@@ -1,16 +1,27 @@
 /**
- * Where telemetry reports what it otherwise handles silently: an operation
- * that threw and was skipped (`'error'`), or data it had to drop or alter
- * (`'warn'`). Telemetry never throws into the application, so this is the
- * only place such problems show.
+ * What a report is about:
+ *
+ * - `'error'`: an operation threw, and was skipped;
+ * - `'warn'`: data was dropped or altered, or telemetry degraded;
+ * - `'config'`: something cannot work as configured, and stays off — worth
+ *   showing in production too.
+ *
+ * @group Types
+ */
+export type UwtReportLevel = 'error' | 'warn' | 'config';
+
+/**
+ * Where telemetry reports what it otherwise handles silently. Telemetry never
+ * throws into the application, so this is the only place such problems show.
  *
  * Called with console-style arguments: an unprefixed message, then any
- * details, such as the error. Nothing is reported without one, so pass it
- * where problems should be seen, typically in development:
+ * details, such as the error. Nothing but `'config'` problems is reported
+ * without one, so pass it where problems should be seen, typically in
+ * development:
  *
  * ```typescript
  * const report: UwtReporter = (level, message, ...details) =>
- *   console[level](`[my-app] ${message}`, ...details);
+ *   console[level === 'error' ? 'error' : 'warn'](`[my-app] ${message}`, ...details);
  * ```
  *
  * A reporter that throws is ignored.
@@ -18,10 +29,20 @@
  * @group Types
  */
 export type UwtReporter = (
-  level: 'error' | 'warn',
+  level: UwtReportLevel,
   message: string,
   ...details: unknown[]
 ) => void;
+
+/**
+ * Prints to the console, prefixed: where a `'config'` problem goes when no
+ * reporter is given, as something that cannot work is never silent.
+ */
+export const uwtConsoleReporter: UwtReporter = (level, message, ...details) =>
+  console[level === 'error' ? 'error' : 'warn'](
+    `[ui-watchtower] ${message}`,
+    ...details
+  );
 
 /**
  * Passes a report to `report`, if there is one. A reporter that throws, or
@@ -29,7 +50,7 @@ export type UwtReporter = (
  */
 export function uwtReport(
   report: UwtReporter | undefined,
-  level: 'error' | 'warn',
+  level: UwtReportLevel,
   message: string,
   ...details: unknown[]
 ): void {

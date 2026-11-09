@@ -8,14 +8,12 @@ JavaScript or TypeScript application.
 It imports no framework and touches no browser global when imported, so it
 loads in Node, on a server and in a worker as well as in a browser.
 
-> **Work in progress.** The AWS RUM destination is still moving here from the
-> Angular package.
-
 ## Install
 
 ```bash
 npm install @absaoss-cps/ui-watchtower
-npm install rxjs   # only for @absaoss-cps/ui-watchtower/rxjs
+npm install aws-rum-web   # only for @absaoss-cps/ui-watchtower/rum
+npm install rxjs          # only for @absaoss-cps/ui-watchtower/rxjs
 ```
 
 ## Use
@@ -70,6 +68,35 @@ Configuration errors still throw, when the engine is created.
 abandoned and flushes; the engine does nothing after that, and leaves no
 listener or timer behind. The destination and log store you passed are
 yours to close.
+
+## AWS CloudWatch RUM
+
+The RUM destination lives in its own entry point, so the main one never
+refers to `aws-rum-web`; the SDK is downloaded only once the sink starts.
+Your credentials provider supplies the app monitor settings and short-lived
+credentials, from your own broker:
+
+```ts
+import { UwtRumTelemetrySink } from '@absaoss-cps/ui-watchtower/rum';
+
+const destination = new UwtRumTelemetrySink({
+  identity,
+  credentialsProvider: {
+    async load() {
+      const response = await fetch('/rum/init');
+      return response.ok ? response.json() : null; // null: RUM off for the page
+    }
+  }
+});
+destination.init(); // not awaited: never delays the page
+
+const telemetry = uwtCreateTelemetry({ identity, destination, logApi });
+```
+
+Startup is retried with backoff for five minutes, credentials are refreshed
+before they expire, and events recorded before the client starts are
+buffered. Without a page, as on a server, it never starts. `dispose()` stops
+the client.
 
 ## Shell and fragments
 
@@ -128,15 +155,17 @@ registries: either module path reaches the same ones.
 
 ## Seeing what telemetry skips
 
-The engine prints nothing by itself. Hand it a `UwtReporter` where you want
-to see what it skipped or dropped, typically in development:
+Hand the engine a `UwtReporter` where you want to see what it skipped
+(`'error'`) or dropped (`'warn'`), typically in development;
+`uwtConsoleReporter` prints both to the console:
 
 ```ts
-import { UwtReporter } from '@absaoss-cps/ui-watchtower';
-
-const report: UwtReporter = (level, message, ...details) =>
-  console[level](`[my-app] ${message}`, ...details);
+uwtCreateTelemetry({ ...options, report: uwtConsoleReporter });
 ```
+
+Something that cannot work as configured (`'config'`) — a second broadcast
+host, RUM settings of the wrong type — is reported too, and printed to the
+console when there is no reporter: it is never silent.
 
 ## RxJS
 
@@ -151,19 +180,20 @@ customers$.pipe(traceScenario(scenario)).subscribe();
 
 ## API
 
-| Group         | Exports                                                                                                                                               |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Engine        | `uwtCreateTelemetry`, `UwtTelemetry`, `UwtTelemetryOptions`, `UwtTelemetryDocument`                                                                   |
-| Concerns      | `UwtScenarioTelemetry`, `UwtBITelemetry`, `UwtLogTelemetry` and their options, for an adapter composing them itself                                   |
-| Configuration | `UwtTelemetryIdentity`, the per-concern config types, `UWT_DEFAULT_TELEMETRY_CONFIG`, `uwtResolveTelemetryConfig`                                     |
-| Models        | scenario, step, BI event and log record types; `UWT_LOG_LEVEL_ORDER`, `UWT_TELEMETRY_EVENT_TYPE`, `uwtEventTypes`                                     |
-| Names         | `UwtScenarioNames`, `UwtScenarioSteps`, `UwtBIEventNames`, `UwtLoggerNames` and their `Uwt*Name` types                                                |
-| Scenarios     | `UwtScenario`                                                                                                                                         |
-| Contracts     | `UwtTelemetrySink` and `UwtNoopTelemetrySink`; `UwtLogApiProvider`, `UwtLogQuery` and `UwtNoopLogApiProvider`                                         |
-| Broadcast     | `UwtTelemetryBroadcastHost`, `UwtBroadcastTelemetrySink`, `UwtBroadcastLogApiProvider`, `uwtConnectBroadcastChannel`, `UWT_DEFAULT_BROADCAST_CHANNEL` |
-| Redaction     | `uwtRedactMetadata`, `uwtScrubString`, `uwtNormalizeError`, `uwtRedactConfigFor`, `UwtRedactConfig`, `UWT_DEFAULT_REDACT_CONFIG`, `UWT_REDACTED`      |
-| Utilities     | `uwtClassifyTelemetryEvent`, `uwtIsDebugEnabled`, `uwtMarkSessionStart`, `uwtUuid`, `uwtSafe*`, `UwtReporter`                                         |
-| `/rxjs`       | `traceScenario`, `UwtTraceScenarioOptions`                                                                                                            |
+| Group         | Exports                                                                                                                                                               |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Engine        | `uwtCreateTelemetry`, `UwtTelemetry`, `UwtTelemetryOptions`, `UwtTelemetryDocument`                                                                                   |
+| Concerns      | `UwtScenarioTelemetry`, `UwtBITelemetry`, `UwtLogTelemetry` and their options, for an adapter composing them itself                                                   |
+| Configuration | `UwtTelemetryIdentity`, the per-concern config types, `UWT_DEFAULT_TELEMETRY_CONFIG`, `uwtResolveTelemetryConfig`                                                     |
+| Models        | scenario, step, BI event and log record types; `UWT_LOG_LEVEL_ORDER`, `UWT_TELEMETRY_EVENT_TYPE`, `uwtEventTypes`                                                     |
+| Names         | `UwtScenarioNames`, `UwtScenarioSteps`, `UwtBIEventNames`, `UwtLoggerNames` and their `Uwt*Name` types                                                                |
+| Scenarios     | `UwtScenario`                                                                                                                                                         |
+| Contracts     | `UwtTelemetrySink` and `UwtNoopTelemetrySink`; `UwtLogApiProvider`, `UwtLogQuery` and `UwtNoopLogApiProvider`                                                         |
+| Broadcast     | `UwtTelemetryBroadcastHost`, `UwtBroadcastTelemetrySink`, `UwtBroadcastLogApiProvider`, `uwtConnectBroadcastChannel`, `UWT_DEFAULT_BROADCAST_CHANNEL`                 |
+| Redaction     | `uwtRedactMetadata`, `uwtScrubString`, `uwtNormalizeError`, `uwtRedactConfigFor`, `UwtRedactConfig`, `UWT_DEFAULT_REDACT_CONFIG`, `UWT_REDACTED`                      |
+| Utilities     | `uwtClassifyTelemetryEvent`, `uwtIsDebugEnabled`, `uwtMarkSessionStart`, `uwtSessionElapsed`, `uwtUuid`, `uwtSafe*`, `uwtReport`, `uwtConsoleReporter`, `UwtReporter` |
+| `/rxjs`       | `traceScenario`, `UwtTraceScenarioOptions`                                                                                                                            |
+| `/rum`        | `UwtRumTelemetrySink` and its options; `UwtRumCredentialsProvider`, `UwtRumBootstrap`, `UwtRumAppMonitorConfig`, `UwtRumCredentials`                                  |
 
 ## License
 

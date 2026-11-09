@@ -55,25 +55,15 @@ export function uwtRunInsideZone(): <T>(callback: () => T) => T {
 
 /**
  * How this package reports what telemetry handles silently: to the console,
- * prefixed, and only in development mode. Everything the core does on this
- * package's behalf is handed it.
+ * prefixed. Failures and dropped data only in development mode; something
+ * that cannot work as configured (`'config'`) in production too. Everything
+ * the core does on this package's behalf is handed it.
  */
 export const uwtDevModeReporter: UwtReporter = (level, message, ...details) => {
-  if (uwtIsDevMode()) {
-    console[level](`[ngx-ui-watchtower] ${message}`, ...details);
-  }
-};
-
-/**
- * {@link uwtDevModeReporter}, except that warnings are printed in production
- * too: the broadcast host's warnings about a realm that cannot host always
- * were.
- */
-export const uwtHostReporter: UwtReporter = (level, message, ...details) => {
-  if (level === 'warn') {
+  if (level === 'config') {
     console.warn(`[ngx-ui-watchtower] ${message}`, ...details);
-  } else {
-    uwtDevModeReporter(level, message, ...details);
+  } else if (uwtIsDevMode()) {
+    console[level](`[ngx-ui-watchtower] ${message}`, ...details);
   }
 };
 

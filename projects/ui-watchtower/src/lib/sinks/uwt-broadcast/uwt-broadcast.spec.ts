@@ -178,7 +178,7 @@ describe('the core broadcast classes', () => {
       const second = hostOf({ ...shell(), report });
 
       expect(report).toHaveBeenCalledWith(
-        'warn',
+        'config',
         expect.stringContaining('a second telemetry host is active')
       );
       first.dispose();
@@ -224,7 +224,7 @@ describe('the core broadcast classes', () => {
       const third = hostOf({ ...shell(), report });
 
       expect(report).toHaveBeenCalledWith(
-        'warn',
+        'config',
         expect.stringContaining('a second telemetry host is active')
       );
       first.dispose();
