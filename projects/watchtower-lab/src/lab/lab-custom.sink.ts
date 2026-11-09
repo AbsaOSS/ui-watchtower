@@ -7,6 +7,7 @@ import {
   uwtMarkSessionStart,
   uwtUuid
 } from '@absaoss-cps/ngx-ui-watchtower';
+import { labSentOnServer } from './lab-server-sends';
 
 /**
  * A destination of the lab's own, as an app would write one for its own
@@ -62,6 +63,9 @@ export class LabCustomSink extends UwtTelemetrySink {
     }
     const json = JSON.stringify(this.queue);
     this.queue = [];
+    if (labSentOnServer('POST /__lab/custom')) {
+      return;
+    }
     const sent =
       beacon &&
       this.document.defaultView?.navigator.sendBeacon('/__lab/custom', json);

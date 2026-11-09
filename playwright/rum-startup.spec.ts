@@ -97,7 +97,8 @@ test('a refresh answered with null turns RUM off for the page', async ({
   await expect
     .poll(async () => (await backend.state()).brokerCalls, { timeout: 15_000 })
     .toBe(2);
-  await page.waitForTimeout(500);
+  // RUM is off once the page has the null: no session any more.
+  await expect(page.locator('.lab-status')).toContainText('session: —');
   await press(page, 'Fire twice at once');
   await page.waitForTimeout(4500);
   expect(named(await backend.rum(), 'lab_double_fired')).toEqual([]);

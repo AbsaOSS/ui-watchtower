@@ -68,6 +68,8 @@ export class LabBackend {
     brokerCalls: number;
     brokerConfig: Record<string, unknown>;
     telemetries: Telemetry[] | null;
+    /** Asked of the lab's destinations while the server rendered. */
+    serverSends: string[];
   }> {
     return (await this.request.get('/__lab/state')).json();
   }

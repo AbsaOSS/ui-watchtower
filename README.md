@@ -160,12 +160,17 @@ serving an older build. The first time, download the browsers with
 ## Consumer smoke test
 
 Everything above uses the library from source. `npm run smoke` uses it as
-published: it packs the built package, installs the tarball into
-`projects/watchtower-consumer-smoke` — an app with no paths into the source —
-and builds that app for the browser and, prerendering, for the server. It
-checks the tarball's files, that all three entry points resolve with their
-typings, that the page renders on the server, and that an app which never
-imports `/rum` has no `aws-rum-web` in its bundle.
+published: it packs the built package, then sets up
+`projects/watchtower-consumer-smoke` on its own, in a temporary folder
+outside the workspace, with its own `package.json` (the workspace's
+versions) and `angular.json`, and installs it with `npm install`, peer
+checks and all. Nothing comes from the workspace, so a peer the package
+leaves out or mis-ranges fails as it would for an app. It builds that app
+for the browser and, prerendering, for the server, and checks the tarball's
+files, that all three entry points resolve with their typings, that the page
+renders on the server, and that an app which never imports `/rum` has no
+`aws-rum-web` in its bundle. It needs the npm registry, and keeps the folder
+when a check fails.
 
 ## Before you push
 

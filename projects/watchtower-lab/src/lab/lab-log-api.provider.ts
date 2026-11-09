@@ -5,6 +5,7 @@ import {
   UwtLogRecord
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { LAB_OPTIONS } from './lab-options';
+import { labSentOnServer } from './lab-server-sends';
 
 /**
  * Sends log records to the lab's mock backend, as the README's example does:
@@ -54,6 +55,9 @@ export class LabLogApiProvider implements UwtLogApiProvider {
   }
 
   private post(records: UwtLogRecord[], closing = false): void {
+    if (labSentOnServer('POST /api/logs')) {
+      return;
+    }
     fetch('/api/logs', {
       method: 'POST',
       body: JSON.stringify(records),

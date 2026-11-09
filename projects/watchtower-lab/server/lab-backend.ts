@@ -15,6 +15,10 @@
 import { Request, Router } from 'express';
 import { promised } from './promised';
 import { gunzipSync } from 'node:zlib';
+import {
+  labClearServerSends,
+  labServerSends
+} from '../src/lab/lab-server-sends';
 
 const BROKER_MODES = [
   'ok',
@@ -336,12 +340,15 @@ labBackend.get('/__lab/state', (_req, res) => {
     brokerCalls: state.brokerCalls,
     brokerConfig: state.brokerConfig,
     modes: BROKER_MODES,
-    telemetries: state.telemetries
+    telemetries: state.telemetries,
+    // Asked of the lab's destinations while the server rendered: none.
+    serverSends: labServerSends()
   });
 });
 
 labBackend.post('/__lab/reset', (_req, res) => {
   Object.assign(state, { batches: 0, rum: [], logs: [], custom: [] });
+  labClearServerSends();
   res.status(204).end();
 });
 

@@ -3,6 +3,7 @@ import {
   UwtRumBootstrap,
   UwtRumCredentialsProvider
 } from '@absaoss-cps/ngx-ui-watchtower/rum';
+import { labSentOnServer } from './lab-server-sends';
 
 /**
  * Options for the RUM telemetries the broker names, which its JSON can't
@@ -50,6 +51,9 @@ export class LabRumCredentialsProvider implements UwtRumCredentialsProvider {
 
   async load(): Promise<UwtRumBootstrap | null> {
     const call = ++this.calls;
+    if (labSentOnServer('GET /rum/init')) {
+      return null;
+    }
     const response = await fetch(`/rum/init?call=${call}`);
     const body = await response.json().catch(() => ({}));
     if (call === 1 && body.lab) {
