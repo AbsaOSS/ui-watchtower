@@ -279,7 +279,9 @@ export class UwtEventInspectorService {
         draggable: true,
         resizable: true,
         maximizable: true,
-        closeOnEscape: true,
+        // The dialog's own Escape works anywhere on the page; the inspector
+        // closes on Escape from inside it instead.
+        closeOnEscape: false,
         // Docked right at half the screen, so the application stays
         // visible and clickable beside it, but never narrower than 40rem
         // (nearly all of a small screen), so the tables have room;
@@ -288,14 +290,16 @@ export class UwtEventInspectorService {
         width: 'clamp(min(40rem, 96vw), 50vw, 64rem)',
         height: '88vh',
         minWidth: 'min(22rem, 96vw)',
-        autoFocus: '.uwt-inspector-search input',
+        // The inspector itself, not its search field, where the shortcut
+        // types; see focusInspector().
+        autoFocus: 'uwt-inspector',
         // Hooks the title's alignment; see the inspector's styles.
         styleClass: 'uwt-inspector-dialog'
       }
     );
     const host: UwtInspectorHost = {
       dock: 'dialog',
-      focus: () => ref.componentInstance?.focusSearch(),
+      focus: () => ref.componentInstance?.focusInspector(),
       containsFocus: () => !!ref.componentInstance?.containsFocus(),
       destroy: () => ref.close()
     };
@@ -316,7 +320,7 @@ export class UwtEventInspectorService {
     ref.changeDetectorRef.detectChanges();
     return {
       dock: side,
-      focus: () => ref.instance.content().focusSearch(),
+      focus: () => ref.instance.content().focusInspector(),
       containsFocus: () => ref.instance.content().containsFocus(),
       // Destroying the view detaches it from the app, unless the app, being
       // destroyed, already has: detaching it here would warn (NG0406).

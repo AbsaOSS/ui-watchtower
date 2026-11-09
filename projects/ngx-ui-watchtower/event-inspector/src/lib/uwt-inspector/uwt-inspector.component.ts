@@ -80,7 +80,12 @@ const ANNOUNCE_EVERY_MS = 10_000;
     UwtInspectorExporter
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '[class.uwt-inspector--framed]': 'framed()' },
+  host: {
+    // Focusable, but not in the tab order: see focusInspector().
+    tabindex: '-1',
+    '[class.uwt-inspector--framed]': 'framed()',
+    '(keydown.escape)': 'onEscape($event)'
+  },
   templateUrl: './uwt-inspector.component.html',
   styleUrl: './uwt-inspector.component.scss'
 })
@@ -167,12 +172,13 @@ export class UwtInspectorComponent {
     return this.frame().contains(this.document.activeElement);
   }
 
-  /** Moves focus to the search field. */
-  focusSearch(): void {
-    const input = this.host.nativeElement.querySelector<HTMLInputElement>(
-      '.uwt-inspector-search input'
-    );
-    (input ?? this.frame()).focus();
+  /**
+   * Moves focus to the inspector itself, not to a field, where the shortcut
+   * types: so the shortcut closes it next. Not to cps-dialog's own frame
+   * either, whose focus ring covers the dialog and takes its clicks.
+   */
+  focusInspector(): void {
+    this.host.nativeElement.focus();
   }
 
   protected setDock(dock: UwtInspectorDock): void {
@@ -181,6 +187,22 @@ export class UwtInspectorComponent {
 
   protected close(): void {
     this.session.controls?.close();
+  }
+
+  /**
+   * Escape closes the dialog, but only from inside it — it isn't modal, and
+   * the app's own controls use Escape too — and not while one of its lists
+   * or menus is open, which Escape closes first.
+   */
+  protected onEscape(event: Event): void {
+    const target = event.target as Element | null;
+    if (
+      this.dock() === 'dialog' &&
+      !event.defaultPrevented &&
+      !target?.closest?.('[aria-expanded="true"]')
+    ) {
+      this.close();
+    }
   }
 
   protected setPaused(paused: boolean): void {

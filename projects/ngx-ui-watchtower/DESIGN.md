@@ -234,7 +234,10 @@ across realms).
   dev dependency of the workspace, so the build and the unit tests resolve it
   from `node_modules` and it is never compiled into the package. The
   workspace uses cps-ui-kit 21, the lowest version the Event Inspector
-  supports, as it uses the lowest supported Angular.
+  supports, as it uses the lowest supported Angular. npm checks an optional
+  peer's range whenever it is installed, so an app on a cps-ui-kit older
+  than 21.32 can't install the package until it upgrades the kit — even
+  without the Inspector. That is a breaking change for such apps.
 - **`cps-slider` is staged here for cps-ui-kit.** The kit has no slider, so
   the Transparency control is a `cps-slider` written to the kit's
   conventions — inputs, `valueChanged`, forms support, colour variables —
@@ -913,7 +916,9 @@ device attributes.
 
 An app that sets its own `telemetries` without `'errors'` still gets RUM's
 error plugin, with its own capture off: `recordError` and
-`mirrorErrorsToRum` go through it, and RUM rejects them without it.
+`mirrorErrorsToRum` go through it, and RUM rejects them without it. One
+the app loads itself through `eventPluginsToLoad` is used instead — RUM
+can't hold two.
 
 ### From events to metrics
 
@@ -2097,20 +2102,21 @@ in browse mode keep letter keys for their own navigation; there, open it
 from a button that calls `open()`.
 
 It opens where it was last — a dialog the first time — and never blocks the
-app, so you can watch events arrive. With it open, the shortcut brings focus
-back to it from the app — to its search field — and closes it when focus is
-already inside, outside a text field.
+app, so you can watch events arrive. Focus goes to the inspector itself,
+not its search field, which is a Tab away, so the shortcut closes it next.
+With it open, the shortcut brings focus back to it from the app, and closes
+it when focus is already inside, outside a text field.
 
 #### Where it opens
 
 The **Dock** buttons at its top right move it, like Chrome DevTools' dock
 side, and the choice is remembered in this browser:
 
-| Dock                | What you get                                                                                                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Dialog (default)    | A non-modal dialog on the right, half the screen wide (at least 40rem, or nearly all of a small screen). Draggable, resizable and maximizable, with a Transparency slider. Escape closes it.                                   |
-| Separate window     | Its own browser window, which it fills: 1200×800 the first time, then wherever it was last. Closing the window closes the inspector, and so does reloading the app.                                                            |
-| Left, right, bottom | A pane beside or below the app, which moves aside to make room. Drag its inner edge, or focus it and use the arrow keys, to resize it between 30rem (12rem at the bottom) and 80% of the screen; each side remembers its size. |
+| Dock                | What you get                                                                                                                                                                                                                                       |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dialog (default)    | A non-modal dialog on the right, half the screen wide, between 40rem (or nearly all of a small screen) and 64rem. Draggable, resizable and maximizable, with a Transparency slider. Escape inside it closes it; elsewhere, Escape stays the app's. |
+| Separate window     | Its own browser window, which it fills: 1200×800 the first time, then wherever it was last. Closing the window closes the inspector, and so does reloading the app.                                                                                |
+| Left, right, bottom | A pane beside or below the app, which moves aside to make room. Drag its inner edge, or focus it and use the arrow keys, to resize it between 30rem (12rem at the bottom) and 80% of the screen; each side remembers its size.                     |
 
 Moving it keeps everything captured, the filters and the pause; pages and
 expanded rows start afresh.
@@ -2267,6 +2273,10 @@ each marked with `↪` and the fragment's name.
 | `maxEventsPerSection`   | `500`                             | Events kept of each kind — BI, scenarios, logs; the oldest are dropped, and the status line counts them                                    |
 | `maxPayloadCharsInView` | `262144` (256 × 1024)             | A payload whose JSON is longer is shown truncated to its first `maxPayloadCharsInView` characters, at most 65,536; downloads stay complete |
 | `captureBeforeOpen`     | `0`                               | Events of each kind kept from the app's start, for the popup to show on opening; at most `maxEventsPerSection`, and copied from startup    |
+
+An option left `undefined` keeps its default, as does a count that isn't a
+usable number — negative, `NaN`, or `0` for `maxEventsPerSection`; a fraction
+is rounded down. A config read from the environment can't stop the app.
 
 Characters here are UTF-16 code units (JavaScript's `length`), not bytes: the
 limit protects rendering, which costs by the length of the text. A cut never

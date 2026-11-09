@@ -237,6 +237,19 @@ describe('UwtInspectorTimelineComponent', () => {
       return { log, error };
     }
 
+    it('should keep an open row, and the focus in it, as events arrive', () => {
+      publish(1);
+      const [{ event }] = store.filtered();
+      open(event.sequence);
+      const button = buttonIn(event.sequence, 'Event name: needle')!;
+      button.focus();
+
+      publish(1);
+
+      expect(button.isConnected).toBe(true);
+      expect(document.activeElement).toBe(button);
+    });
+
     it('should filter by one of its values, once', () => {
       publish(1);
       const [{ event }] = store.filtered();

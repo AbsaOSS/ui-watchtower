@@ -111,7 +111,7 @@ export function uwtOpenInspectorWindow(
     dock: 'window',
     focus: () => {
       popup.focus();
-      ref.instance.focusSearch();
+      ref.instance.focusInspector();
     },
     containsFocus: () => doc.hasFocus(),
     destroy: () => {

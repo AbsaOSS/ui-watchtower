@@ -497,6 +497,20 @@ describe('UwtRumTelemetrySink', () => {
       });
     });
 
+    it('should not add a second error plugin when the app loads its own, which RUM would reject', async () => {
+      const errors = { getPluginId: () => 'com.amazonaws.rum.js-error' };
+      configure({
+        loadImpl: async () =>
+          bootstrap({ telemetries: ['http'], eventPluginsToLoad: [errors] })
+      });
+      await sink.init();
+
+      expect(AwsRumCtor.mock.calls[0][3]).toMatchObject({
+        telemetries: ['http'],
+        eventPluginsToLoad: [errors]
+      });
+    });
+
     it('should omit every SDK-default-mirroring field entirely when unset, not send it as undefined', async () => {
       await sink.init();
 

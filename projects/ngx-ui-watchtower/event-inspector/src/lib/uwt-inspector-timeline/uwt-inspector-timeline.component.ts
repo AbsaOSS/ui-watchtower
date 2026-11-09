@@ -21,6 +21,7 @@ import {
   CpsTableComponent
 } from 'cps-ui-kit';
 import {
+  UwtInspectorEntry,
   UwtInspectorKindFilter,
   UwtInspectorSectionId
 } from '../uwt-inspector.models/uwt-inspector.models';
@@ -36,7 +37,11 @@ import {
   uwtInspectorEventsNoun,
   UwtInspectorExporter
 } from '../uwt-inspector-export/uwt-inspector-exporter';
-import { UwtInspectorFilterBy, uwtInspectorRow } from './uwt-inspector-rows';
+import {
+  UwtInspectorFilterBy,
+  UwtInspectorRow,
+  uwtInspectorRow
+} from './uwt-inspector-rows';
 
 /** The kind toggle's labels. */
 const KIND_LABEL: Record<UwtInspectorSectionId, string> = {
@@ -94,8 +99,22 @@ export class UwtInspectorTimelineComponent {
     ];
   });
 
+  /**
+   * Each entry's row, made once: the table keeps a row's elements only while
+   * it gets the same object, so a new one would redraw it as events arrive,
+   * taking the focus and an open payload with it.
+   */
+  private readonly rowOf = new WeakMap<UwtInspectorEntry, UwtInspectorRow>();
+
   protected readonly rows = computed(() =>
-    this.store.filtered().map(uwtInspectorRow)
+    this.store.filtered().map((entry) => {
+      let row = this.rowOf.get(entry);
+      if (!row) {
+        row = uwtInspectorRow(entry);
+        this.rowOf.set(entry, row);
+      }
+      return row;
+    })
   );
 
   /**

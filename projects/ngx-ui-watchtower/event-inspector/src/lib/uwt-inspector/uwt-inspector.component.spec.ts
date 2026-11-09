@@ -561,6 +561,40 @@ describe('UwtInspectorComponent', () => {
     expect(controls.close).toHaveBeenCalledTimes(1);
   });
 
+  it('should take focus itself, not to a field, where the shortcut types', () => {
+    fixture.componentInstance.focusInspector();
+
+    expect(document.activeElement).toBe(el());
+    expect(el().tabIndex).toBe(-1);
+  });
+
+  it('should close the dialog on Escape from inside it, not while a list in it is open', () => {
+    const controls = {
+      setDock: jest.fn(),
+      close: jest.fn(),
+      panesFit: signal(true)
+    };
+    TestBed.inject(UwtInspectorSession).controls = controls;
+    const search = el().querySelector('.uwt-inspector-search input')!;
+    const escape = () =>
+      search.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+      );
+
+    search.setAttribute('aria-expanded', 'true');
+    escape();
+    expect(controls.close).not.toHaveBeenCalled();
+
+    search.removeAttribute('aria-expanded');
+    escape();
+    expect(controls.close).toHaveBeenCalledTimes(1);
+
+    fixture.componentRef.setInput('dock', 'right');
+    fixture.detectChanges();
+    escape();
+    expect(controls.close).toHaveBeenCalledTimes(1);
+  });
+
   it('should offer no pane when the app has no room for one', () => {
     TestBed.inject(UwtInspectorSession).controls = {
       setDock: jest.fn(),

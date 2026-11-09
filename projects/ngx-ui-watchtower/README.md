@@ -28,6 +28,11 @@ npm install aws-rum-web   # only for the AWS RUM sink
 
 Requires Angular 21 or 22 and RxJS 7.8.
 
+**Upgrading with an older cps-ui-kit:** the Event Inspector needs cps-ui-kit
+21.32 or later (or 22). npm checks that range whenever cps-ui-kit is
+installed, so an app on an older version can't install this release until it
+upgrades cps-ui-kit, even if it never uses the Inspector.
+
 ## Setup
 
 ```ts
@@ -422,7 +427,8 @@ TestBed.configureTestingModule({
 - RUM's own telemetry defaults to errors, performance and same-origin HTTP;
   set `telemetries` in the RUM config to change it. Without `'errors'`, the
   sink still loads RUM's error plugin, capturing nothing by itself, because
-  `mirrorErrorsToRum` needs it.
+  `mirrorErrorsToRum` needs it — unless the app loads one itself through
+  `eventPluginsToLoad`.
 
 ## License
 

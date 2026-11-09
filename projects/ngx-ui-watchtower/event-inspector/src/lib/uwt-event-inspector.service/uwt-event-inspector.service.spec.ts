@@ -27,7 +27,7 @@ class FakeDialogs {
   containsFocus = false;
   readonly instance = {
     containsFocus: () => this.containsFocus,
-    focusSearch: jest.fn()
+    focusInspector: jest.fn()
   };
 
   readonly close = jest.fn(() => this.destroyed.next());
@@ -126,7 +126,7 @@ describe('UwtEventInspectorService', () => {
     expect(dialogs.opened[0].config).toMatchObject({
       modal: false,
       ariaLabel: 'Event Inspector',
-      closeOnEscape: true,
+      closeOnEscape: false,
       styleClass: 'uwt-inspector-dialog'
     });
     expect(event.defaultPrevented).toBe(true);
@@ -173,11 +173,11 @@ describe('UwtEventInspectorService', () => {
   it('should bring focus back to an open popup, and close it from inside', () => {
     create().install();
     press();
-    dialogs.instance.focusSearch.mockClear();
+    dialogs.instance.focusInspector.mockClear();
 
     dialogs.containsFocus = false;
     press();
-    expect(dialogs.instance.focusSearch).toHaveBeenCalledTimes(1);
+    expect(dialogs.instance.focusInspector).toHaveBeenCalledTimes(1);
     expect(dialogs.close).not.toHaveBeenCalled();
 
     dialogs.containsFocus = true;
@@ -365,7 +365,8 @@ describe('UwtEventInspectorService', () => {
     press();
     expect(pane()?.contains(document.activeElement)).toBe(true);
 
-    press();
+    // Pressed where focus is, not on the page: in a field it would type.
+    press(undefined, document.activeElement!);
     expect(service.isOpen()).toBe(false);
   });
 

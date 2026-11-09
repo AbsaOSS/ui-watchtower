@@ -42,6 +42,22 @@ test('opens from the header as a dialog, with the mark and the transparency slid
   expect(title.x - header.x).toBeLessThan(header.width / 4);
 });
 
+test("Escape closes the dialog from inside it, and leaves it open for the app's own", async ({
+  page
+}) => {
+  await page.locator('.lab-header-button').click();
+  const inspector = page.locator('.cps-dialog uwt-inspector');
+  await expect(inspector).toBeVisible();
+
+  await page.locator('.lab-nav a').first().focus();
+  await page.keyboard.press('Escape');
+  await expect(inspector).toBeVisible();
+
+  await inspector.locator('.uwt-inspector-search input').focus();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('uwt-inspector')).toHaveCount(0);
+});
+
 test('a phone-sized screen offers only the dialog and the window, and opens a remembered pane as a dialog', async ({
   page
 }) => {
@@ -106,21 +122,25 @@ test('Shift+E+I opens it, brings focus back, and closes it from inside — never
   await shortcut(page);
   await expect(inspector).toBeVisible();
 
-  // Focus lands in its search field, where Shift+E+I is typing.
+  // Focus lands on the inspector itself, not a field, so it closes next.
+  const dialog = page.locator('.cps-dialog uwt-inspector');
+  await expect(dialog).toBeFocused();
+  await shortcut(page);
+  await expect(inspector).toHaveCount(0);
+
+  // In its search field, Shift+E+I is typing.
+  await shortcut(page);
   const search = page.locator('.uwt-inspector-search input').first();
-  await expect(search).toBeFocused();
+  await search.focus();
   await shortcut(page);
   await expect(search).toHaveValue('EI');
   await expect(inspector).toBeVisible();
 
-  // From the app, it brings focus back.
+  // From the app, it brings focus back, and then closes.
   await page.mouse.click(300, 100);
-  await expect(search).not.toBeFocused();
+  await expect(dialog).not.toBeFocused();
   await shortcut(page);
-  await expect(search).toBeFocused();
-
-  // From a button inside, it closes.
-  await page.locator('.cps-dialog cps-button button').first().focus();
+  await expect(dialog).toBeFocused();
   await shortcut(page);
   await expect(inspector).toHaveCount(0);
 });

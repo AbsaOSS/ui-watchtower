@@ -232,18 +232,28 @@ function withoutUnsetOptions(
   });
 }
 
+/** The id of RUM's error plugin, `JsErrorPlugin`, however it is loaded. */
+const ERROR_PLUGIN_ID = 'com.amazonaws.rum.js-error';
+
 /**
- * The app's telemetries, plus RUM's error plugin when they leave it out.
- * `recordError` goes through that plugin — RUM rejects it otherwise — so it
- * is added with its own capture of unhandled errors switched off. RUM reads
- * names in any case, and a second one would make it throw.
+ * The app's telemetries, plus RUM's error plugin when neither they nor the
+ * app's own `eventPluginsToLoad` have it. `recordError` goes through that
+ * plugin — RUM rejects it otherwise — so it is added with its own capture of
+ * unhandled errors switched off. RUM reads names in any case, and a second
+ * one would make it throw.
  */
 function withErrorPlugin(
-  telemetries: NonNullable<UwtRumAppMonitorConfig['telemetries']>
+  telemetries: NonNullable<UwtRumAppMonitorConfig['telemetries']>,
+  plugins: UwtRumAppMonitorConfig['eventPluginsToLoad']
 ): UwtRumAppMonitorConfig['telemetries'] {
   const named = (t: (typeof telemetries)[number]) =>
     String(Array.isArray(t) ? t[0] : t).toLowerCase();
-  return telemetries.some((t) => named(t) === 'errors')
+  const loaded = (plugins ?? []).some(
+    (p) =>
+      (p as { getPluginId?: () => unknown } | null)?.getPluginId?.() ===
+      ERROR_PLUGIN_ID
+  );
+  return loaded || telemetries.some((t) => named(t) === 'errors')
     ? telemetries
     : [...telemetries, ['errors', { ignore: () => true }]];
 }
@@ -704,7 +714,8 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
               'errors',
               'performance',
               ['http', { addXRayTraceIdHeader: [sameOrigin] }]
-            ])
+            ]),
+        config.eventPluginsToLoad
       ),
 
       ...(config.client != null ? { client: config.client } : {}),
