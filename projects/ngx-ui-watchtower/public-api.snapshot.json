@@ -100,6 +100,7 @@
       "new (): UwtBroadcastLogApiProvider",
       "static ɵfac: unknown",
       "static ɵprov: ɵɵInjectableDeclaration<UwtBroadcastLogApiProvider>",
+      "dispose(): void",
       "flush(): void",
       "ngOnDestroy(): void",
       "query(filter: UwtLogQuery): Promise<UwtLogRecord[]>",
@@ -110,6 +111,7 @@
       "new (): UwtBroadcastTelemetrySink",
       "static ɵfac: unknown",
       "static ɵprov: ɵɵInjectableDeclaration<UwtBroadcastTelemetrySink>",
+      "dispose(): void",
       "flush(beacon?: boolean | undefined): void",
       "getSessionId(): string | undefined",
       "getUserId(): string | undefined",
@@ -411,6 +413,7 @@
       "new (): UwtTelemetryBroadcastHost",
       "static ɵfac: unknown",
       "static ɵprov: ɵɵInjectableDeclaration<UwtTelemetryBroadcastHost>",
+      "dispose(): void",
       "get received: number",
       "ngOnDestroy(): void"
     ],

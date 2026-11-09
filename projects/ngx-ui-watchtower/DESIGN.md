@@ -2183,6 +2183,17 @@ providers: [
 Code inside a fragment does not change: same services, same calls. One
 session, one budget, one bundle.
 
+Either side may be built without Angular. The protocol — the messages, the
+host, the forwarding sink and log provider — lives in
+`@absaoss-cps/ui-watchtower`, and this package's classes are injectable
+subclasses of the core's. An Angular shell hosts a framework-free fragment,
+and a framework-free shell an Angular one, exchanging the same messages: the
+wire test holds every pairing to the fixture recorded before the core was
+extracted. A fragment wired by `provideUwtTelemetrySink('broadcast')` opens one
+channel for its sink and log provider, closed with its injector. The host
+takes part — counting toward the duplicate check, electing a leader — only in
+a browser with telemetry on, so server-side renders never see each other.
+
 ### Connecting a fragment
 
 Two providers, and that is the whole integration:

@@ -99,10 +99,8 @@ export { UwtScenarioTelemetryService } from './lib/services/uwt-scenario-telemet
 // Sinks
 export { UwtTelemetryBroadcastHost } from './lib/sinks/uwt-broadcast/uwt-broadcast-host.service';
 export { UwtBroadcastTelemetrySink } from './lib/sinks/uwt-broadcast/uwt-broadcast-telemetry.sink';
-export {
-  UWT_BROADCAST_CHANNEL,
-  UWT_DEFAULT_BROADCAST_CHANNEL
-} from './lib/sinks/uwt-broadcast/uwt-broadcast.messages';
+export { UWT_BROADCAST_CHANNEL } from './lib/sinks/uwt-broadcast/uwt-broadcast.messages';
+export { UWT_DEFAULT_BROADCAST_CHANNEL } from '@absaoss-cps/ui-watchtower';
 export { UwtTelemetrySink } from '@absaoss-cps/ui-watchtower';
 export { UwtNoopTelemetrySink } from './lib/sinks/uwt-telemetry/uwt-noop-telemetry.sink/uwt-noop-telemetry.sink';
 

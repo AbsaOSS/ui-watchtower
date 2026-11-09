@@ -44,6 +44,16 @@ export function uwtRunOutsideZone(): <T>(callback: () => T) => T {
 }
 
 /**
+ * Runs a callback inside Angular's zone when there is one, so what it
+ * resolves is seen by change detection. Must be called from an injection
+ * context.
+ */
+export function uwtRunInsideZone(): <T>(callback: () => T) => T {
+  const zone = inject(NgZone, { optional: true });
+  return (callback) => (zone ? zone.run(callback) : callback());
+}
+
+/**
  * How this package reports what telemetry handles silently: to the console,
  * prefixed, and only in development mode. Everything the core does on this
  * package's behalf is handed it.
@@ -51,6 +61,19 @@ export function uwtRunOutsideZone(): <T>(callback: () => T) => T {
 export const uwtDevModeReporter: UwtReporter = (level, message, ...details) => {
   if (uwtIsDevMode()) {
     console[level](`[ngx-ui-watchtower] ${message}`, ...details);
+  }
+};
+
+/**
+ * {@link uwtDevModeReporter}, except that warnings are printed in production
+ * too: the broadcast host's warnings about a realm that cannot host always
+ * were.
+ */
+export const uwtHostReporter: UwtReporter = (level, message, ...details) => {
+  if (level === 'warn') {
+    console.warn(`[ngx-ui-watchtower] ${message}`, ...details);
+  } else {
+    uwtDevModeReporter(level, message, ...details);
   }
 };
 
