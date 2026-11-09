@@ -55,7 +55,7 @@ Configuration errors still throw, when the engine is created.
 
 | Option                                    | What it does                                                                                       |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `identity`                                | Application, environment and version, carried by every record                                      |
+| `identity`                                | Application, environment, version and optional `eventNamespace`, carried by every record           |
 | `destination`                             | A `UwtTelemetrySink`: where scenarios, BI events and mirrored errors go                            |
 | `logApi`                                  | A `UwtLogApiProvider`: where logs go, and are read back from                                       |
 | `scenarios`, `logging`, `bi`, `redaction` | Overrides of each concern's defaults                                                               |
@@ -68,6 +68,21 @@ Configuration errors still throw, when the engine is created.
 abandoned and flushes; the engine does nothing after that, and leaves no
 listener or timer behind. The destination and log store you passed are
 yours to close.
+
+### Turning telemetry off
+
+Keep the same calls and pass one switch:
+
+```ts
+const telemetry = uwtCreateTelemetry({ ...options, enabled: false });
+```
+
+When off, nothing is recorded, sent or logged, and nothing listens to the
+page. Your code doesn't change: `start()` still returns a scenario (inert:
+it records nothing and never settles), lookups find nothing, loggers do
+nothing and `query()` resolves `[]`. The RUM sink and the broadcast classes
+take the same `enabled`: pass it to them too, and off they request no
+credentials, download no SDK and open no channel.
 
 ## AWS CloudWatch RUM
 
@@ -120,9 +135,20 @@ const telemetry = uwtCreateTelemetry({
 ```
 
 Either side can be an Angular application using
-`@absaoss-cps/ngx-ui-watchtower`; they exchange the same messages. Dispose
-the host, the sink, the log provider and the connection when their realm goes
-away.
+`@absaoss-cps/ngx-ui-watchtower`; they exchange the same messages. Give each
+fragment its own `application` name, and the shell's `eventNamespace`.
+
+Who owns what:
+
+| Realm          | Destination                                     | RUM client and credentials          | Log store                                         |
+| -------------- | ----------------------------------------------- | ----------------------------------- | ------------------------------------------------- |
+| Standalone app | Its own: `UwtRumTelemetrySink`, or another sink | The app's                           | The app's                                         |
+| Shell          | Its own, plus a `UwtTelemetryBroadcastHost`     | The shell's: the only one on a page | The shell's, which also stores fragments' records |
+| Fragment       | `UwtBroadcastTelemetrySink`                     | None: the shell's records for it    | None: `UwtBroadcastLogApiProvider` forwards       |
+
+A fragment reports the shell's session and user. Whoever creates something
+disposes it: dispose the engine, then the host, the sink, the log provider
+and the connection, when their realm goes away.
 
 ## Declare your names
 
@@ -178,6 +204,51 @@ import { traceScenario } from '@absaoss-cps/ui-watchtower/rxjs';
 customers$.pipe(traceScenario(scenario)).subscribe();
 ```
 
+## Writing an adapter for another framework
+
+`@absaoss-cps/ngx-ui-watchtower` is one adapter. Another framework's needs
+only the public entry points above: no deep import, no private file.
+
+1. **One engine per application, or per fragment.** Create it with
+   `uwtCreateTelemetry` at startup, from the framework's configuration, and
+   share it through the framework's context or dependency injection, never
+   one per component. If the framework resolves each concern on its own, as
+   Angular's DI does, construct `UwtScenarioTelemetry`, `UwtBITelemetry` and
+   `UwtLogTelemetry` instead, from `uwtResolveTelemetryConfig(overrides)`,
+   one destination and one log store.
+2. **The platform.** Pass `document: null` when rendering on a server, and
+   `runOutside` if the framework waits for pending timers before it is
+   stable, as Angular's zone does.
+3. **Failures.** Pass a `report`, such as `uwtConsoleReporter` in
+   development. Telemetry calls never throw; `uwtCreateTelemetry` does, when
+   the identity, destination or log store is missing.
+4. **Reactive APIs.** Adapt `scenarios.onSettled(listener)`, which returns
+   an unsubscribe function, to the framework's primitive: an Observable, a
+   signal, a store.
+5. **Destinations.** Accept any `UwtTelemetrySink`, and offer the core's:
+   the RUM sink, started with an unawaited `init()`; for a fragment, the
+   broadcast sink and log provider sharing one `uwtConnectBroadcastChannel()`;
+   for a shell, a `UwtTelemetryBroadcastHost`. Pass each the engine's
+   `enabled`.
+6. **Teardown.** When the application or fragment is destroyed, dispose the
+   engine and then what you created for it. Every `dispose()` can be called
+   more than once.
+7. **Names.** Re-export the four registries, so applications augment your
+   package's module path:
+
+   ```ts
+   export type {
+     UwtBIEventNames,
+     UwtLoggerNames,
+     UwtScenarioNames,
+     UwtScenarioSteps
+   } from '@absaoss-cps/ui-watchtower';
+   ```
+
+8. **The dependency.** Depend on `@absaoss-cps/ui-watchtower` with a caret
+   range, as a dependency rather than a peer, so installing the adapter
+   installs the core.
+
 ## API
 
 | Group         | Exports                                                                                                                                                               |
@@ -194,6 +265,12 @@ customers$.pipe(traceScenario(scenario)).subscribe();
 | Utilities     | `uwtClassifyTelemetryEvent`, `uwtIsDebugEnabled`, `uwtMarkSessionStart`, `uwtSessionElapsed`, `uwtUuid`, `uwtSafe*`, `uwtReport`, `uwtConsoleReporter`, `UwtReporter` |
 | `/rxjs`       | `traceScenario`, `UwtTraceScenarioOptions`                                                                                                                            |
 | `/rum`        | `UwtRumTelemetrySink` and its options; `UwtRumCredentialsProvider`, `UwtRumBootstrap`, `UwtRumAppMonitorConfig`, `UwtRumCredentials`                                  |
+
+## Versions
+
+This package and `@absaoss-cps/ngx-ui-watchtower` are released together,
+always at the same version. The Angular package depends on this one, never
+the other way round, and installs it for you.
 
 ## License
 

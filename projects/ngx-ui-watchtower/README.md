@@ -31,6 +31,9 @@ Requires Angular 21 or 22 and RxJS 7.8. It brings
 the framework-independent engine it builds on, with it: there is nothing more
 to install or configure.
 
+Upgrading from 0.4 needs no code or configuration change: the imports,
+providers, services, name declarations and behavior stay the same.
+
 ## Setup
 
 ```ts
@@ -350,6 +353,14 @@ providers: [
   provideUwtTelemetrySink('broadcast')
 ];
 ```
+
+Who owns what:
+
+| Realm          | Destination                                         | RUM and its credentials provider       | Log backend                           |
+| -------------- | --------------------------------------------------- | -------------------------------------- | ------------------------------------- |
+| Standalone app | Its own: `provideUwtTelemetryRumSink()`, or another | The app's                              | The app's                             |
+| Shell          | Its own, plus `provideUwtTelemetryBroadcastHost()`  | The shell's: the only ones on the page | The shell's, also for fragments' logs |
+| Fragment       | `provideUwtTelemetrySink('broadcast')`              | None: the shell's records for it       | None: `'broadcast'` forwards them     |
 
 Fragment code doesn't change. Give each fragment its own `application` name.
 A shell or a fragment needn't be Angular: one built on

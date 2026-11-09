@@ -15,7 +15,8 @@ logs, with an optional AWS CloudWatch RUM sink. It builds on
 framework-independent engine, which lives here too.
 
 How to use the library: [projects/ngx-ui-watchtower/README.md](projects/ngx-ui-watchtower/README.md)
-(also the npm page).
+(also the npm page). Without Angular, and to write an adapter for another
+framework: [projects/ui-watchtower/README.md](projects/ui-watchtower/README.md).
 How it is designed: [projects/ngx-ui-watchtower/DESIGN.md](projects/ngx-ui-watchtower/DESIGN.md).
 
 ## Layout
@@ -38,7 +39,8 @@ projects/ngx-ui-watchtower/
 scripts/        the public API snapshot, the packaging smoke test, and publishing
 ```
 
-The Angular package depends on the core, never the other way round.
+The Angular package depends on the core, never the other way round. Both
+share one version and are released together (see [Releases](#releases)).
 
 ## Getting started
 

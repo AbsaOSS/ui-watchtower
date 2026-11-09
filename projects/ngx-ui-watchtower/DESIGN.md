@@ -210,7 +210,10 @@ providers: [
   the same names. The dependency runs one way: the core imports neither
   Angular nor this package, which a lint rule enforces. The library build
   compiles against the core's built declarations, not its source, so it sees
-  the core exactly as an application does.
+  the core exactly as an application does. An application upgrading from
+  0.4 changes nothing. Another framework's adapter needs only the core's
+  public entry points, as this package does; the core's README has a short
+  guide.
 - **What the core owns, this package re-exports.** The engine, the models
   and name registries, the configuration types and defaults
   (`uwtResolveTelemetryConfig` completes every `with*` feature), redaction,
@@ -2204,6 +2207,12 @@ providers: [
 
 Code inside a fragment does not change: same services, same calls. One
 session, one budget, one bundle.
+
+| Realm          | Destination                                         | RUM and `UWT_RUM_CREDENTIALS_PROVIDER` | `UWT_LOG_API_PROVIDER`                 |
+| -------------- | --------------------------------------------------- | -------------------------------------- | -------------------------------------- |
+| Standalone app | Its own: `provideUwtTelemetryRumSink()`, or another | The app's                              | The app's                              |
+| Shell          | Its own, plus `provideUwtTelemetryBroadcastHost()`  | The shell's: the only ones on the page | The shell's, also for fragments' logs  |
+| Fragment       | `provideUwtTelemetrySink('broadcast')`              | None: the shell's records for it       | Bound by `'broadcast'`, to the shell's |
 
 Either side may be built without Angular. The protocol — the messages, the
 host, the forwarding sink and log provider — lives in
