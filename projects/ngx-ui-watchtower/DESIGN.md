@@ -2245,7 +2245,9 @@ app's start, it keeps up to that many events of each kind, which the popup
 shows on opening, with "capturing since" the start. They keep coming while
 the popup is closed; **Clear** empties them too. The cost is a copy of every
 event handed over, from startup, popup open or not — why it is off by
-default.
+default. They last as long as the page: after a sign-out without a reload,
+they still hold the previous user's events, so where people share a
+signed-in browser, reload on sign-out or leave it off.
 
 Under forced colours, such as Windows' contrast themes, the current dock,
 the kind shown, the Pause switch and solid buttons keep the marks that show
@@ -2342,7 +2344,9 @@ inject(UwtTelemetryMonitor)
   .subscribe((e) => console.table(e.payload));
 ```
 
-Each event is a deep copy of what was sent, so observers can't change it.
+Each event is a deep copy of what was sent, so observers can't change what
+the app sent. Every observer gets the same copy, so treat it as read-only:
+the Event Inspector shows, and exports, what another observer changes.
 While nothing subscribes, it costs one check per event.
 
 ### Testing
@@ -2633,8 +2637,11 @@ monitor anyway, so the shell's Event Inspector shows the mirror against
 its record as the fragment's own does: an `error` arriving straight after an
 error-level record from the same realm, with the name and message the logger
 mirrors for it, gets that record's sequence as `relatedSequence`. Both are
-posted in the same task, so nothing can arrive between them. A mirror that
-doesn't match exactly is shown unlinked, never linked wrongly.
+posted in the same task, so nothing of that fragment's can arrive between
+them. A mirror that doesn't match exactly is shown unlinked. On the shared
+channel with two tabs open, though, the leading tab's host hears both tabs'
+fragments, whose messages can interleave: a mirror can then link to the
+other tab's record with the same name and message.
 
 ### A fragment that also deploys standalone
 

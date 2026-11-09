@@ -157,7 +157,8 @@ export class UwtInspectorComponent {
 
   private readonly injector = inject(Injector);
 
-  private lastAnnounced = { bi: 0, scenario: 0, logging: 0 };
+  /** From what the session already holds: a dock move announces no history. */
+  private lastAnnounced = { ...this.store.received() };
 
   constructor() {
     const timer = setInterval(() => this.announceNew(), ANNOUNCE_EVERY_MS);

@@ -145,6 +145,17 @@ describe('uwtOpenInspectorWindow', () => {
     expect(options.onGeometry).toHaveBeenCalledTimes(1);
   });
 
+  it('should close the window again when it fails to show the inspector', () => {
+    const { popup } = fakePopup();
+    jest.spyOn(window, 'open').mockReturnValue(popup);
+    jest.spyOn(options.appRef, 'attachView').mockImplementationOnce(() => {
+      throw new Error('no kit');
+    });
+
+    expect(() => uwtOpenInspectorWindow(options)).toThrow('no kit');
+    expect(popup.close).toHaveBeenCalled();
+  });
+
   it('should close the window quietly when the app is destroyed first', () => {
     const { popup } = fakePopup();
     jest.spyOn(window, 'open').mockReturnValue(popup);

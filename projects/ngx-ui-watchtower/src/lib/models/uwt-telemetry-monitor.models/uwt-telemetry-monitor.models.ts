@@ -73,8 +73,9 @@ interface UwtTelemetryObservedBase {
  * {@link UwtTelemetryMonitor}.
  *
  * Local payloads keep their library types. A forwarded payload arrived from
- * another realm and was only shape-checked there, so it is typed as plain
- * JSON — narrow on `origin.forwarded` before relying on its fields.
+ * another realm and was only shape-checked there, so check
+ * `origin.forwarded` before relying on its fields. The type doesn't narrow
+ * with it: a payload is typed as either, and needs a cast.
  *
  * @group Types
  */

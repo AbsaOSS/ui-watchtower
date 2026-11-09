@@ -70,6 +70,26 @@ describe('UwtInspectorFilterBarComponent', () => {
     expect(bar().canAdd()).toBe(false); // nothing carried over
   });
 
+  it('should add on Enter, but not on the Enter a list takes to open or pick', () => {
+    bar().builderOpen.set(true);
+    fixture.detectChanges();
+    bar().onPath('kind');
+    bar().onOperator('equals');
+    bar().value.set('bi');
+    fixture.detectChanges();
+    const group = el().querySelector('[aria-label="New filter"]')!;
+    const enter = (target: Element) =>
+      target.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+      );
+
+    enter(group.querySelector('cps-select [role="combobox"]')!);
+    expect(store.filters().fields).toHaveLength(0);
+
+    enter(group.querySelector('cps-input input')!);
+    expect(store.filters().fields).toHaveLength(1);
+  });
+
   it('should explain how filters work beside the builder', () => {
     expect(el().querySelector('details')).toBeNull();
     bar().builderOpen.set(true);

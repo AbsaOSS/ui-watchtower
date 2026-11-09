@@ -451,6 +451,20 @@ describe('UwtInspectorComponent', () => {
     expect(announce).not.toHaveBeenCalled(); // nothing new
   });
 
+  it('should announce no history after moving to another dock', () => {
+    monitor.publish(bi('a'));
+    monitor.publish(bi('b'));
+    settle();
+    // Another dock: a new view of the same session.
+    fixture.destroy();
+    const moved = TestBed.createComponent(UwtInspectorComponent);
+    moved.detectChanges();
+
+    jest.advanceTimersByTime(10_000);
+    expect(announce).not.toHaveBeenCalled();
+    moved.destroy();
+  });
+
   it('should produce no telemetry of its own while being used', () => {
     const seen: unknown[] = [];
     // Subscribe as a second observer, alongside the popup's own store.

@@ -9,6 +9,15 @@ import {
 import { UwtLogRecord } from '@absaoss-cps/ngx-ui-watchtower';
 
 /** One RUM event as the mock dataplane received it, with its batch's user. */
+/** An entry the lab's own sink sent, and when it arrived. */
+export interface LabCustomEntry {
+  kind: string;
+  eventType?: string;
+  payload?: unknown;
+  error?: unknown;
+  receivedAt: string;
+}
+
 export interface LabRumEvent {
   /** RUM's own id for the event. */
   id: string;
@@ -76,6 +85,8 @@ export class LabWire {
   readonly batches = signal(0);
   readonly rum = signal<readonly LabRumEvent[]>([]);
   readonly logs = signal<readonly UwtLogRecord[]>([]);
+  /** What the lab's own sink received, with `?destination=custom`. */
+  readonly custom = signal<readonly LabCustomEntry[]>([]);
   readonly brokerMode = signal<LabBrokerMode>('ok');
 
   // The next two change only when their content does: each poll brings new
@@ -115,14 +126,16 @@ export class LabWire {
 
   async refresh(): Promise<void> {
     try {
-      const [rum, logs, state] = await Promise.all([
+      const [rum, logs, custom, state] = await Promise.all([
         labFetch('/__lab/rum').then((r) => r.json()),
         labFetch('/__lab/logs').then((r) => r.json()),
+        labFetch('/__lab/custom').then((r) => r.json()),
         labFetch('/__lab/state').then((r) => r.json())
       ]);
       this.batches.set(rum.batches);
       this.rum.set(rum.events);
       this.logs.set(logs);
+      this.custom.set(custom);
       this.brokerMode.set(state.brokerMode);
       this.brokerConfig.set(state.brokerConfig);
       this.telemetries.set(state.telemetries);

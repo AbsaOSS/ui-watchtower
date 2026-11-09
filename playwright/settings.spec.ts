@@ -69,8 +69,27 @@ test('Settings checks the overlay against the library: no unknown setting, no wr
   await overlay.fill('{ "scenario": {} }');
   await press(page, 'Apply and reload');
   await expect(settings).toContainText(`"scenario" isn't a section`);
+
+  // Own settings only: what every object inherits is none.
+  await overlay.fill('{ "toString": {} }');
+  await press(page, 'Apply and reload');
+  await expect(settings).toContainText(`"toString" isn't a section`);
   // Never applied.
   await expect(page.locator('.lab-header')).not.toContainText('config:');
+});
+
+test('Settings checks types against the library, not a wrong value in effect', async ({
+  page
+}) => {
+  await openLab(page, 'settings', { bi: { dedupWindowMs: '500' } });
+  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+
+  await overlay.fill('{ "bi": { "dedupWindowMs": 600 } }');
+  await press(page, 'Apply and reload');
+  // Applied: the page reloads with it.
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get('config'))
+    .toBe('{"bi":{"dedupWindowMs":600}}');
 });
 
 test('Settings controls write the common options into the overlay', async ({

@@ -94,8 +94,23 @@ export class LabResultsComponent {
   /** Whether the mock backend has an event. */
   private readonly arrived = computed(() => {
     const rum = this.wire.rum();
-    const details = new Set(rum.map((e) => JSON.stringify(e.details)));
-    const errors = rum.filter((e) => e.type.endsWith('js_error_event'));
+    const custom = this.wire.custom();
+    // A payload as RUM's details, or as the lab's own sink was given it.
+    const details = new Set([
+      ...rum.map((e) => JSON.stringify(e.details)),
+      ...custom.map((e) => JSON.stringify(e.payload))
+    ]);
+    const errors = [
+      ...rum
+        .filter((e) => e.type.endsWith('js_error_event'))
+        .map((e) => ({
+          message: field(e.details, 'message'),
+          at: e.receivedAt
+        })),
+      ...custom
+        .filter((e) => e.kind === 'error')
+        .map((e) => ({ message: field(e.error, 'message'), at: e.receivedAt }))
+    ];
     const logs = new Set(this.wire.logs().map((r) => JSON.stringify(r)));
     return (event: UwtTelemetryObservedEvent): boolean =>
       event.destination === 'log-provider'
@@ -105,9 +120,8 @@ export class LabResultsComponent {
             // one that arrived after this one was sent.
             errors.some(
               (e) =>
-                field(e.details, 'message') ===
-                  field(event.payload, 'message') &&
-                Date.parse(e.receivedAt) >= Date.parse(event.capturedAt)
+                e.message === field(event.payload, 'message') &&
+                Date.parse(e.at) >= Date.parse(event.capturedAt)
             )
           : details.has(JSON.stringify(event.payload));
   });

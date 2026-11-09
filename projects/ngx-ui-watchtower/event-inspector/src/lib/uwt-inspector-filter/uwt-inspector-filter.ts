@@ -15,7 +15,7 @@ const MAX_DEPTH = 12;
 /** Leaves per event considered for filtering. */
 const MAX_FIELDS = 2000;
 /** Characters of each value considered for matching. */
-const MAX_VALUE_CHARS = 2000;
+export const MAX_VALUE_CHARS = 2000;
 
 /**
  * Which section an event is shown in. An event forwarded from another
@@ -43,17 +43,27 @@ export function uwtInspectorSectionOf(
  *
  * Payload fields come first, at their own paths (`metadata.theme`,
  * `steps[2].name`); the envelope follows (`kind`, `eventType`,
- * `destination`, `origin.application`, `sequence`, `capturedAt`). Cycles,
- * excessive depth and oversized strings are cut short rather than failing.
+ * `destination`, `origin.application`, `sequence`, `capturedAt`), always
+ * whole: a huge payload gets the room left. Cycles, excessive depth and
+ * oversized strings are cut short rather than failing.
  */
 export function uwtFlattenEvent(
   event: UwtTelemetryObservedEvent
 ): UwtInspectorField[] {
+  const { payload, ...envelope } = event;
+  const own = flatten(envelope, MAX_FIELDS);
+  return [...flatten(payload, MAX_FIELDS - own.length), ...own];
+}
+
+/** `value`'s leaves, at most `max` of them. */
+function flatten(value: unknown, max: number): UwtInspectorField[] {
   const fields: UwtInspectorField[] = [];
-  const seen = new WeakSet<object>();
+  // The objects above the one visited: one seen twice elsewhere is shared,
+  // not circular.
+  const ancestors = new Set<object>();
 
   const visit = (value: unknown, path: string, depth: number): void => {
-    if (fields.length >= MAX_FIELDS) {
+    if (fields.length >= max) {
       return;
     }
     if (value === null || typeof value !== 'object') {
@@ -62,7 +72,7 @@ export function uwtFlattenEvent(
       }
       return;
     }
-    if (seen.has(value)) {
+    if (ancestors.has(value)) {
       push(fields, path, '[Circular]');
       return;
     }
@@ -70,7 +80,6 @@ export function uwtFlattenEvent(
       push(fields, path, '[Too deep]');
       return;
     }
-    seen.add(value);
 
     const entries: [string, unknown][] = Array.isArray(value)
       ? value.map((v, i) => [`[${i}]`, v])
@@ -81,15 +90,14 @@ export function uwtFlattenEvent(
       push(fields, path, '');
       return;
     }
+    ancestors.add(value);
     for (const [suffix, child] of entries) {
       visit(child, path + suffix, depth + 1);
     }
+    ancestors.delete(value);
   };
 
-  visit(event.payload, '', 0);
-
-  const { payload: _payload, ...envelope } = event;
-  visit(envelope, '', 0);
+  visit(value, '', 0);
   return fields;
 }
 

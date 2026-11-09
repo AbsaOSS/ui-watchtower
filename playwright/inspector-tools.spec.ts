@@ -160,7 +160,8 @@ test('pages 25 rows at a time, and offers the newest when more arrive', async ({
   // Once the burst is no longer new, so only the next event counts.
   await expect(events).not.toContainText('new at the top', { timeout: 5000 });
   await press(page, 'An unknown event type');
-  await expect(events).toContainText('1 new at the top of the list.');
+  // Exactly one: "11 new" would contain it too.
+  await expect(events).toContainText(/(^|\D)1 new at the top of the list\./);
   await events.getByRole('button', { name: 'Go to newest' }).click();
   await expect(rows(page).first()).toContainText('com.example.custom');
 });
@@ -346,6 +347,15 @@ test('in forced colours, the dock, the kind shown, Pause and solid buttons keep 
   expect(await css(kinds.nth(1), 'background-color')).not.toBe(highlight);
   const knob = page.locator('uwt-inspector .cps-switch-slider');
   expect(parseFloat(await css(knob, 'border-top-width', '::before'))).toBe(7);
+  // The pane's edge shows focus, which its colours alone did.
+  const edge = page.getByRole('separator', {
+    name: 'Resize the Event Inspector'
+  });
+  await edge.focus();
+  // From the keyboard, as focus shows: one step each way, so no resize.
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowRight');
+  expect(await css(edge, 'outline-style')).toBe('solid');
 
   await page.getByRole('button', { name: 'Add filter' }).click();
   const add = page

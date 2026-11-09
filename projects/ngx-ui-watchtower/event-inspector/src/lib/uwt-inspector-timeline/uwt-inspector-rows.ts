@@ -3,7 +3,10 @@ import {
   UwtTelemetryObservedEvent
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { UwtInspectorEntry } from '../uwt-inspector.models/uwt-inspector.models';
-import { uwtFieldName } from '../uwt-inspector-filter/uwt-inspector-filter';
+import {
+  MAX_VALUE_CHARS,
+  uwtFieldName
+} from '../uwt-inspector-filter/uwt-inspector-filter';
 
 /** How a row's details are coloured. The words always say it too. */
 export type UwtInspectorTone = 'success' | 'warn' | 'error';
@@ -50,6 +53,22 @@ type RowText = Pick<
 >;
 
 /** Reads a field as text, whatever the payload's declared type. */
+/**
+ * A value an `equals` filter finds again: plain, not padded — matching trims
+ * the filter's value — and within what matching compares.
+ */
+function filterable(payload: unknown, key: string): string {
+  const value =
+    payload !== null && typeof payload === 'object'
+      ? (payload as Record<string, unknown>)[key]
+      : undefined;
+  if (!['string', 'number', 'boolean'].includes(typeof value)) {
+    return '';
+  }
+  const shown = String(value);
+  return shown === shown.trim() && shown.length <= MAX_VALUE_CHARS ? shown : '';
+}
+
 function text(payload: unknown, key: string): string {
   if (payload === null || typeof payload !== 'object') {
     return '';
@@ -188,7 +207,7 @@ export function uwtInspectorRow(entry: UwtInspectorEntry): UwtInspectorRow {
       .map((path) => ({
         path,
         name: uwtFieldName(path),
-        value: text(event.payload, path)
+        value: filterable(event.payload, path)
       }))
       .filter((f) => f.value);
   } catch {

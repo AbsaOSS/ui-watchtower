@@ -118,7 +118,24 @@ describe('uwtFlattenEvent', () => {
       eventType: 'com.uwt.bi',
       payload
     });
-    expect(result.length).toBeLessThanOrEqual(2000 + 10);
+    expect(result.length).toBeLessThanOrEqual(2000);
+    // The envelope stays whole, so the event can still be found by kind.
+    expect(result.find((f) => f.path === 'kind')?.value).toBe('bi');
+    expect(result.find((f) => f.path === 'eventType')?.value).toBe(
+      'com.uwt.bi'
+    );
+  });
+
+  it('should show an object used twice at both places, as it is no cycle', () => {
+    const shared = { theme: 'dark' };
+    const result = uwtFlattenEvent({
+      ...base,
+      kind: 'bi',
+      eventType: 'com.uwt.bi',
+      payload: { a: shared, b: shared }
+    });
+    expect(result.find((f) => f.path === 'a.theme')?.value).toBe('dark');
+    expect(result.find((f) => f.path === 'b.theme')?.value).toBe('dark');
   });
 });
 

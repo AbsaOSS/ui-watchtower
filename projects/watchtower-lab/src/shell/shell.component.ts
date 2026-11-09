@@ -246,8 +246,18 @@ export class ShellComponent {
   /** Escape folds the open nav, back to its button. */
   protected closeNav(): void {
     if (this.navOpen()) {
+      // Focus goes back to the toggle, unless it is in a field elsewhere:
+      // Escape there is that field's.
+      const toggle = this.navToggle().nativeElement as HTMLElement;
+      const focused = toggle.ownerDocument.activeElement;
+      const elsewhere =
+        !!focused &&
+        focused !== toggle.ownerDocument.body &&
+        !focused.closest('.lab-nav');
       this.navOpen.set(false);
-      this.navToggle().nativeElement.focus();
+      if (!elsewhere) {
+        toggle.focus();
+      }
     }
   }
 }

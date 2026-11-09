@@ -70,6 +70,24 @@ const state: {
 };
 
 /**
+ * The most a request may bring, before and after gunzipping, and the most
+ * of each kind the lab keeps — it holds what it receives in memory.
+ */
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
+const MAX_KEPT = 5000;
+
+/** Adds `items` to `list`, dropping the oldest past {@link MAX_KEPT}. */
+function keep<T>(list: T[], items: T[]): void {
+  list.push(...items);
+  list.splice(0, Math.max(0, list.length - MAX_KEPT));
+}
+
+/** A JSON object, not an array or a value. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
  * The body as text, gunzipped if RUM compressed it. A page that closes while
  * sending leaves it empty or cut short; either way it is `''`, which nothing
  * keeps.
@@ -77,15 +95,30 @@ const state: {
 function readBody(req: Request): Promise<string> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    let size = 0;
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size <= MAX_BODY_BYTES) {
+        chunks.push(chunk);
+      }
+    });
     req.on('end', () => {
+      if (size > MAX_BODY_BYTES) {
+        resolve('');
+        return;
+      }
       const raw = Buffer.concat(chunks);
       const gzip =
         req.headers['content-encoding'] === 'gzip' ||
         (raw[0] === 0x1f && raw[1] === 0x8b);
       // Thrown here, outside the promise, an error would stop the server.
       try {
-        resolve((gzip ? gunzipSync(raw) : raw).toString('utf8'));
+        resolve(
+          (gzip
+            ? gunzipSync(raw, { maxOutputLength: MAX_BODY_BYTES })
+            : raw
+          ).toString('utf8')
+        );
       } catch {
         resolve('');
       }
@@ -180,9 +213,18 @@ function keepBatch(body: string): void {
   if (!batch) {
     return;
   }
+  // Only RUM's shape: one stray event would break every page's reading.
+  const events = (Array.isArray(batch.RumEvents) ? batch.RumEvents : []).filter(
+    (event: unknown) => isRecord(event) && typeof event.type === 'string'
+  );
+  if (events.length === 0) {
+    return;
+  }
   state.batches++;
-  for (const event of batch.RumEvents ?? []) {
-    state.rum.push({
+  keep(
+    state.rum,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    events.map((event: any) => ({
       id: event.id,
       receivedAt: new Date().toISOString(),
       batch: state.batches,
@@ -190,8 +232,8 @@ function keepBatch(body: string): void {
       type: event.type,
       metadata: parseJson(event.metadata) ?? {},
       details: parseJson(event.details) ?? {}
-    });
-  }
+    }))
+  );
 }
 
 function queryLogs(query: Request['query']): LogRecord[] {
@@ -257,7 +299,12 @@ labBackend
   .post(
     promised(async (req, res) => {
       const body = parseJson(await readBody(req));
-      state.logs.push(...(Array.isArray(body) ? body : [body]).filter(Boolean));
+      keep(
+        state.logs,
+        (Array.isArray(body) ? body : [body]).filter(
+          (record): record is LogRecord => isRecord(record)
+        )
+      );
       res.status(204).end();
     })
   )
@@ -350,8 +397,12 @@ labBackend
   .post(
     promised(async (req, res) => {
       const body = parseJson(await readBody(req));
-      state.custom.push(
-        ...(Array.isArray(body) ? body : [body]).filter(Boolean)
+      const receivedAt = new Date().toISOString();
+      keep(
+        state.custom,
+        (Array.isArray(body) ? body : [body])
+          .filter(isRecord)
+          .map((entry) => ({ ...entry, receivedAt }))
       );
       res.status(204).end();
     })

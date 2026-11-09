@@ -18,7 +18,8 @@ export function labCheckConfig(
   known: Record<string, Record<string, unknown>>
 ): string {
   for (const [section, settings] of Object.entries(overlay)) {
-    const valid = known[section];
+    // Own properties only: `toString` or `__proto__` is no section.
+    const valid = Object.hasOwn(known, section) ? known[section] : undefined;
     if (!valid) {
       return `"${section}" isn't a section; use ${Object.keys(known).join(', ')}.`;
     }
@@ -28,7 +29,7 @@ export function labCheckConfig(
     for (const [key, value] of Object.entries(
       settings as Record<string, unknown>
     )) {
-      if (!(key in valid)) {
+      if (!Object.hasOwn(valid, key)) {
         return `"${section}.${key}" isn't a setting; ${section} has ${Object.keys(valid).join(', ')}.`;
       }
       // Patterns, written as text, sit in arrays: checked as arrays.

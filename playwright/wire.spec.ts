@@ -36,8 +36,13 @@ test('Settings sets the broker, all at once with Apply and reload; the header te
   // Past the lab's next poll of the backend, the draft is still there.
   await page.waitForTimeout(2000);
   await expect(overlay).toHaveValue('{ "sessionSampleRate": 0 }');
-  // Nothing is set until applied.
-  expect((await backend.state()).brokerMode).toBe('ok');
+  // Nothing is set until applied: not the mode, the list, or the overlay.
+  const { brokerMode, telemetries, brokerConfig } = await backend.state();
+  expect({ brokerMode, telemetries, brokerConfig }).toEqual({
+    brokerMode: 'ok',
+    telemetries: null,
+    brokerConfig: {}
+  });
 
   await press(page, 'Apply and reload');
   await expect(page.locator('.lab-header')).toContainText('broker: null');
@@ -58,6 +63,23 @@ test('Settings sets the broker, all at once with Apply and reload; the header te
   await expect(page.locator('.lab-header')).toContainText(
     'broker: null → ok after reload'
   );
+});
+
+test('the mock backend keeps only what has the shape it stores', async ({
+  page,
+  request,
+  backend
+}) => {
+  await request.post('/appmonitors/x', {
+    data: { RumEvents: [{ id: 'no-type' }] }
+  });
+  await request.post('/api/logs', { data: ['not a record'] });
+  expect(await backend.rum()).toEqual([]);
+  expect(await backend.logs()).toEqual([]);
+
+  // Every page still reads it.
+  await openLab(page, 'wire');
+  await expect(page.locator('.lab-status')).toContainText('batches: 0');
 });
 
 test("another site's page can't change the mock backend", async ({

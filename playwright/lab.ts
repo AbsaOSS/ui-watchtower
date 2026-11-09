@@ -85,22 +85,33 @@ export class LabBackend {
   }
 
   async reset(): Promise<void> {
-    await this.request.post('/__lab/reset');
+    await this.control('/__lab/reset');
   }
 
   /** How the broker answers the next `/rum/init`. */
   async setBrokerMode(mode: BrokerMode): Promise<void> {
-    await this.request.post('/__lab/broker-mode', { data: { mode } });
+    await this.control('/__lab/broker-mode', { mode });
   }
 
   /** Laid over the broker's app monitor config. */
   async setBrokerConfig(config: Record<string, unknown>): Promise<void> {
-    await this.request.post('/__lab/broker-config', { data: { config } });
+    await this.control('/__lab/broker-config', { config });
   }
 
   /** RUM's own telemetries the broker names; `null` for the library's default. */
   async setTelemetries(telemetries: Telemetry[] | null): Promise<void> {
-    await this.request.post('/__lab/telemetries', { data: { telemetries } });
+    await this.control('/__lab/telemetries', { telemetries });
+  }
+
+  /**
+   * Posts to a control route, and fails if it refuses: a refused reset or
+   * setting would leave the last test's, failing tests that come later.
+   */
+  private async control(path: string, data?: object): Promise<void> {
+    const response = await this.request.post(path, data ? { data } : {});
+    if (!response.ok()) {
+      throw new Error(`${path} answered ${response.status()}`);
+    }
   }
 }
 

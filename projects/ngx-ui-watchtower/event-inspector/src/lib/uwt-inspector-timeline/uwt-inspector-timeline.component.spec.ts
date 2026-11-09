@@ -191,6 +191,19 @@ describe('UwtInspectorTimelineComponent', () => {
     );
   });
 
+  it('should count every event that arrived above the page since leaving the first', () => {
+    publish(100);
+    goToPage(2);
+
+    publish(1);
+    publish(1);
+    publish(1);
+    jest.advanceTimersByTime(5000);
+    fixture.detectChanges();
+
+    expect(el().textContent).toContain('3 new at the top of the list.');
+  });
+
   describe('an open row', () => {
     const origin = { forwarded: false as const };
     const detail = (sequence: number) =>

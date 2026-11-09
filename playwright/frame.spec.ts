@@ -1,4 +1,4 @@
-import { expect, openLab, press, sessionStarted, test } from './lab';
+import { expect, Locator, openLab, press, sessionStarted, test } from './lab';
 
 const PAGES = [
   'scenarios',
@@ -94,6 +94,56 @@ test('under 900px the nav folds behind a button naming the page', async ({
   await expect(page.locator('lab-root main h1')).toHaveText('Logging');
   await expect(links.first()).toBeHidden();
   await expect(fold).toContainText('Logging');
+});
+
+test('Escape folds the nav without taking focus from a field elsewhere', async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 800, height: 700 });
+  await openLab(page, 'logging');
+  await page.getByRole('button', { name: /^Pages/ }).click();
+  const field = page.locator('lab-logging-page textarea').first();
+  await field.focus();
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.lab-nav').getByRole('link').first()).toBeHidden();
+  await expect(field).toBeFocused();
+});
+
+test('on the narrowest phone, the header and Run settings stay on the screen', async ({
+  page,
+  backend
+}) => {
+  await backend.setTelemetries([
+    'errors',
+    'performance',
+    'interaction',
+    'http'
+  ]);
+  await page.setViewportSize({ width: 320, height: 700 });
+  await openLab(page, 'bi');
+  const right = async (locator: Locator) => {
+    const box = (await locator.boundingBox())!;
+    return box.x + box.width;
+  };
+
+  expect(await right(page.locator('.lab-header-button'))).toBeLessThanOrEqual(
+    320
+  );
+  await page.locator('.lab-run-settings > summary').click();
+  expect(
+    await right(page.locator('.lab-run-settings__panel'))
+  ).toBeLessThanOrEqual(320);
+});
+
+test('with the custom destination, what the page sent is ticked once its sink has it', async ({
+  page
+}) => {
+  await openLab(page, 'bi?destination=custom');
+  await press(page, 'Track a click');
+  await expect(
+    page.locator('lab-results li', { hasText: 'lab_button_clicked' })
+  ).toContainText('✓ received', { timeout: 10_000 });
 });
 
 test('the status bar stays on one line, as label and value pairs', async ({

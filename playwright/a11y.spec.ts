@@ -91,7 +91,9 @@ test('the Event Inspector with events, rows open, a filter being built with its 
   await expect(timeline).toContainText('Large payload: showing the first');
   await expect(timeline).toContainText('Mirrored from');
   // Past the new-row tint, so contrast is measured on the usual rows.
-  await page.waitForTimeout(3500);
+  await expect(page.locator('.uwt-inspector-timeline__fresh')).toHaveCount(0, {
+    timeout: 10_000
+  });
 
   expect(await violations(page, 'uwt-inspector-pane')).toEqual([]);
   // axe can't always settle contrast on striped rows; measured directly.

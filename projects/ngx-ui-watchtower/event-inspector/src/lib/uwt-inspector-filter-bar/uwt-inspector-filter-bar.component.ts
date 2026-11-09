@@ -146,6 +146,14 @@ export class UwtInspectorFilterBarComponent {
     this.focusAddFilter();
   }
 
+  /** Enter adds the filter — except in a list, where it opens or picks. */
+  protected onEnter(event: Event): void {
+    const target = event.target as Element | null;
+    if (!event.defaultPrevented && !target?.closest?.('[role="combobox"]')) {
+      this.add();
+    }
+  }
+
   protected remove(id: string): void {
     this.store.removeFilter(id);
     this.focusAddFilter();

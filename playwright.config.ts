@@ -36,6 +36,8 @@ export default defineConfig({
     command: 'node dist/watchtower-lab/server/server.mjs',
     env: { PORT: '4390' },
     url: 'http://localhost:4390/__lab/state',
-    reuseExistingServer: !process.env.CI
+    // Never one already running: it would serve whatever build it started
+    // with, not the one just made.
+    reuseExistingServer: false
   }
 });

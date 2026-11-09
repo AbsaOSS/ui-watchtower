@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import {
   ApplicationRef,
+  ComponentRef,
   createComponent,
   createEnvironmentInjector,
   EnvironmentInjector
@@ -18,6 +19,16 @@ import { uwtSafeVoid } from '../uwt-inspector-internal.util/uwt-inspector-intern
 /** The window's name, so a second open reuses it rather than adding one. */
 export const UWT_INSPECTOR_WINDOW_NAME = 'ngx-ui-watchtower-event-inspector';
 
+/**
+ * The window's name for an app: its own, so apps sharing a page — a shell
+ * and its fragments — don't take over each other's window.
+ */
+export function uwtInspectorWindowName(application?: string): string {
+  return application
+    ? `${UWT_INSPECTOR_WINDOW_NAME}:${application}`
+    : UWT_INSPECTOR_WINDOW_NAME;
+}
+
 const STYLES = 'style, link[rel~="stylesheet"], base';
 
 export interface UwtInspectorWindowOptions {
@@ -26,6 +37,8 @@ export interface UwtInspectorWindowOptions {
   environment: EnvironmentInjector;
   appRef: ApplicationRef;
   title: string;
+  /** The window's name; {@link UWT_INSPECTOR_WINDOW_NAME} by default. */
+  name?: string;
   /** Where the window was last, if anywhere. */
   geometry?: UwtInspectorWindowGeometry;
   /** The user closed the window. */
@@ -53,7 +66,7 @@ export function uwtOpenInspectorWindow(
   const view = options.document.defaultView;
   const popup = view?.open(
     '',
-    UWT_INSPECTOR_WINDOW_NAME,
+    options.name ?? UWT_INSPECTOR_WINDOW_NAME,
     features(view, options.geometry)
   );
   if (!view || !popup) {
@@ -78,13 +91,24 @@ export function uwtOpenInspectorWindow(
     ],
     options.environment
   );
-  const ref = createComponent(UwtInspectorComponent, {
-    environmentInjector: environment,
-    hostElement: element
-  });
-  ref.setInput('dock', 'window');
-  options.appRef.attachView(ref.hostView);
-  ref.changeDetectorRef.detectChanges();
+  let created: ComponentRef<UwtInspectorComponent> | undefined;
+  try {
+    created = createComponent(UwtInspectorComponent, {
+      environmentInjector: environment,
+      hostElement: element
+    });
+    created.setInput('dock', 'window');
+    options.appRef.attachView(created.hostView);
+    created.changeDetectorRef.detectChanges();
+  } catch (error) {
+    // Half open: close it again, for the caller to open a dialog instead.
+    created?.destroy();
+    environment.destroy();
+    stopMirroring();
+    popup.close();
+    throw error;
+  }
+  const ref = created;
 
   let saved = false;
   const saveGeometry = () => {

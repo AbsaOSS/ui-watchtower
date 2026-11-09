@@ -12,14 +12,14 @@ test('records reach the log backend, and the noisy logger writes only warnings a
   await press(page, 'log');
   await press(page, 'log (dropped)');
   await press(page, 'warn (written)');
-  // Written last, so once it arrives the others have had their chance.
   await press(page, 'error, with an Error');
 
+  // Each record travels on its own request, so in any order.
   await expect
-    .poll(async () => (await backend.logs()).map((r) => r.level))
-    .toContain('error');
-  const written = (await backend.logs()).map((r) => `${r.logger}:${r.level}`);
-  expect(written.sort()).toEqual(['lab:error', 'lab:log', 'noisy:warn']);
+    .poll(async () =>
+      (await backend.logs()).map((r) => `${r.logger}:${r.level}`).sort()
+    )
+    .toEqual(['lab:error', 'lab:log', 'noisy:warn']);
 });
 
 test('an error record carries its context, metadata and error', async ({

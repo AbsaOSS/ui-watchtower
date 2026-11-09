@@ -12,10 +12,14 @@ import {
   UWT_LOG_CONFIG,
   UWT_REDACT_CONFIG,
   UWT_SCENARIO_TELEMETRY_CONFIG,
+  UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_TELEMETRY_IDENTITY,
   uwtIsDebugEnabled
 } from '@absaoss-cps/ngx-ui-watchtower';
-import { UWT_EVENT_INSPECTOR_CONFIG } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
+import {
+  UWT_DEFAULT_INSPECTOR_CONFIG,
+  UWT_EVENT_INSPECTOR_CONFIG
+} from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
 import {
   CpsButtonComponent,
   CpsInputComponent,
@@ -206,8 +210,8 @@ export class SettingsPage {
   private readonly options = inject(LAB_OPTIONS);
   private readonly wire = inject(LabWire);
 
-  /** What each section takes, with values of the types they take. */
-  private readonly known: Record<string, Record<string, unknown>> = (() => {
+  /** The settings in effect, which the controls show until changed. */
+  private readonly inEffect: Record<string, Record<string, unknown>> = (() => {
     const inspector = inject(UWT_EVENT_INSPECTOR_CONFIG);
     return {
       identity: {
@@ -225,6 +229,34 @@ export class SettingsPage {
       },
       lab: { logBatching: false }
     };
+  })();
+
+  /**
+   * What each section takes, of the types they take: the library's defaults
+   * over what is in effect, which an overlay in the address may have given
+   * a value of the wrong type.
+   */
+  private readonly known: Record<string, Record<string, unknown>> = (() => {
+    const library = UWT_DEFAULT_TELEMETRY_CONFIG;
+    const inspector = UWT_DEFAULT_INSPECTOR_CONFIG;
+    const defaults: Record<string, object> = {
+      identity: { eventNamespace: library.eventNamespace },
+      scenarios: library.scenario,
+      logging: library.logs,
+      bi: library.bi,
+      redaction: library.redact,
+      inspector: {
+        maxEventsPerSection: inspector.maxEventsPerSection,
+        maxPayloadCharsInView: inspector.maxPayloadCharsInView,
+        captureBeforeOpen: inspector.captureBeforeOpen
+      }
+    };
+    return Object.fromEntries(
+      Object.entries(this.inEffect).map(([section, values]) => [
+        section,
+        { ...values, ...defaults[section] }
+      ])
+    );
   })();
 
   /** The overlay being edited: the one in effect, to start with. */
@@ -268,7 +300,7 @@ export class SettingsPage {
     const fromDraft = (
       this.overlay()?.[section] as Record<string, unknown> | undefined
     )?.[key];
-    return fromDraft ?? this.known[section][key];
+    return fromDraft ?? this.inEffect[section][key];
   }
 
   /** Writes a control's setting into the draft, which shows it. */

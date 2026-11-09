@@ -100,6 +100,12 @@
   border-radius: 0.5rem;
   background-color: #8a0b3c;
   box-shadow: 0 0.25rem 0.75rem #0000004d;
+  // Within a phone's width: long chips wrap rather than run off it.
+  max-width: min(24rem, calc(100vw - 6rem));
+
+  .lab-chip {
+    white-space: normal;
+  }
 }
 
 .lab-spacer {
@@ -146,6 +152,15 @@
     height: 0.0625rem;
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
+  }
+}
+
+// The narrowest phones: a tighter header, so its button stays whole. On the
+// viewport, as the header can't query its own width.
+@media (max-width: 22rem) {
+  .lab-header {
+    gap: 0.5rem;
+    padding: 0 0.75rem;
   }
 }
 

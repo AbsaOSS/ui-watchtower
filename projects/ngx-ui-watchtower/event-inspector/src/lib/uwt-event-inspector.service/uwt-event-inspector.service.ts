@@ -1,6 +1,7 @@
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import {
   ApplicationRef,
+  ComponentRef,
   createComponent,
   DestroyRef,
   EnvironmentInjector,
@@ -25,7 +26,10 @@ import {
 } from '../uwt-inspector-shortcut/uwt-inspector-shortcut';
 import { UwtInspectorComponent } from '../uwt-inspector/uwt-inspector.component';
 import { UwtInspectorPaneComponent } from '../uwt-inspector-pane/uwt-inspector-pane.component';
-import { uwtOpenInspectorWindow } from '../uwt-inspector-window/uwt-inspector-window';
+import {
+  uwtInspectorWindowName,
+  uwtOpenInspectorWindow
+} from '../uwt-inspector-window/uwt-inspector-window';
 import {
   UwtInspectorHost,
   UwtInspectorSession
@@ -94,8 +98,16 @@ export class UwtEventInspectorService {
   private warnedBlocked = false;
   private lastKey?: string;
 
+  private readonly opened = signal(false);
+
+  /**
+   * What had focus in the app as the inspector opened, for a pane to give
+   * it back as it closes; the dialog does so itself.
+   */
+  private focusedBefore?: HTMLElement;
+
   /** Whether the inspector is currently open, in any dock. */
-  readonly isOpen = signal(false);
+  readonly isOpen = this.opened.asReadonly();
 
   private readonly shownIn = signal<UwtInspectorDock | undefined>(undefined);
 
@@ -158,6 +170,11 @@ export class UwtEventInspectorService {
       this.host.focus();
       return;
     }
+    const focused = this.document.activeElement;
+    this.focusedBefore =
+      focused instanceof HTMLElement && focused !== this.document.body
+        ? focused
+        : undefined;
     this.show(this.preferences.read().dock);
   }
 
@@ -186,10 +203,19 @@ export class UwtEventInspectorService {
   /** Closes the inspector, discarding what it captured. */
   close(): void {
     const host = this.host;
+    const giveBack =
+      host && host.dock !== 'dialog' && host.dock !== 'window'
+        ? uwtSafe('focus', () => host.containsFocus(), false)
+        : false;
+    const before = this.focusedBefore;
     this.host = undefined;
+    this.focusedBefore = undefined;
     uwtSafeVoid('close', () => host?.destroy());
+    if (giveBack && before?.isConnected) {
+      uwtSafeVoid('focus', () => before.focus());
+    }
     this.session.end();
-    this.isOpen.set(false);
+    this.opened.set(false);
     this.shownIn.set(undefined);
   }
 
@@ -249,13 +275,17 @@ export class UwtEventInspectorService {
   /** Shows it in `dock`; a pane on a narrow screen shows as a dialog. */
   private show(dock: UwtInspectorDock): void {
     uwtSafeVoid('open', () => {
+      // A window or pane that fails to open leaves nothing behind, and the
+      // dialog stands in, as for a blocked window.
       this.host =
         dock === 'window'
-          ? (this.openWindow() ?? this.openDialog())
+          ? (uwtSafe('window', () => this.openWindow(), undefined) ??
+            this.openDialog())
           : dock === 'dialog' || this.isNarrow()
             ? this.openDialog()
-            : this.openPane(dock);
-      this.isOpen.set(true);
+            : (uwtSafe('pane', () => this.openPane(dock), undefined) ??
+              this.openDialog());
+      this.opened.set(true);
       this.shownIn.set(this.host.dock);
     });
     // A dialog focuses itself once rendered; a pane or window is ready now.
@@ -301,7 +331,9 @@ export class UwtEventInspectorService {
       dock: 'dialog',
       focus: () => ref.componentInstance?.focusInspector(),
       containsFocus: () => !!ref.componentInstance?.containsFocus(),
-      destroy: () => ref.close()
+      // Its close waits for the hide animation, which a dialog closed before
+      // it was ever shown never has: that one goes at once.
+      destroy: () => (ref.isOpen() ? ref.close() : ref.destroy())
     };
     ref.onDestroy.subscribe(() => this.closedByUser(host));
     return host;
@@ -311,23 +343,32 @@ export class UwtEventInspectorService {
     const element = this.document.body.appendChild(
       this.document.createElement('uwt-inspector-pane')
     );
-    const ref = createComponent(UwtInspectorPaneComponent, {
-      environmentInjector: this.environment,
-      hostElement: element
-    });
-    ref.setInput('side', side);
-    this.appRef.attachView(ref.hostView);
-    ref.changeDetectorRef.detectChanges();
+    let created: ComponentRef<UwtInspectorPaneComponent> | undefined;
+    // Destroying the view detaches it from the app, unless the app, being
+    // destroyed, already has: detaching it here would warn (NG0406).
+    const destroy = () => {
+      created?.destroy();
+      element.remove();
+    };
+    try {
+      created = createComponent(UwtInspectorPaneComponent, {
+        environmentInjector: this.environment,
+        hostElement: element
+      });
+      created.setInput('side', side);
+      this.appRef.attachView(created.hostView);
+      created.changeDetectorRef.detectChanges();
+    } catch (error) {
+      // Half open: nothing left behind, for the caller to open a dialog.
+      destroy();
+      throw error;
+    }
+    const ref = created;
     return {
       dock: side,
       focus: () => ref.instance.content().focusInspector(),
       containsFocus: () => ref.instance.content().containsFocus(),
-      // Destroying the view detaches it from the app, unless the app, being
-      // destroyed, already has: detaching it here would warn (NG0406).
-      destroy: () => {
-        ref.destroy();
-        element.remove();
-      }
+      destroy
     };
   }
 
@@ -340,6 +381,7 @@ export class UwtEventInspectorService {
       title: application
         ? `Event Inspector · ${application}`
         : 'Event Inspector',
+      name: uwtInspectorWindowName(application),
       geometry: this.preferences.read().window,
       onClosed: () => host && this.closedByUser(host),
       onKeydown: this.onKeydown,

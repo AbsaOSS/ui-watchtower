@@ -47,21 +47,21 @@ The package is built to `dist/ngx-ui-watchtower`.
 
 ## Scripts
 
-| Script                  | What it does                                          |
-| ----------------------- | ----------------------------------------------------- |
-| `npm run build`         | Builds the package (production, partial compilation)  |
-| `npm run watch`         | Rebuilds on change (development)                      |
-| `npm run test`          | Runs the unit tests (Jest)                            |
-| `npm run test:coverage` | Runs the unit tests with coverage, as CI does         |
-| `npm run typecheck`     | Type-checks every library, spec and suite tsconfig    |
-| `npm run lint`          | ESLint, no warnings allowed                           |
-| `npm run format`        | Formats with Prettier                                 |
-| `npm run format:check`  | Checks formatting without writing                     |
-| `npm run lab`           | Starts the Watchtower Lab on http://localhost:4280    |
-| `npm run lab:build`     | Builds the lab's fragment and shell                   |
-| `npm run e2e`           | Builds the lab and runs the Playwright suite          |
-| `npm run e2e:ui`        | Opens the suite in Playwright's UI, on the last build |
-| `npm run smoke`         | Packs the library and builds an app from the tarball  |
+| Script                  | What it does                                           |
+| ----------------------- | ------------------------------------------------------ |
+| `npm run build`         | Builds the package (production, partial compilation)   |
+| `npm run watch`         | Rebuilds on change (development)                       |
+| `npm run test`          | Runs the unit tests (Jest)                             |
+| `npm run test:coverage` | Runs the unit tests with coverage, as CI does          |
+| `npm run typecheck`     | Type-checks every library, spec and suite tsconfig     |
+| `npm run lint`          | ESLint, no warnings allowed                            |
+| `npm run format`        | Formats with Prettier                                  |
+| `npm run format:check`  | Checks formatting without writing                      |
+| `npm run lab`           | Starts the Watchtower Lab on http://localhost:4280     |
+| `npm run lab:build`     | Builds the lab's fragment and shell                    |
+| `npm run e2e`           | Builds the lab and runs the Playwright suite           |
+| `npm run e2e:ui`        | Builds the lab, and opens the suite in Playwright's UI |
+| `npm run smoke`         | Packs the library and builds an app from the tarball   |
 
 ## Watchtower Lab
 
@@ -152,8 +152,9 @@ text, and checks its states under forced colours. Internal edge cases —
 timers longer than 24 days, giving up after five minutes, no Web Locks or
 storage, message validation, start-up errors — are left to the unit tests.
 
-It runs the built server on http://localhost:4390, beside `npm run lab`. The
-first time, download the browsers with
+It runs the built server on http://localhost:4390, beside `npm run lab`,
+starting its own each time: one already on that port stops it, rather than
+serving an older build. The first time, download the browsers with
 `npx playwright install chromium webkit`.
 
 ## Consumer smoke test

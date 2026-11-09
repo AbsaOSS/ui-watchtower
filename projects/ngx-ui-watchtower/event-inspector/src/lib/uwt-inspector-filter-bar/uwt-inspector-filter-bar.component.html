@@ -26,7 +26,7 @@
       class="uwt-inspector-filter-bar__builder"
       role="group"
       aria-label="New filter"
-      (keydown.enter)="add()">
+      (keydown.enter)="onEnter($event)">
       <cps-autocomplete
         class="uwt-inspector-filter-bar__path"
         label="Field"

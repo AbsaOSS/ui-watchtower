@@ -166,12 +166,25 @@ export class UwtInspectorTimelineComponent {
     return captured > 0 ? `No ${noun} match the filters.` : `No ${noun} yet.`;
   });
 
-  /** Fresh arrivals above the page being read, newest first. */
+  /** The newest event shown when the reader was last on the first page. */
+  private readonly seenUpTo = linkedSignal<
+    { first: number; newest: number },
+    number
+  >({
+    source: () => ({
+      first: this.first(),
+      newest: this.rows()[0]?.sequence ?? 0
+    }),
+    computation: (now, before) =>
+      now.first === 0 ? now.newest : (before?.value ?? now.newest)
+  });
+
+  /** Events above the page being read that arrived since it was left. */
   protected readonly unseenNew = computed(
     () =>
       this.rows()
         .slice(0, this.first())
-        .filter((r) => this.store.fresh().has(r.sequence)).length
+        .filter((r) => r.sequence > this.seenUpTo()).length
   );
 
   protected readonly copyState = signal<'idle' | 'copied' | 'failed'>('idle');

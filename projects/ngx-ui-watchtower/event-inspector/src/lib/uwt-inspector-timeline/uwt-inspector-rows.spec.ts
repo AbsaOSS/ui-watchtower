@@ -137,6 +137,22 @@ describe('uwtInspectorRow', () => {
     });
   });
 
+  it('should offer to filter only by a value its filter finds again', () => {
+    // Matching trims the filter's value, and compares 2,000 characters.
+    const { filterBy } = rowOf({
+      ...base,
+      kind: 'bi',
+      eventType: 'com.uwt.bi',
+      payload: {
+        eventName: 'x'.repeat(2001),
+        feature: ' checkout',
+        eventTime: '',
+        application: 'app'
+      }
+    });
+    expect(filterBy).toEqual([]);
+  });
+
   it('should show an error sent to RUM', () => {
     expect(
       rowOf({

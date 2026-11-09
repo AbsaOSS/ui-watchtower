@@ -50,6 +50,20 @@ uwt-inspector {
     background-color: var(--cps-color-calm);
   }
 
+  // Forced colours drop backgrounds: the grip keeps a system colour, and
+  // focus shows as an outline.
+  @media (forced-colors: active) {
+    &::after {
+      forced-color-adjust: none;
+      background-color: CanvasText;
+    }
+
+    &:focus-visible {
+      outline: 0.125rem solid Highlight;
+      outline-offset: -0.125rem;
+    }
+  }
+
   :host(.uwt-inspector-pane--left) &,
   :host(.uwt-inspector-pane--right) & {
     top: 0;

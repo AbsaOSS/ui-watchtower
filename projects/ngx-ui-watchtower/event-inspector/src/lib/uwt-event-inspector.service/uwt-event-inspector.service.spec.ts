@@ -1,4 +1,4 @@
-import { PLATFORM_ID } from '@angular/core';
+import { ApplicationRef, PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Subject } from 'rxjs';
@@ -31,13 +31,18 @@ class FakeDialogs {
   };
 
   readonly close = jest.fn(() => this.destroyed.next());
+  readonly destroy = jest.fn(() => this.destroyed.next());
+  /** Whether the dialog has rendered; one that hasn't can't animate shut. */
+  shown = true;
 
   open(component: unknown, config: Record<string, unknown>) {
     this.opened.push({ component, config });
     return {
       componentInstance: this.instance,
       onDestroy: this.destroyed.asObservable(),
-      close: this.close
+      close: this.close,
+      destroy: this.destroy,
+      isOpen: () => this.shown
     };
   }
 }
@@ -221,12 +226,14 @@ describe('UwtEventInspectorService', () => {
     ['disabled', { enabled: false }],
     ['disabled by a function', { enabled: () => false }]
   ])('should do nothing when %s', (_label, config) => {
+    const listen = jest.spyOn(document, 'addEventListener');
     const service = create(config);
     service.install();
 
     press();
     service.open();
     expect(dialogs.opened).toHaveLength(0);
+    expect(listen).not.toHaveBeenCalledWith('keydown', expect.anything(), true);
   });
 
   it('should treat a throwing enabled() as disabled', () => {
@@ -242,9 +249,11 @@ describe('UwtEventInspectorService', () => {
   });
 
   it('should not listen during a server-side render', () => {
+    const listen = jest.spyOn(document, 'addEventListener');
     create({}, 'server').install();
     press();
     expect(dialogs.opened).toHaveLength(0);
+    expect(listen).not.toHaveBeenCalledWith('keydown', expect.anything(), true);
   });
 
   it('should stop listening when the application is destroyed', () => {
@@ -261,6 +270,48 @@ describe('UwtEventInspectorService', () => {
 
     expect(dialogs.opened).toHaveLength(0);
     expect(pane()?.classList).toContain('uwt-inspector-pane--right');
+  });
+
+  it('should open a dialog instead of a pane that fails, leaving none behind', () => {
+    remember({ dock: 'right' });
+    const service = create();
+    jest
+      .spyOn(TestBed.inject(ApplicationRef), 'attachView')
+      .mockImplementationOnce(() => {
+        throw new Error('no room');
+      });
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    service.open();
+
+    expect(pane()).toBeNull();
+    expect(dialogs.opened).toHaveLength(1);
+    expect(service.dock()).toBe('dialog');
+  });
+
+  it('should take away a dialog closed before it is shown, which its close would leave', () => {
+    const service = create();
+    dialogs.shown = false;
+
+    service.open();
+    service.close();
+
+    expect(dialogs.destroy).toHaveBeenCalledTimes(1);
+    expect(dialogs.close).not.toHaveBeenCalled();
+  });
+
+  it('should give focus back to where it was as a pane closes', () => {
+    remember({ dock: 'right' });
+    const button = document.body.appendChild(document.createElement('button'));
+    button.focus();
+    const service = create();
+
+    service.open();
+    expect(pane()?.contains(document.activeElement)).toBe(true);
+    service.close();
+
+    expect(document.activeElement).toBe(button);
+    button.remove();
   });
 
   it('should take an open pane away quietly when the app is destroyed', () => {
@@ -303,6 +354,7 @@ describe('UwtEventInspectorService', () => {
     expect(open).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Event Inspector · shop',
+        name: 'ngx-ui-watchtower-event-inspector:shop',
         geometry: { width: 900, height: 700, left: 10, top: 20 }
       })
     );
