@@ -1,5 +1,5 @@
-import { isPlatformBrowser } from '@angular/common';
-import { inject, isDevMode, PLATFORM_ID } from '@angular/core';
+import { DOCUMENT, isPlatformBrowser } from '@angular/common';
+import { inject, isDevMode, NgZone, PLATFORM_ID } from '@angular/core';
 import {
   UwtReporter,
   uwtSafe as coreSafe,
@@ -22,6 +22,25 @@ export function uwtIsDevMode(): boolean {
  */
 export function uwtIsBrowser(): boolean {
   return isPlatformBrowser(inject(PLATFORM_ID));
+}
+
+/**
+ * The page telemetry watches: the document in a browser, nothing in a
+ * server-side render. Must be called from an injection context.
+ */
+export function uwtBrowserDocument(): Document | null {
+  const document = inject(DOCUMENT);
+  return uwtIsBrowser() ? document : null;
+}
+
+/**
+ * Runs a callback outside Angular's zone when there is one, so telemetry's
+ * long-lived timers never keep the application from becoming stable. Must
+ * be called from an injection context.
+ */
+export function uwtRunOutsideZone(): <T>(callback: () => T) => T {
+  const zone = inject(NgZone, { optional: true });
+  return (callback) => zone?.runOutsideAngular(callback) ?? callback();
 }
 
 /**

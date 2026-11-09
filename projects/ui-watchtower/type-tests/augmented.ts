@@ -9,6 +9,7 @@
  * rejected is caught too.
  */
 import {
+  UwtTelemetry,
   UwtBIEvent,
   UwtBIEventName,
   UwtLogConfig,
@@ -114,3 +115,27 @@ export const options: UwtScenarioOptions = { name: 'chekout' };
 export const query: UwtLogQuery = { logger: 'chekout' };
 // @ts-expect-error not a registered logger
 export const levels: UwtLogConfig['levels'] = { chekout: 'log' };
+
+/** Through the engine: registered names accepted, everything else rejected. */
+export async function engine(telemetry: UwtTelemetry): Promise<void> {
+  const scenario = telemetry.scenarios.start({ name: 'checkout' });
+  telemetry.scenarios.findByName('load-dashboard');
+  telemetry.scenarios.findByNameAndId('checkout', scenario.id);
+  telemetry.scenarios.onSettled((_record) => {
+    expectType<Equals<typeof _record.scenarioName, UwtScenarioName>>();
+  });
+  telemetry.bi.track('export_clicked');
+  telemetry.logging.getLogger('checkout').warn('careful');
+  await telemetry.logging.query({ logger: 'checkout' });
+
+  // @ts-expect-error not a registered scenario
+  telemetry.scenarios.start({ name: 'chekout' });
+  // @ts-expect-error not a registered scenario
+  telemetry.scenarios.findByName('chekout');
+  // @ts-expect-error not a registered business event
+  telemetry.bi.track('export_clikced');
+  // @ts-expect-error not a registered logger
+  telemetry.logging.getLogger('chekout');
+  // @ts-expect-error not a registered logger
+  await telemetry.logging.query({ logger: 'chekout' });
+}

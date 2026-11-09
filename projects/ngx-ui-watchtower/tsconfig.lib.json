@@ -16,7 +16,8 @@
     // The core as published: its built declarations, not its source. Build
     // it first (npm run build does).
     "paths": {
-      "@absaoss-cps/ui-watchtower": ["../../dist/ui-watchtower"]
+      "@absaoss-cps/ui-watchtower": ["../../dist/ui-watchtower"],
+      "@absaoss-cps/ui-watchtower/rxjs": ["../../dist/ui-watchtower/rxjs"]
     }
   },
   "include": ["src/**/*.ts"],

@@ -1,9 +1,5 @@
 import { Injectable } from '@angular/core';
-import {
-  UwtTelemetryError,
-  UwtTelemetryMetadata,
-  UwtTelemetrySink
-} from '@absaoss-cps/ui-watchtower';
+import { UwtNoopTelemetrySink as CoreNoopTelemetrySink } from '@absaoss-cps/ui-watchtower';
 
 /**
  * Sink that discards everything.
@@ -15,37 +11,4 @@ import {
  * @group Services
  */
 @Injectable()
-export class UwtNoopTelemetrySink extends UwtTelemetrySink {
-  private userId?: string;
-
-  /** @inheritdoc */
-  record(
-    _eventType: string,
-    _payload: object,
-    _metadata?: UwtTelemetryMetadata
-  ): void {}
-
-  /** @inheritdoc */
-  recordError(
-    _error: UwtTelemetryError,
-    _metadata?: UwtTelemetryMetadata
-  ): void {}
-
-  /** @inheritdoc */
-  getSessionId(): string | undefined {
-    return undefined;
-  }
-
-  /** @inheritdoc */
-  setUserId(userId: string | undefined): void {
-    this.userId = userId;
-  }
-
-  /** @inheritdoc */
-  getUserId(): string | undefined {
-    return this.userId;
-  }
-
-  /** @inheritdoc */
-  flush(_beacon?: boolean): void {}
-}
+export class UwtNoopTelemetrySink extends CoreNoopTelemetrySink {}

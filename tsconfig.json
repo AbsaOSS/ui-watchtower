@@ -7,6 +7,9 @@
       "@absaoss-cps/ui-watchtower": [
         "./projects/ui-watchtower/src/public-api.ts"
       ],
+      "@absaoss-cps/ui-watchtower/rxjs": [
+        "./projects/ui-watchtower/rxjs/src/public-api.ts"
+      ],
       "@absaoss-cps/ngx-ui-watchtower": [
         "./projects/ngx-ui-watchtower/src/public-api.ts"
       ],

@@ -89,6 +89,18 @@ flowchart TD
 Everything is wired through Angular DI, so a destination can be swapped in
 production and stubbed in tests.
 
+The three services are Angular facades over the core's engine. Each holds the
+core's class for its concern (`UwtScenarioTelemetry`, `UwtBITelemetry`,
+`UwtLogTelemetry`), built from its own injections, so a missing provider still
+fails where it always did: the logger needs a log provider but no
+destination, scenarios need a destination and no log provider. The services
+are root singletons, so each concern exists once per injector, and all of
+them share the one destination and log provider. `settled$` is the core's
+`onSettled` as an Observable that completes on destroy; `traceScenario` is the
+core's `./rxjs` operator, reporting through this package's dev-mode
+reporter. Framework-free applications compose the same three classes with
+`uwtCreateTelemetry`.
+
 ### Entry points
 
 Two, each pulling in only what it needs:
@@ -199,13 +211,18 @@ providers: [
   Angular nor this package, which a lint rule enforces. The library build
   compiles against the core's built declarations, not its source, so it sees
   the core exactly as an application does.
-- **What the core owns, this package re-exports.** The models and name
-  registries, the configuration types and defaults, redaction, `UwtScenario`
-  and the `UwtTelemetrySink` and `UwtLogApiProvider` contracts are the
-  core's. This package keeps the injection tokens, the services and
-  providers, and the destinations that need Angular. `UwtTelemetrySink` is a
-  plain abstract class in the core, not `@Injectable()`: Angular uses it as
-  the destination's token as before, and a custom sink still extends it.
+- **What the core owns, this package re-exports.** The engine, the models
+  and name registries, the configuration types and defaults
+  (`uwtResolveTelemetryConfig` completes every `with*` feature), redaction,
+  `UwtScenario`, the `UwtTelemetrySink` and `UwtLogApiProvider` contracts and
+  their no-op implementations are the core's. This package keeps the
+  injection tokens, the services and providers, and the destinations that
+  need Angular. `UwtTelemetrySink` is a plain abstract class in the core, not
+  `@Injectable()`: Angular uses it as the destination's token as before, and
+  a custom sink still extends it. Every class an application provides stays
+  `@Injectable()` here — `UwtNoopTelemetrySink` and `UwtNoopLogApiProvider`
+  are decorated subclasses of the core's — so the published declarations
+  keep their Angular metadata.
 - **Every export is explicit.** The barrels list their exports one by one —
   in a published package each exported name is a compatibility promise. Id
   generation, the clock, the fail-open wrappers, User Timings and the

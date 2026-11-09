@@ -18,7 +18,8 @@ import {
   withRedaction
 } from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
 import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
-import * as uwtTelemetryRedactUtil from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
+// The logging logic lives in the core, which calls its own redaction module.
+import * as uwtTelemetryRedactUtil from '../../../../../ui-watchtower/src/lib/utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import { UwtLoggerService } from './uwt-logger.service';
 
 /** Captures what the library emitted, so a test can assert on it. */

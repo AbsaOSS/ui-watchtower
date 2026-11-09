@@ -7,7 +7,7 @@
  * registry is augmented here, so every name is a plain string; see
  * `augmented.ts` for registered names.
  */
-import { ApplicationConfig, inject, Injectable } from '@angular/core';
+import { ApplicationConfig, inject, Injectable, NgModule } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import {
   provideUwtTelemetry,
@@ -340,3 +340,27 @@ export interface Everything {
   stepName: UwtStepName;
   error: UwtTelemetryError;
 }
+
+/**
+ * Every injectable class an application may list as a provider in a
+ * decorator. That each keeps its Angular metadata (`ɵfac`, `ɵprov`) is held
+ * by the API snapshot; the compiler's own check skips library classes.
+ */
+@NgModule({
+  providers: [
+    UwtScenarioTelemetryService,
+    UwtBITelemetryService,
+    UwtLoggerService,
+    UwtNoopTelemetrySink,
+    UwtNoopLogApiProvider,
+    UwtBroadcastTelemetrySink,
+    UwtBroadcastLogApiProvider,
+    UwtTelemetryBroadcastHost,
+    UwtRumTelemetrySink,
+    AppSink,
+    AppLogBackend,
+    AppRumCredentials,
+    { provide: UwtTelemetrySink, useClass: UwtNoopTelemetrySink }
+  ]
+})
+export class AppTelemetryModule {}
