@@ -8,16 +8,25 @@
 
 # UI Watchtower
 
-Source of [`@absaoss-cps/ngx-ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ngx-ui-watchtower),
-a telemetry library for Angular apps: scenarios (user end-to-end journeys or specific functional workflows through an app), BI events and
-logs, with an optional AWS CloudWatch RUM sink. It builds on
-[`@absaoss-cps/ui-watchtower`](projects/ui-watchtower/README.md), the
-framework-independent engine, which lives here too.
+Telemetry for frontend applications, in three parts:
 
-How to use the library: [projects/ngx-ui-watchtower/README.md](projects/ngx-ui-watchtower/README.md)
-(also the npm page). Without Angular, and to write an adapter for another
-framework: [projects/ui-watchtower/README.md](projects/ui-watchtower/README.md).
-How it is designed: [projects/ngx-ui-watchtower/DESIGN.md](projects/ngx-ui-watchtower/DESIGN.md).
+- **Scenarios** — did a user journey or a workflow succeed, and how long did
+  it take?
+- **BI events** — which features are used?
+- **Logs** — what exactly happened?
+
+Events go to AWS CloudWatch RUM or another destination you choose; logs go
+to a backend you provide.
+
+It comes as two packages, released together at one version:
+
+| Package                                                                                          | Use it in                                                                                                                                              | Guide                                          |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| [`@absaoss-cps/ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ui-watchtower)         | Any frontend: plain JavaScript or TypeScript, or any framework. Framework adapters are built on it ([how](docs/ADAPTERS.md)).                          | [README](projects/ui-watchtower/README.md)     |
+| [`@absaoss-cps/ngx-ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ngx-ui-watchtower) | Angular applications. A thin adapter over `@absaoss-cps/ui-watchtower`: Angular providers, injectable services and Observables around the same engine. | [README](projects/ngx-ui-watchtower/README.md) |
+
+Each guide is also the package's npm page. How it is designed:
+[projects/ngx-ui-watchtower/DESIGN.md](projects/ngx-ui-watchtower/DESIGN.md).
 
 ## Layout
 
@@ -36,6 +45,7 @@ projects/ngx-ui-watchtower/
   README.md     usage guide, published to npm
   DESIGN.md     full design
   package.json  the published package's manifest
+docs/           ADAPTERS.md: how to write a framework adapter
 scripts/        the public API snapshot, the packaging smoke test, and publishing
 ```
 

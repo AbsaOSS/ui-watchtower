@@ -8,13 +8,22 @@
 
 # ui-watchtower
 
-The framework-independent engine behind
-[`@absaoss-cps/ngx-ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ngx-ui-watchtower):
-scenario health telemetry, business/UX events and application logs, for any
-JavaScript or TypeScript application.
+Telemetry for any frontend, in three parts:
 
-It imports no framework and touches no browser global when imported, so it
-loads in Node, on a server and in a worker as well as in a browser.
+- **Scenarios** — did a user journey or a workflow succeed, and how long did
+  it take?
+- **BI events** — which features are used?
+- **Logs** — what exactly happened?
+
+It needs no framework and no adapter: install it and call it directly, from
+plain JavaScript or TypeScript or from an application built with any
+framework. It imports nothing framework-specific and touches no browser
+global when imported, so it also loads in Node, on a server and in a worker.
+
+Adapters are optional. For Angular there is
+[`@absaoss-cps/ngx-ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ngx-ui-watchtower),
+which wraps this package in providers and injectable services. Adapters for
+other frameworks can be added the same way.
 
 ## Install
 
@@ -144,9 +153,9 @@ const telemetry = uwtCreateTelemetry({
 });
 ```
 
-Either side can be an Angular application using
-`@absaoss-cps/ngx-ui-watchtower`; they exchange the same messages. Give each
-fragment its own `application` name, and the shell's `eventNamespace`.
+Each side can use a different framework, or none: they exchange the same
+messages. Give each fragment its own `application` name, and the shell's
+`eventNamespace`.
 
 Who owns what:
 
@@ -185,9 +194,7 @@ declare module '@absaoss-cps/ui-watchtower' {
 export {};
 ```
 
-Until you declare any, plain strings are accepted. An Angular application
-augments `@absaoss-cps/ngx-ui-watchtower` instead, which re-exports these
-registries: either module path reaches the same ones.
+Until you declare any, plain strings are accepted.
 
 ## Seeing what telemetry skips
 
@@ -214,57 +221,12 @@ import { traceScenario } from '@absaoss-cps/ui-watchtower/rxjs';
 customers$.pipe(traceScenario(scenario)).subscribe();
 ```
 
-## Writing an adapter for another framework
-
-`@absaoss-cps/ngx-ui-watchtower` is one adapter. Another framework's needs
-only the public entry points above: no deep import, no private file.
-
-1. **One engine per application, or per fragment.** Create it with
-   `uwtCreateTelemetry` at startup, from the framework's configuration, and
-   share it through the framework's context or dependency injection, never
-   one per component. If the framework resolves each concern on its own, as
-   Angular's DI does, construct `UwtScenarioTelemetry`, `UwtBITelemetry` and
-   `UwtLogTelemetry` instead, from `uwtResolveTelemetryConfig(overrides)`,
-   one destination and one log store.
-2. **The platform.** Pass `document: null` when rendering on a server, and
-   `runOutside` if the framework waits for pending timers before it is
-   stable, as Angular's zone does.
-3. **Failures.** Pass a `report`, such as `uwtConsoleReporter` in
-   development. Telemetry calls never throw; `uwtCreateTelemetry` does, when
-   the identity, destination or log store is missing.
-4. **Reactive APIs.** Adapt `scenarios.onSettled(listener)`, which returns
-   an unsubscribe function, to the framework's primitive: an Observable, a
-   signal, a store.
-5. **Destinations.** Accept any `UwtTelemetrySink`, and offer the core's:
-   the RUM sink, started with an unawaited `init()`; for a fragment, the
-   broadcast sink and log provider sharing one `uwtConnectBroadcastChannel()`;
-   for a shell, a `UwtTelemetryBroadcastHost`. Pass each the engine's
-   `enabled`, and the shared connection `open: enabled`.
-6. **Teardown.** When the application or fragment is destroyed, dispose the
-   engine and then what you created for it. Every `dispose()` can be called
-   more than once.
-7. **Names.** Re-export the four registries, so applications augment your
-   package's module path:
-
-   ```ts
-   export type {
-     UwtBIEventNames,
-     UwtLoggerNames,
-     UwtScenarioNames,
-     UwtScenarioSteps
-   } from '@absaoss-cps/ui-watchtower';
-   ```
-
-8. **The dependency.** Depend on `@absaoss-cps/ui-watchtower` with a caret
-   range, as a dependency rather than a peer, so installing the adapter
-   installs the core.
-
 ## API
 
 | Group         | Exports                                                                                                                                                               |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Engine        | `uwtCreateTelemetry`, `UwtTelemetry`, `UwtTelemetryOptions`, `UwtTelemetryDocument`                                                                                   |
-| Concerns      | `UwtScenarioTelemetry`, `UwtBITelemetry`, `UwtLogTelemetry` and their options, for an adapter composing them itself                                                   |
+| Concerns      | `UwtScenarioTelemetry`, `UwtBITelemetry`, `UwtLogTelemetry` and their options, to compose them yourself                                                               |
 | Configuration | `UwtTelemetryIdentity`, the per-concern config types, `UWT_DEFAULT_TELEMETRY_CONFIG`, `uwtResolveTelemetryConfig`                                                     |
 | Models        | scenario, step, BI event and log record types; `UWT_LOG_LEVEL_ORDER`, `UWT_TELEMETRY_EVENT_TYPE`, `uwtEventTypes`                                                     |
 | Names         | `UwtScenarioNames`, `UwtScenarioSteps`, `UwtBIEventNames`, `UwtLoggerNames` and their `Uwt*Name` types                                                                |
@@ -275,12 +237,6 @@ only the public entry points above: no deep import, no private file.
 | Utilities     | `uwtClassifyTelemetryEvent`, `uwtIsDebugEnabled`, `uwtMarkSessionStart`, `uwtSessionElapsed`, `uwtUuid`, `uwtSafe*`, `uwtReport`, `uwtConsoleReporter`, `UwtReporter` |
 | `/rxjs`       | `traceScenario`, `UwtTraceScenarioOptions`                                                                                                                            |
 | `/rum`        | `UwtRumTelemetrySink` and its options; `UwtRumCredentialsProvider`, `UwtRumBootstrap`, `UwtRumAppMonitorConfig`, `UwtRumCredentials`                                  |
-
-## Versions
-
-This package and `@absaoss-cps/ngx-ui-watchtower` are released together,
-always at the same version. The Angular package depends on this one, never
-the other way round, and installs it for you.
 
 ## License
 

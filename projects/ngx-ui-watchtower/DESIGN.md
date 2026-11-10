@@ -212,8 +212,8 @@ providers: [
   compiles against the core's built declarations, not its source, so it sees
   the core exactly as an application does. An application upgrading from
   0.4 changes nothing. Another framework's adapter needs only the core's
-  public entry points, as this package does; the core's README has a short
-  guide.
+  public entry points, as this package does;
+  `docs/ADAPTERS.md` is a short guide.
 - **What the core owns, this package re-exports.** The engine, the models
   and name registries, the configuration types and defaults
   (`uwtResolveTelemetryConfig` completes every `with*` feature), redaction,

@@ -16,6 +16,12 @@ Telemetry for Angular apps, in three parts:
 
 Events go to AWS CloudWatch RUM. Logs go to a backend you provide.
 
+It is a thin Angular adapter over
+[`@absaoss-cps/ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ui-watchtower),
+the framework-independent engine that does the work, and can be used in any
+frontend. This package adds what Angular expects: providers, injectable
+services, Observables.
+
 The library's names are prefixed `Uwt`, short for UI Watchtower —
 `UwtLoggerService`, `provideUwtTelemetry`, `UWT_LOG_API_PROVIDER`.
 
@@ -26,10 +32,9 @@ npm install @absaoss-cps/ngx-ui-watchtower
 npm install aws-rum-web   # only for the AWS RUM sink
 ```
 
-Requires Angular 21 or 22 and RxJS 7.8. It brings
-[`@absaoss-cps/ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ui-watchtower),
-the framework-independent engine it builds on, with it: there is nothing more
-to install or configure.
+Requires Angular 21 or 22 and RxJS 7.8. It installs
+`@absaoss-cps/ui-watchtower` with it: there is nothing more to install or
+configure.
 
 Upgrading from 0.4 needs no code or configuration change: the imports,
 providers, services, name declarations and behavior stay the same.
