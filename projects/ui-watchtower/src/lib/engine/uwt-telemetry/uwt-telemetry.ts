@@ -115,7 +115,8 @@ export interface UwtTelemetry {
  *
  * @param options identity, destination, log store and overrides
  * @returns the engine
- * @throws when the identity, destination or log store is missing
+ * @throws when the identity (its application, environment and version), the
+ *   destination or the log store is missing
  *
  * @group Utils
  */
@@ -187,8 +188,13 @@ export function uwtCreateTelemetry(options: UwtTelemetryOptions): UwtTelemetry {
 
 /** Configuration errors throw: telemetry fails open, its setup does not. */
 function assertOptions(options: UwtTelemetryOptions): void {
+  const identity = options?.identity;
   const missing = [
-    !options?.identity?.application && 'identity.application',
+    !identity?.application && 'identity.application',
+    // Strings, as every record carries them: a shell's host rejects a
+    // forwarded log record without them.
+    typeof identity?.environment !== 'string' && 'identity.environment',
+    typeof identity?.version !== 'string' && 'identity.version',
     typeof options?.destination?.record !== 'function' && 'destination',
     typeof options?.logApi?.send !== 'function' && 'logApi'
   ].filter(Boolean);

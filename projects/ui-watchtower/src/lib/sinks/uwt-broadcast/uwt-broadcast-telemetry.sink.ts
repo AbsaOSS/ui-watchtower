@@ -28,15 +28,15 @@ export interface UwtBroadcastTelemetrySinkOptions {
    */
   channelName?: string;
   /**
-   * `false` forwards nothing — on a server, or while telemetry is off.
-   * Default `true`.
+   * `false` forwards nothing — on a server, or while telemetry is off —
+   * even over a shared {@link connection}. Default `true`.
    */
   enabled?: boolean;
   /**
    * A connection to share with the realm's
    * {@link UwtBroadcastLogApiProvider}, instead of opening one of its own.
-   * Left open by {@link UwtBroadcastTelemetrySink.dispose}: whoever opened
-   * it closes it.
+   * Not used while {@link enabled} is `false`. Left open by
+   * {@link UwtBroadcastTelemetrySink.dispose}: whoever opened it closes it.
    */
   connection?: UwtBroadcastConnection;
   /** Receives failures; see {@link UwtReporter}. */
@@ -79,9 +79,12 @@ export class UwtBroadcastTelemetrySink extends UwtTelemetrySink {
   constructor(options: UwtBroadcastTelemetrySinkOptions) {
     super();
     this.report = options.report;
-    this.ownsConnection = !options.connection;
+    // Off wins over a shared connection: this sink then has a closed one of
+    // its own, and the shared one stays open for its other users.
+    const shared = options.enabled === false ? undefined : options.connection;
+    this.ownsConnection = !shared;
     this.connection =
-      options.connection ??
+      shared ??
       uwtConnectBroadcastChannel({
         channelName: options.channelName,
         open: options.enabled !== false,

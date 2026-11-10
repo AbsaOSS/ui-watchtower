@@ -343,7 +343,17 @@ describe('uwtCreateTelemetry', () => {
       expect(() =>
         uwtCreateTelemetry({} as unknown as UwtTelemetryOptions)
       ).toThrow(
-        '[ui-watchtower] uwtCreateTelemetry needs identity.application, destination, logApi'
+        '[ui-watchtower] uwtCreateTelemetry needs identity.application, identity.environment, identity.version, destination, logApi'
+      );
+    });
+
+    it('should throw for an identity without its environment and version, which every record carries', () => {
+      expect(() =>
+        create({
+          identity: { application: 'cart' } as UwtTelemetryOptions['identity']
+        })
+      ).toThrow(
+        '[ui-watchtower] uwtCreateTelemetry needs identity.environment, identity.version'
       );
     });
   });

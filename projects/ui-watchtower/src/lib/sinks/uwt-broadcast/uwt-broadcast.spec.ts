@@ -142,6 +142,39 @@ describe('the core broadcast classes', () => {
       expect(() => sink.record('com.uwt.bi', {})).not.toThrow();
       await expect(logApi.query({})).resolves.toEqual([]);
     });
+
+    it('should send nothing over a shared connection while disabled, and leave it open', async () => {
+      const shell = new ChannelStub(UWT_DEFAULT_BROADCAST_CHANNEL);
+      const heard: unknown[] = [];
+      shell.onmessage = ({ data }) => heard.push(data);
+      const connection = uwtConnectBroadcastChannel();
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+
+      const sink = new UwtBroadcastTelemetrySink({
+        identity,
+        connection,
+        enabled: false
+      });
+      const logApi = new UwtBroadcastLogApiProvider({
+        connection,
+        enabled: false
+      });
+      sink.record('com.uwt.bi', { eventName: 'x' });
+      sink.recordError({ name: 'Error', message: 'boom' });
+      sink.flush(true);
+      logApi.send(record('hi'));
+      const query = logApi.query({});
+
+      expect(jest.getTimerCount()).toBe(0);
+      await expect(query).resolves.toEqual([]);
+      jest.useRealTimers();
+      await settle();
+      expect(heard).toEqual([]);
+      sink.dispose();
+      logApi.dispose();
+      expect(connection.isOpen()).toBe(true);
+      connection.close();
+    });
   });
 
   describe('the forwarding sink', () => {

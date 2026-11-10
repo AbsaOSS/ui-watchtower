@@ -100,8 +100,9 @@ it records nothing and never settles), lookups find nothing, loggers do
 nothing and `query()` resolves `[]`. Pass the switch on to what you created
 for the engine, so that off it requests no credentials, downloads no SDK and
 opens no channel: `enabled` to the RUM sink and the broadcast classes, and
-`open` to `uwtConnectBroadcastChannel()`. A sink and log provider sharing a
-connection ignore their own `enabled`: the connection decides.
+`open` to `uwtConnectBroadcastChannel()`. Off, a sink or log provider sends
+nothing even over a shared connection, but only `open: false` keeps the
+channel itself from opening.
 
 ## AWS CloudWatch RUM
 

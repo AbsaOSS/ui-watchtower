@@ -42,13 +42,15 @@ export interface UwtBroadcastLogApiProviderOptions {
   channelName?: string;
   /**
    * `false` forwards nothing, and every query resolves to `[]` at once —
-   * on a server, or while telemetry is off. Default `true`.
+   * on a server, or while telemetry is off — even over a shared
+   * {@link connection}. Default `true`.
    */
   enabled?: boolean;
   /**
    * A connection to share with the realm's {@link UwtBroadcastTelemetrySink},
-   * instead of opening one of its own. Left open by
-   * {@link UwtBroadcastLogApiProvider.dispose}: whoever opened it closes it.
+   * instead of opening one of its own. Not used while {@link enabled} is
+   * `false`. Left open by {@link UwtBroadcastLogApiProvider.dispose}: whoever
+   * opened it closes it.
    */
   connection?: UwtBroadcastConnection;
   /**
@@ -91,9 +93,12 @@ export class UwtBroadcastLogApiProvider implements UwtLogApiProvider {
 
   constructor(options: UwtBroadcastLogApiProviderOptions = {}) {
     this.report = options.report;
-    this.ownsConnection = !options.connection;
+    // Off wins over a shared connection: this provider then has a closed one
+    // of its own, and the shared one stays open for its other users.
+    const shared = options.enabled === false ? undefined : options.connection;
+    this.ownsConnection = !shared;
     this.connection =
-      options.connection ??
+      shared ??
       uwtConnectBroadcastChannel({
         channelName: options.channelName,
         open: options.enabled !== false,

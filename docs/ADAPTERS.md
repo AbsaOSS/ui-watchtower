@@ -32,7 +32,8 @@ private file.
    stable, as Angular's zone does.
 3. **Failures.** Pass a `report`, such as `uwtConsoleReporter` in
    development. Telemetry calls never throw; `uwtCreateTelemetry` does, when
-   the identity, destination or log store is missing.
+   the identity (its application, environment or version), destination or
+   log store is missing.
 4. **Reactive APIs.** Adapt `scenarios.onSettled(listener)`, which returns
    an unsubscribe function, to the framework's primitive: an Observable, a
    signal, a store.
