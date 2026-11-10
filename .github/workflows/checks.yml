@@ -62,12 +62,12 @@ jobs:
       - name: Run unit tests with coverage
         run: npm run test:coverage
 
-      - name: Comment coverage on PR
+      - name: Comment ngx coverage on PR
         uses: ArtiomTr/jest-coverage-report-action@v2
         if: github.event_name == 'pull_request'
         continue-on-error: true
         with:
-          custom-title: Coverage report
+          custom-title: Ngx coverage report
           coverage-file: ./coverage/report.json
           # Tests already ran above; the action only formats the report.
           skip-step: all
