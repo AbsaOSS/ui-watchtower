@@ -96,7 +96,8 @@ fails where it always did: the logger needs a log provider but no
 destination, scenarios need a destination and no log provider. The services
 are root singletons, so each concern exists once per injector, and all of
 them share the one destination and log provider. `settled$` is the core's
-`onSettled` as an Observable that completes on destroy; `traceScenario` is the
+`onSettled` as an Observable that completes on destroy. It listens to the
+core only while subscribed, so no record is copied for nobody; `traceScenario` is the
 core's `./rxjs` operator, reporting through this package's dev-mode
 reporter. Framework-free applications compose the same three classes with
 `uwtCreateTelemetry`.

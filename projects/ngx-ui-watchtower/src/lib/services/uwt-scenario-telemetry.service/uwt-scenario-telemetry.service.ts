@@ -72,11 +72,27 @@ export class UwtScenarioTelemetryService implements OnDestroy {
    * ```
    */
   readonly settled$: Observable<UwtScenarioRecord> =
-    this._settled$.asObservable();
+    new Observable<UwtScenarioRecord>((subscriber) => {
+      const subscription = this._settled$.subscribe(subscriber);
+      // Listens to the core only while observed: the core copies each record
+      // for its listeners, wasted work when nobody reads it.
+      if (!this.destroyed) {
+        this.stopListening ??= this.scenarios.onSettled((record) =>
+          this._settled$.next(record)
+        );
+      }
+      return () => {
+        subscription.unsubscribe();
+        if (!this._settled$.observed) {
+          this.stopListening?.();
+          this.stopListening = undefined;
+        }
+      };
+    });
 
-  constructor() {
-    this.scenarios.onSettled((record) => this._settled$.next(record));
-  }
+  /** Stops the core's listener; set while {@link settled$} has subscribers. */
+  private stopListening?: () => void;
+  private destroyed = false;
 
   /**
    * Starts a new scenario.
@@ -145,6 +161,7 @@ export class UwtScenarioTelemetryService implements OnDestroy {
 
   /** @inheritdoc */
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.scenarios.dispose();
     this._settled$.complete();
   }

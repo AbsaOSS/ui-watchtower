@@ -18,6 +18,7 @@ import {
   withRedaction,
   withScenarios
 } from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
+import * as uwtTelemetrySafeUtil from '../../../../../ui-watchtower/src/lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { UwtScenarioTelemetryService } from './uwt-scenario-telemetry.service';
 
@@ -2063,6 +2064,62 @@ describe('UwtScenarioTelemetryService', () => {
       service.ngOnDestroy();
 
       expect(completed).toBe(true);
+    });
+
+    it('should complete a subscriber that arrives after destroy', () => {
+      service.ngOnDestroy();
+
+      let completed = false;
+      service.settled$.subscribe({ complete: () => (completed = true) });
+
+      expect(completed).toBe(true);
+    });
+
+    describe('copies of the record', () => {
+      let copy: jest.SpyInstance;
+
+      const recordCopies = () =>
+        copy.mock.calls.filter(
+          ([value]) =>
+            (value as { scenarioName?: unknown } | null)?.scenarioName !==
+            undefined
+        ).length;
+
+      beforeEach(() => {
+        copy = jest.spyOn(uwtTelemetrySafeUtil, 'uwtDeepClone');
+      });
+      afterEach(() => copy.mockRestore());
+
+      it('should make none while nobody subscribes', () => {
+        service.start({ name: 'a' }).complete();
+
+        expect(recordCopies()).toBe(0);
+      });
+
+      it('should make one per record for any number of subscribers, sharing it', () => {
+        const seen: UwtScenarioRecord[] = [];
+        service.settled$.subscribe((r) => seen.push(r));
+        service.settled$.subscribe((r) => seen.push(r));
+
+        service.start({ name: 'a' }).complete();
+
+        expect(recordCopies()).toBe(1);
+        expect(seen).toHaveLength(2);
+        expect(seen[0]).toBe(seen[1]);
+      });
+
+      it('should stop once the last subscriber leaves', () => {
+        const first = service.settled$.subscribe();
+        const second = service.settled$.subscribe();
+        first.unsubscribe();
+
+        service.start({ name: 'a' }).complete();
+        expect(recordCopies()).toBe(1);
+
+        second.unsubscribe();
+        service.start({ name: 'b' }).complete();
+        expect(recordCopies()).toBe(1);
+      });
     });
 
     it('should not let a throwing subscriber break the scenario', () => {
