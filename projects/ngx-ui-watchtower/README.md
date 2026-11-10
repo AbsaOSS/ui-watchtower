@@ -425,10 +425,9 @@ TestBed.configureTestingModule({
 - A scenario sends one event when it ends, not one per step — AWS RUM allows
   200 events per session by default.
 - RUM's own telemetry defaults to errors, performance and same-origin HTTP;
-  set `telemetries` in the RUM config to change it. Without `'errors'`, the
-  sink still loads RUM's error plugin, capturing nothing by itself, because
-  `mirrorErrorsToRum` needs it — unless the app loads one itself through
-  `eventPluginsToLoad`.
+  set `telemetries` in the RUM config to change it. `mirrorErrorsToRum` and
+  `recordError` need `'errors'` in that list; without it, errors aren't
+  mirrored to RUM and the console warns once.
 
 ## License
 

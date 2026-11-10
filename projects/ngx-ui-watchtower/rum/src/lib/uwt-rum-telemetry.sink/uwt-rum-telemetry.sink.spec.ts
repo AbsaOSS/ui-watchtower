@@ -474,40 +474,12 @@ describe('UwtRumTelemetrySink', () => {
       });
     });
 
-    it("should add RUM's error plugin, capturing nothing itself, for recordError", async () => {
+    it("should leave the app's telemetries as they are, without adding RUM's error plugin", async () => {
       configure({ loadImpl: async () => bootstrap({ telemetries: ['http'] }) });
       await sink.init();
 
-      const { telemetries } = AwsRumCtor.mock.calls[0][3] as {
-        telemetries: [string, [string, { ignore: () => boolean }]];
-      };
-      expect(telemetries[0]).toBe('http');
-      expect(telemetries[1][0]).toBe('errors');
-      expect(telemetries[1][1].ignore()).toBe(true);
-    });
-
-    it('should not add a second error plugin when the app names it in another case, which RUM accepts', async () => {
-      configure({
-        loadImpl: async () => bootstrap({ telemetries: [['Errors', {}]] })
-      });
-      await sink.init();
-
       expect(AwsRumCtor.mock.calls[0][3]).toMatchObject({
-        telemetries: [['Errors', {}]]
-      });
-    });
-
-    it('should not add a second error plugin when the app loads its own, which RUM would reject', async () => {
-      const errors = { getPluginId: () => 'com.amazonaws.rum.js-error' };
-      configure({
-        loadImpl: async () =>
-          bootstrap({ telemetries: ['http'], eventPluginsToLoad: [errors] })
-      });
-      await sink.init();
-
-      expect(AwsRumCtor.mock.calls[0][3]).toMatchObject({
-        telemetries: ['http'],
-        eventPluginsToLoad: [errors]
+        telemetries: ['http']
       });
     });
 
@@ -1035,6 +1007,42 @@ describe('UwtRumTelemetrySink', () => {
         name: 'TypeError',
         message: 'boom'
       });
+    });
+
+    it("should warn once, in every environment, when RUM rejects an error because 'errors' isn't loaded", async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      awsRumInstance.recordError.mockImplementation(() => {
+        throw new Error('Invalid plugin ID: com.amazonaws.rum.js-error');
+      });
+      await sink.init();
+
+      sink.recordError({ name: 'TypeError', message: 'boom' });
+      sink.recordError({ name: 'TypeError', message: 'again' });
+
+      const warned = warn.mock.calls.filter((c) =>
+        String(c[0]).includes("'errors' telemetry isn't loaded")
+      );
+      expect(warned).toHaveLength(1);
+      expect(String(warned[0][0])).toContain('mirrorErrorsToRum: false');
+      warn.mockRestore();
+      awsRumInstance.recordError.mockReset();
+    });
+
+    it('should not take that warning for any other failure of recordError', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      awsRumInstance.recordError.mockImplementation(() => {
+        throw new Error('something else');
+      });
+      await sink.init();
+
+      expect(() =>
+        sink.recordError({ name: 'TypeError', message: 'boom' })
+      ).not.toThrow();
+      expect(
+        warn.mock.calls.some((c) => String(c[0]).includes("'errors' telemetry"))
+      ).toBe(false);
+      warn.mockRestore();
+      awsRumInstance.recordError.mockReset();
     });
 
     it('should buffer an error recorded before init and replay it once ready', async () => {

@@ -914,11 +914,11 @@ The custom layers duplicate nothing built in: the library records no page
 views, does not re-capture unhandled errors, and collects no browser or
 device attributes.
 
-An app that sets its own `telemetries` without `'errors'` still gets RUM's
-error plugin, with its own capture off: `recordError` and
-`mirrorErrorsToRum` go through it, and RUM rejects them without it. One
-the app loads itself through `eventPluginsToLoad` is used instead — RUM
-can't hold two.
+The sink never edits the app's RUM config. `recordError` and
+`mirrorErrorsToRum` go through RUM's error plugin, which RUM rejects when
+`'errors'` isn't in `telemetries` (or its plugin in `eventPluginsToLoad`). The
+sink then prints one console warning, in every environment, and mirrors no
+errors; the app adds `'errors'` or sets `mirrorErrorsToRum: false`.
 
 ### From events to metrics
 

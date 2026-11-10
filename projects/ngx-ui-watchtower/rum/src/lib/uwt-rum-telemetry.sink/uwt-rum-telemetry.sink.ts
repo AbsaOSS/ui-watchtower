@@ -20,7 +20,6 @@ import {
 } from '../uwt-rum-internal.util/uwt-rum-internal.util';
 import {
   UWT_RUM_CREDENTIALS_PROVIDER,
-  UwtRumAppMonitorConfig,
   UwtRumBootstrap,
   UwtRumCredentials
 } from '../uwt-rum-credentials/uwt-rum-credentials';
@@ -232,32 +231,6 @@ function withoutUnsetOptions(
   });
 }
 
-/** The id of RUM's error plugin, `JsErrorPlugin`, however it is loaded. */
-const ERROR_PLUGIN_ID = 'com.amazonaws.rum.js-error';
-
-/**
- * The app's telemetries, plus RUM's error plugin when neither they nor the
- * app's own `eventPluginsToLoad` have it. `recordError` goes through that
- * plugin — RUM rejects it otherwise — so it is added with its own capture of
- * unhandled errors switched off. RUM reads names in any case, and a second
- * one would make it throw.
- */
-function withErrorPlugin(
-  telemetries: NonNullable<UwtRumAppMonitorConfig['telemetries']>,
-  plugins: UwtRumAppMonitorConfig['eventPluginsToLoad']
-): UwtRumAppMonitorConfig['telemetries'] {
-  const named = (t: (typeof telemetries)[number]) =>
-    String(Array.isArray(t) ? t[0] : t).toLowerCase();
-  const loaded = (plugins ?? []).some(
-    (p) =>
-      (p as { getPluginId?: () => unknown } | null)?.getPluginId?.() ===
-      ERROR_PLUGIN_ID
-  );
-  return loaded || telemetries.some((t) => named(t) === 'errors')
-    ? telemetries
-    : [...telemetries, ['errors', { ignore: () => true }]];
-}
-
 /**
  * Telemetry sink backed by the AWS CloudWatch RUM web client.
  *
@@ -318,6 +291,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
    * or a refresh returned null; distinct from `!awsRum` alone.
    */
   private disabled = false;
+  private errorPluginWarned = false;
   /** Broker requests that failed at startup so far. */
   private initFailures = 0;
   /** When the first of them failed. */
@@ -531,7 +505,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     this.recordOrBuffer(
       'rum.recordError',
       { kind: 'error', error, metadata },
-      (awsRum) => awsRum.recordError(this.withOrigin(error, metadata))
+      (awsRum) => this.recordErrorTo(awsRum, error, metadata)
     );
   }
 
@@ -707,16 +681,13 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
       endpoint:
         config.endpoint ??
         `https://dataplane.rum.${config.region}.amazonaws.com`,
-      telemetries: withErrorPlugin(
-        Array.isArray(config.telemetries)
-          ? withoutUnsetOptions(config.telemetries)
-          : (config.telemetries ?? [
-              'errors',
-              'performance',
-              ['http', { addXRayTraceIdHeader: [sameOrigin] }]
-            ]),
-        config.eventPluginsToLoad
-      ),
+      telemetries: Array.isArray(config.telemetries)
+        ? withoutUnsetOptions(config.telemetries)
+        : (config.telemetries ?? [
+            'errors',
+            'performance',
+            ['http', { addXRayTraceIdHeader: [sameOrigin] }]
+          ]),
 
       ...(config.client != null ? { client: config.client } : {}),
 
@@ -956,6 +927,34 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     });
   }
 
+  /**
+   * Hands an error to RUM's `recordError`, which RUM rejects when its
+   * `errors` telemetry isn't loaded. The sink never edits the app's RUM
+   * config, so that is reported once, in every environment, and the error is
+   * not mirrored. Any other failure propagates to the caller's fail-open guard.
+   */
+  private recordErrorTo(
+    awsRum: AwsRum,
+    error: UwtTelemetryError,
+    metadata?: UwtTelemetryMetadata
+  ): void {
+    try {
+      awsRum.recordError(this.withOrigin(error, metadata));
+    } catch (failure) {
+      if (!/invalid plugin id/i.test(String((failure as Error)?.message))) {
+        throw failure;
+      }
+      if (!this.errorPluginWarned) {
+        this.errorPluginWarned = true;
+        uwtSafeVoid('rum.reportMissingErrorPlugin', () => {
+          console.warn(
+            "[ngx-ui-watchtower] RUM's 'errors' telemetry isn't loaded, so errors aren't mirrored to RUM. Add it to the RUM telemetries, or set mirrorErrorsToRum: false."
+          );
+        });
+      }
+    }
+  }
+
   private bufferItem(item: BufferedItem): void {
     this.buffer.push(item);
     if (this.buffer.length > PRE_INIT_BUFFER_LIMIT) {
@@ -978,7 +977,9 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
         } else if (item.kind === 'pageView') {
           this.awsRum?.recordPageView(item.pageId);
         } else {
-          this.awsRum?.recordError(this.withOrigin(item.error, item.metadata));
+          if (this.awsRum) {
+            this.recordErrorTo(this.awsRum, item.error, item.metadata);
+          }
         }
       });
     }

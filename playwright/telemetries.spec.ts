@@ -44,11 +44,12 @@ const cases: {
     name: 'none',
     telemetries: [],
     chip: 'none',
-    // Only RUM's session start and page views, and the mirrored error.
+    // Only RUM's session start and page views: without 'errors', RUM rejects
+    // the mirrored error, so no error event is sent either.
     expected: (t) =>
-      expect(
-        t.filter((type) => !/session_start|page_view|js_error/.test(type))
-      ).toEqual([])
+      expect(t.filter((type) => !/session_start|page_view/.test(type))).toEqual(
+        []
+      )
   },
   {
     name: 'all five',
@@ -60,7 +61,7 @@ const cases: {
 ];
 
 for (const { name, telemetries, chip, expected } of cases) {
-  test(`RUM telemetries, ${name}: as set, quiet while idle, errors still mirrored`, async ({
+  test(`RUM telemetries, ${name}: as set, quiet while idle, errors mirrored only with 'errors'`, async ({
     page,
     backend
   }) => {
@@ -82,15 +83,19 @@ for (const { name, telemetries, chip, expected } of cases) {
     expect((await mine()).length).toBe(loaded);
 
     await press(page, 'error, with an Error');
-    await expect
-      .poll(async () =>
-        (await mine()).some(
-          (e) =>
-            e.type === 'com.amazon.rum.js_error_event' &&
-            JSON.stringify(e.details).includes('Connection reset')
-        )
-      )
-      .toBe(true);
+    const mirrored = async () =>
+      (await mine()).some(
+        (e) =>
+          e.type === 'com.amazon.rum.js_error_event' &&
+          JSON.stringify(e.details).includes('Connection reset')
+      );
+    if (telemetries === null || telemetries.includes('errors')) {
+      await expect.poll(mirrored).toBe(true);
+    } else {
+      // RUM rejects the error without its 'errors' telemetry; give it time.
+      await page.waitForTimeout(2000);
+      expect(await mirrored()).toBe(false);
+    }
 
     const events = await mine();
     expect(events.filter((e) => JSON.stringify(e).includes('/__lab/'))).toEqual(
