@@ -109,9 +109,10 @@ export interface UwtRumAppMonitorConfig {
 
   /**
    * Built-in telemetry categories to enable. Defaults to errors, performance
-   * and same-origin HTTP. The SDK's own default also includes `'replay'`
-   * (session replay via `rrweb`); this library does not enable it by
-   * default.
+   * and HTTP, with the X-Ray header on same-origin requests (relative URLs
+   * included). The `http` entry also covers fragment realms that forward to
+   * this one. The SDK's own default also includes `'replay'` (session replay
+   * via `rrweb`); this library does not enable it by default.
    *
    * Options the SDK matches with `RegExp.test` or calls as a function —
    * `urlsToInclude`, `urlsToExclude`, `addXRayTraceIdHeader` (also a
@@ -132,7 +133,10 @@ export interface UwtRumAppMonitorConfig {
   /** Whether to emit X-Ray trace ids. Default `true`. */
   enableXRay?: boolean;
 
-  /** Whether to emit W3C trace context ids alongside X-Ray's. Default `false`. */
+  /**
+   * Sends the trace header in W3C format, `traceparent`, instead of
+   * `X-Amzn-Trace-Id`. X-Ray still records the trace. Default `false`.
+   */
   enableW3CTraceId?: boolean;
 
   /** Whether resource-timing events record the resource's URL. Default `true`. */

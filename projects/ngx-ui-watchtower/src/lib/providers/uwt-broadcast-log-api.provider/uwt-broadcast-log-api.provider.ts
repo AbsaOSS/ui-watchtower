@@ -50,7 +50,7 @@ export class UwtBroadcastLogApiProvider
   implements UwtLogApiProvider, OnDestroy
 {
   private readonly connection: UwtBroadcastConnection =
-    uwtConnectBroadcastChannel('broadcastLogApi');
+    uwtConnectBroadcastChannel('broadcastLogApi', { followShellChannel: true });
 
   private readonly pending = new Map<string, UwtPendingLogQuery>();
 
