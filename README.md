@@ -2,11 +2,11 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo/logo-stacked-dark.svg">
     <source media="(prefers-color-scheme: light)" srcset="assets/logo/logo-stacked-light.svg">
-    <img src="assets/logo/logo-stacked-auto.svg" alt="Angular UI Watchtower" width="280">
+    <img src="assets/logo/logo-stacked-auto.svg" alt="UI Watchtower" width="280">
   </picture>
 </p>
 
-# Angular UI Watchtower
+# UI Watchtower
 
 Source of [`@absaoss-cps/ngx-ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ngx-ui-watchtower),
 a telemetry library for Angular apps: scenarios (user end-to-end journeys or specific functional workflows through an app), BI events and

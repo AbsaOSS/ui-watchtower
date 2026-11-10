@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/logo-stacked-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/logo-stacked-light.svg">
+    <img src="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/logo-stacked-auto.svg" alt="UI Watchtower" width="280">
+  </picture>
+</p>
+
 # ui-watchtower
 
 The framework-independent engine behind
