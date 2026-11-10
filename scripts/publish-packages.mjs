@@ -93,13 +93,13 @@ function git(run, args) {
   return result.stdout;
 }
 
+/**
+ * A lightweight tag is listed as its commit; an annotated one as its tag
+ * object, and as `^{}` the commit it points at, listed only when asked for.
+ */
 function tagPointsAt(run, release, head) {
-  const listing = git(run, [
-    'ls-remote',
-    '--tags',
-    'origin',
-    `refs/tags/${release.tag}`
-  ]);
+  const ref = `refs/tags/${release.tag}`;
+  const listing = git(run, ['ls-remote', '--tags', 'origin', ref, `${ref}^{}`]);
   return listing.split('\n').some((line) => line.split('\t')[0] === head);
 }
 

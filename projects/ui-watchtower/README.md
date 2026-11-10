@@ -80,9 +80,11 @@ const telemetry = uwtCreateTelemetry({ ...options, enabled: false });
 When off, nothing is recorded, sent or logged, and nothing listens to the
 page. Your code doesn't change: `start()` still returns a scenario (inert:
 it records nothing and never settles), lookups find nothing, loggers do
-nothing and `query()` resolves `[]`. The RUM sink and the broadcast classes
-take the same `enabled`: pass it to them too, and off they request no
-credentials, download no SDK and open no channel.
+nothing and `query()` resolves `[]`. Pass the switch on to what you created
+for the engine, so that off it requests no credentials, downloads no SDK and
+opens no channel: `enabled` to the RUM sink and the broadcast classes, and
+`open` to `uwtConnectBroadcastChannel()`. A sink and log provider sharing a
+connection ignore their own `enabled`: the connection decides.
 
 ## AWS CloudWatch RUM
 
@@ -229,7 +231,7 @@ only the public entry points above: no deep import, no private file.
    the RUM sink, started with an unawaited `init()`; for a fragment, the
    broadcast sink and log provider sharing one `uwtConnectBroadcastChannel()`;
    for a shell, a `UwtTelemetryBroadcastHost`. Pass each the engine's
-   `enabled`.
+   `enabled`, and the shared connection `open: enabled`.
 6. **Teardown.** When the application or fragment is destroyed, dispose the
    engine and then what you created for it. Every `dispose()` can be called
    more than once.

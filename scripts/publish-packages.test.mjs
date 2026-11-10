@@ -26,12 +26,13 @@ after(() =>
 );
 
 /**
- * Both packages built at 0.5.0; `tags` point at HEAD, `elsewhere` at another
- * commit; the registry holds `onNpm`. `failing` makes a command fail:
+ * Both packages built at 0.5.0; `tags` point at HEAD, `annotated` too as
+ * annotated tags, `elsewhere` at another commit; the registry holds `onNpm`. `failing` makes a command fail:
  * `{ 'view <spec>': '<npm error code>', 'publish <name>': true }`.
  */
 function workspace({
   tags = [CORE_TAG, NGX_TAG],
+  annotated = [],
   elsewhere = [],
   onNpm = [],
   failing = {},
@@ -70,13 +71,29 @@ function workspace({
       return ok(`${HEAD}\n`);
     }
     if (command === 'git' && args[0] === 'ls-remote') {
-      const tag = args.at(-1).replace('refs/tags/', '');
-      const sha = tags.includes(tag)
+      // As git lists them: a lightweight tag as its commit, an annotated one
+      // as its tag object and then `^{}` its commit; only the refs asked for.
+      const asked = args.slice(3);
+      const tag = asked[0].replace('refs/tags/', '').replace(/\^\{\}$/, '');
+      const sha = [...tags, ...annotated].includes(tag)
         ? HEAD
         : elsewhere.includes(tag)
           ? 'f00ba47'
           : '';
-      return ok(sha ? `${sha}\trefs/tags/${tag}\n` : '');
+      const listed = !sha
+        ? []
+        : annotated.includes(tag)
+          ? [
+              ['7a9c0b1', `refs/tags/${tag}`],
+              [sha, `refs/tags/${tag}^{}`]
+            ]
+          : [[sha, `refs/tags/${tag}`]];
+      return ok(
+        listed
+          .filter(([, ref]) => asked.includes(ref))
+          .map(([at, ref]) => `${at}\t${ref}\n`)
+          .join('')
+      );
     }
     if (command === 'npm' && args[0] === 'view') {
       const spec = args[1];
@@ -150,6 +167,14 @@ describe('publishing a release', () => {
     publishPackages(release);
 
     assert.deepEqual(release.published, []);
+  });
+
+  it('publishes on annotated release tags, as on lightweight ones', () => {
+    const release = workspace({ tags: [], annotated: [CORE_TAG, NGX_TAG] });
+
+    publishPackages(release);
+
+    assert.deepEqual(release.published, [CORE, NGX]);
   });
 
   it('publishes nothing at a commit no release tag points at', () => {
