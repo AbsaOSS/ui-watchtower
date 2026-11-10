@@ -1,9 +1,6 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/logo-stacked-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/logo/logo-stacked-light.svg">
-    <img src="assets/logo/logo-stacked-auto.svg" alt="UI Watchtower" width="280">
-  </picture>
+  <img src="assets/logo/logo-stacked-light.svg#gh-light-mode-only" alt="UI Watchtower" width="280">
+  <img src="assets/logo/logo-stacked-dark.svg#gh-dark-mode-only" alt="UI Watchtower" width="280">
 </p>
 
 # UI Watchtower
