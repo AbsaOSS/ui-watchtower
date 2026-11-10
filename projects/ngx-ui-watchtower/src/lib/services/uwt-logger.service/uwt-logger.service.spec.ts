@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable, OnDestroy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   UWT_REDACTED,
@@ -852,6 +852,33 @@ describe('UwtLoggerService', () => {
       TestBed.inject(UwtLoggerService);
 
       expect(() => window.dispatchEvent(new Event('pagehide'))).not.toThrow();
+    });
+  });
+
+  describe('teardown', () => {
+    it('should still ship a line logged by a service destroyed after the logger service', () => {
+      // Angular destroys a service before those that inject it, so this one
+      // logs after UwtLoggerService has been destroyed.
+      @Injectable({ providedIn: 'root' })
+      class ClosingService implements OnDestroy {
+        private readonly logger = inject(UwtLoggerService).getLogger('closing');
+
+        ngOnDestroy(): void {
+          this.logger.log('closing');
+        }
+      }
+      TestBed.inject(ClosingService);
+
+      TestBed.resetTestingModule();
+
+      expect(transport.records.map((r) => r.message)).toContain('closing');
+    });
+
+    it('should keep answering queries after the logger service is destroyed', async () => {
+      logger.log('before');
+      service.ngOnDestroy();
+
+      await expect(service.query({})).resolves.toHaveLength(1);
     });
   });
 });

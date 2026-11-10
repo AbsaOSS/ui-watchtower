@@ -848,7 +848,8 @@ export class UwtScenario {
   }
 
   private runOutside<T>(callback: () => T): T {
-    return this.deps.runOutside?.(callback) ?? callback();
+    const { runOutside } = this.deps;
+    return runOutside ? runOutside(callback) : callback();
   }
 
   /**

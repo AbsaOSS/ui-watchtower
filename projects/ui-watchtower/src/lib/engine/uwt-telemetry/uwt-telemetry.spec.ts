@@ -503,17 +503,15 @@ describe('uwtCreateTelemetry', () => {
     it('should leave everything inert afterwards, with no timer or listener', () => {
       jest.useFakeTimers();
       const listener = jest.fn();
-      const { telemetry, sink, logApi } = engine({
+      const { telemetry, sink } = engine({
         scenarios: { defaultTimeoutMs: 60_000 }
       });
       telemetry.scenarios.onSettled(listener);
-      const logger = telemetry.logging.getLogger('checkout');
 
       telemetry.dispose();
       const late = telemetry.scenarios.start({ name: 'checkout' });
       late.complete();
       telemetry.bi.track('export_clicked');
-      logger.error('late');
       telemetry.setUserId('user-1');
 
       expect(late.isSettled).toBe(false);
@@ -521,7 +519,17 @@ describe('uwtCreateTelemetry', () => {
       expect(listener).not.toHaveBeenCalled();
       expect(sink.events).toEqual([]);
       expect(sink.userId).toBeUndefined();
-      expect(logApi.records).toEqual([]);
+    });
+
+    it("should keep loggers writing to the log store afterwards: it is the application's, and holds no resource", async () => {
+      const { telemetry, logApi } = engine();
+      const logger = telemetry.logging.getLogger('checkout');
+
+      telemetry.dispose();
+      logger.error('late');
+
+      expect(logApi.records.map((r) => r.message)).toEqual(['late']);
+      await expect(telemetry.logging.query({})).resolves.toHaveLength(1);
     });
 
     it('should dispose each concern only once', () => {

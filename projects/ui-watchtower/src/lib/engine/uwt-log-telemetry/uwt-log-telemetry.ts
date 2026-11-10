@@ -162,7 +162,7 @@ export class UwtLogTelemetry {
    * @returns the matching records, or `[]` when none can be read
    */
   async query(filter: UwtLogQuery = {}): Promise<UwtLogRecord[]> {
-    if (!this.enabled || this.disposed) {
+    if (!this.enabled) {
       return [];
     }
     const pending = uwtSafe(
@@ -218,8 +218,11 @@ export class UwtLogTelemetry {
 
   /**
    * Stops watching the page and gives the log store its last chance to
-   * ship what it holds; every logger writes nothing from then on. Calling
-   * it again does nothing.
+   * ship what it holds. Loggers keep writing to the log store, and
+   * {@link query} keeps reading it: it is the application's, and logging
+   * holds no timer, listener or channel to release. That matters when
+   * something logs while the application shuts down, after this was
+   * disposed. Calling it again does nothing.
    */
   dispose(): void {
     if (this.disposed) {
@@ -263,9 +266,6 @@ export class UwtLogTelemetry {
     message: string,
     detail?: UwtLogDetail
   ): void {
-    if (this.disposed) {
-      return;
-    }
     uwtSafeVoid(
       `logger.${level}`,
       () => {

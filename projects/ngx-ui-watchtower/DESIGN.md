@@ -243,7 +243,9 @@ providers: [
   fixes each entry point's `rootDir` to its own `src`, so
   `@absaoss-cps/ngx-ui-watchtower/rum` can't import the main entry's
   internals by relative path and carries small copies of what it needs: its
-  Angular helpers and the reporter.
+  Angular helpers and the reporter. A spec (`uwt-rum-internal.util.spec.ts`)
+  runs both copies against the same cases, and fails if their exports or
+  behaviour differ, so they can't drift apart.
 - **What is published is tested as published.** `npm run smoke` installs
   both tarballs into consumers outside the workspace: a framework-free one
   with neither Angular nor `aws-rum-web` installed, and an Angular

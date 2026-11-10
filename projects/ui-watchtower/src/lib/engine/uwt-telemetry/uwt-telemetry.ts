@@ -86,9 +86,11 @@ export interface UwtTelemetry {
   flush(beacon?: boolean): void;
   /**
    * Stops watching the page, settles scenarios still in flight as abandoned
-   * and flushes, then does nothing more: every concern is inert from then
-   * on, and no listener or timer of this engine is left. Calling it again
-   * does nothing. The destination and the log store stay yours to close.
+   * and flushes. Scenarios and BI events are inert from then on, and no
+   * listener or timer of this engine is left. Loggers you hold keep writing
+   * to the log store, which stays yours, like the destination: something may
+   * still log while the application shuts down. Calling it again does
+   * nothing.
    */
   dispose(): void;
 }

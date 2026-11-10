@@ -134,6 +134,40 @@ describe('the core broadcast classes', () => {
       expect(ChannelStub.open.size).toBe(0);
     });
 
+    it('should send nothing once disposed, though the shared connection stays open for others', async () => {
+      const shell = new ChannelStub(UWT_DEFAULT_BROADCAST_CHANNEL);
+      const heard: Record<string, unknown>[] = [];
+      shell.onmessage = ({ data }) =>
+        heard.push(data as Record<string, unknown>);
+      const connection = uwtConnectBroadcastChannel();
+      const sink = new UwtBroadcastTelemetrySink({ identity, connection });
+      const logApi = new UwtBroadcastLogApiProvider({ connection });
+      await settle();
+      heard.length = 0;
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+
+      sink.dispose();
+      logApi.dispose();
+      sink.record('com.uwt.bi', { eventName: 'x' });
+      sink.recordError({ name: 'Error', message: 'boom' });
+      sink.setUserId('u-1');
+      sink.flush(true);
+      logApi.send(record('hi'));
+      logApi.flush();
+      const query = logApi.query({});
+
+      expect(jest.getTimerCount()).toBe(0);
+      await expect(query).resolves.toEqual([]);
+      jest.useRealTimers();
+      await settle();
+      expect(heard).toEqual([]);
+      expect(connection.isOpen()).toBe(true);
+      connection.post({ kind: 'flush', beacon: false });
+      await settle();
+      expect(heard).toEqual([{ kind: 'flush', beacon: false }]);
+      connection.close();
+    });
+
     it('should open nothing while disabled', async () => {
       const sink = new UwtBroadcastTelemetrySink({ identity, enabled: false });
       const logApi = new UwtBroadcastLogApiProvider({ enabled: false });

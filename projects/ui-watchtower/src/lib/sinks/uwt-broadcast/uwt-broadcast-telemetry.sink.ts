@@ -10,6 +10,7 @@ import {
 import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import {
   UwtBroadcastConnection,
+  UwtBroadcastMessage,
   uwtConnectBroadcastChannel,
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
@@ -59,6 +60,8 @@ export class UwtBroadcastTelemetrySink extends UwtTelemetrySink {
   private readonly ownsConnection: boolean;
   private readonly stopListening: () => void;
   private readonly report?: UwtReporter;
+  /** Set by {@link dispose}: nothing is forwarded after, even on a shared connection. */
+  private disposed = false;
 
   /** The host's session id, once it has answered. */
   private sessionId?: string;
@@ -109,7 +112,7 @@ export class UwtBroadcastTelemetrySink extends UwtTelemetrySink {
     payload: object,
     metadata?: UwtTelemetryMetadata
   ): void {
-    this.connection.post({
+    this.post({
       kind: 'event',
       eventType,
       payload,
@@ -119,7 +122,7 @@ export class UwtBroadcastTelemetrySink extends UwtTelemetrySink {
 
   /** @inheritdoc */
   recordError(error: UwtTelemetryError, metadata?: UwtTelemetryMetadata): void {
-    this.connection.post({
+    this.post({
       kind: 'error',
       error,
       metadata: { ...metadata, ...this.origin }
@@ -140,7 +143,7 @@ export class UwtBroadcastTelemetrySink extends UwtTelemetrySink {
   /** @inheritdoc */
   setUserId(userId: string | undefined): void {
     this.userId = userId;
-    this.connection.post({ kind: 'user', userId });
+    this.post({ kind: 'user', userId });
   }
 
   /** @inheritdoc */
@@ -150,17 +153,25 @@ export class UwtBroadcastTelemetrySink extends UwtTelemetrySink {
 
   /** @inheritdoc */
   flush(beacon = false): void {
-    this.connection.post({ kind: 'flush', beacon });
+    this.post({ kind: 'flush', beacon });
   }
 
   /**
-   * Stops listening, and closes the channel if this sink opened it. Calling
-   * it again does nothing.
+   * Stops listening and forwarding, and closes the channel if this sink
+   * opened it. A shared connection stays open for its other users, but this
+   * sink sends nothing over it any more. Calling it again does nothing.
    */
   dispose(): void {
+    this.disposed = true;
     this.stopListening();
     if (this.ownsConnection) {
       this.connection.close();
+    }
+  }
+
+  private post(message: UwtBroadcastMessage): void {
+    if (!this.disposed) {
+      this.connection.post(message);
     }
   }
 

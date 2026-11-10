@@ -90,6 +90,8 @@ export class UwtBroadcastLogApiProvider implements UwtLogApiProvider {
   private readonly runInside: <T>(callback: () => T) => T;
   private readonly report?: UwtReporter;
   private readonly pending = new Map<string, UwtPendingLogQuery>();
+  /** Set by {@link dispose}: nothing is sent or asked after, even on a shared connection. */
+  private disposed = false;
 
   constructor(options: UwtBroadcastLogApiProviderOptions = {}) {
     this.report = options.report;
@@ -114,12 +116,14 @@ export class UwtBroadcastLogApiProvider implements UwtLogApiProvider {
 
   /** @inheritdoc */
   send(record: UwtLogRecord): void {
-    this.connection.post({ kind: 'log', record });
+    if (!this.disposed) {
+      this.connection.post({ kind: 'log', record });
+    }
   }
 
   /** @inheritdoc */
   query(filter: UwtLogQuery): Promise<UwtLogRecord[]> {
-    if (!this.connection.isOpen()) {
+    if (this.disposed || !this.connection.isOpen()) {
       return Promise.resolve([]);
     }
 
@@ -138,14 +142,20 @@ export class UwtBroadcastLogApiProvider implements UwtLogApiProvider {
 
   /** @inheritdoc */
   flush(): void {
-    this.connection.post({ kind: 'log-flush' });
+    if (!this.disposed) {
+      this.connection.post({ kind: 'log-flush' });
+    }
   }
 
   /**
    * Resolves every unanswered query to `[]`, stops listening, and closes
-   * the channel if this provider opened it. Calling it again does nothing.
+   * the channel if this provider opened it. A shared connection stays open
+   * for its other users, but this provider sends nothing over it any more,
+   * and every later query resolves to `[]` at once. Calling it again does
+   * nothing.
    */
   dispose(): void {
+    this.disposed = true;
     for (const id of [...this.pending.keys()]) {
       this.answer(id, []);
     }

@@ -34,7 +34,10 @@ npm install aws-rum-web   # only for the AWS RUM sink
 
 Requires Angular 21 or 22 and RxJS 7.8. It installs
 `@absaoss-cps/ui-watchtower` with it: there is nothing more to install or
-configure.
+configure. If your application also imports the core directly, don't install
+a version this package doesn't accept: npm would keep two copies, and name
+declarations and `instanceof` checks would no longer match between them. Let
+npm pick one version for both.
 
 Upgrading from 0.4 needs no code or configuration change: the imports,
 providers, services, name declarations and behavior stay the same.

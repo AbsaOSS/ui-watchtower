@@ -270,6 +270,25 @@ describe('UwtScenario, in detail', () => {
 
       expect(long.status).toBe('timeout');
     });
+
+    it('should schedule its timeout once, though runOutside hands nothing back', () => {
+      jest.useFakeTimers();
+      const outside = jest.fn((callback: () => unknown) => {
+        callback();
+      });
+
+      scenario(
+        'slow',
+        {},
+        {
+          timeoutMs: 1000,
+          runOutside: outside as unknown as UwtScenarioDeps['runOutside']
+        }
+      );
+
+      expect(outside).toHaveBeenCalledTimes(1);
+      expect(jest.getTimerCount()).toBe(1);
+    });
   });
 
   describe('debug output', () => {

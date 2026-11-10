@@ -40,7 +40,7 @@ export function uwtBrowserDocument(): Document | null {
  */
 export function uwtRunOutsideZone(): <T>(callback: () => T) => T {
   const zone = inject(NgZone, { optional: true });
-  return (callback) => zone?.runOutsideAngular(callback) ?? callback();
+  return (callback) => (zone ? zone.runOutsideAngular(callback) : callback());
 }
 
 /**
