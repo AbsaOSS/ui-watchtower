@@ -85,7 +85,6 @@ export class UwtBITelemetry {
 
   private readonly eventTypes: UwtTelemetryEventTypes;
   private readonly lastEmittedAt = new Map<string, number>();
-  private disposed = false;
 
   constructor(options: UwtBITelemetryOptions) {
     this.identity = options.identity;
@@ -111,7 +110,7 @@ export class UwtBITelemetry {
     metadata?: UwtTelemetryMetadata,
     detail?: UwtBIEventDetail
   ): void {
-    if (!this.enabled || this.disposed) {
+    if (!this.enabled) {
       return;
     }
     uwtSafeVoid(
@@ -173,9 +172,12 @@ export class UwtBITelemetry {
     );
   }
 
-  /** Tracks nothing from now on, and forgets recent events. Calling it again does nothing. */
+  /**
+   * Forgets recent events. Tracking still works afterwards: it holds no
+   * timer, listener or channel, and something may still track while an
+   * application shuts down. Calling it again does nothing more.
+   */
   dispose(): void {
-    this.disposed = true;
     this.lastEmittedAt.clear();
   }
 

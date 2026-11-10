@@ -131,10 +131,10 @@ export class UwtScenarioTelemetry {
    * @param options the scenario name and optional classification, timeout and
    *   attributes
    * @returns an independent scenario instance; an inert one while telemetry
-   *   is off or once this is disposed
+   *   is off
    */
   start(options: UwtScenarioOptions): UwtScenario {
-    if (!this.enabled || this.disposed) {
+    if (!this.enabled) {
       // Same return type, nothing recorded, timed, registered or sent.
       return new UwtScenario(options, {
         identity: this.identity,
@@ -145,6 +145,9 @@ export class UwtScenarioTelemetry {
         inert: true
       });
     }
+    // Nothing here depends on whether this was disposed: something may still
+    // start a scenario while an application shuts down, and the destination is
+    // the caller's. Such a scenario is a normal one, with its own timeout.
     const scenario = new UwtScenario(options, {
       identity: this.identity,
       scenarioTelemetryConfig: this.config,
@@ -251,9 +254,9 @@ export class UwtScenarioTelemetry {
 
   /**
    * Stops watching the page, settles every scenario still in flight as
-   * abandoned and flushes the sink, then calls no listener again. Every
-   * later {@link start} returns an inert scenario. Calling it again does
-   * nothing.
+   * abandoned and flushes the sink, then forgets the listeners. Nothing else
+   * changes: a scenario started later is a normal one, with its own timeout.
+   * Calling it again does nothing.
    */
   dispose(): void {
     if (this.disposed) {

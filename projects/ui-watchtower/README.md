@@ -82,10 +82,11 @@ Configuration errors still throw, when the engine is created.
 | `runOutside`                              | Schedules timers outside a framework's change detection                                            |
 
 `dispose()` stops watching the page, settles scenarios still in flight as
-abandoned and flushes. Scenarios and BI events record nothing after that, and
-no listener or timer is left behind. Loggers you hold keep writing to your log
-store, since something may still log while your application shuts down. The
-destination and log store you passed are yours to close.
+abandoned and flushes; no listener is left behind, and nothing the engine had
+scheduled. That is all it changes. Something may still run while your
+application shuts down, and the destination and log store you passed are
+yours, so scenarios, BI events and logs started afterwards work as before. You
+close the destination and the log store.
 
 ### Turning telemetry off
 

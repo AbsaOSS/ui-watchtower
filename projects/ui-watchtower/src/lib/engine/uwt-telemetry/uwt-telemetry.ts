@@ -86,11 +86,11 @@ export interface UwtTelemetry {
   flush(beacon?: boolean): void;
   /**
    * Stops watching the page, settles scenarios still in flight as abandoned
-   * and flushes. Scenarios and BI events are inert from then on, and no
-   * listener or timer of this engine is left. Loggers you hold keep writing
-   * to the log store, which stays yours, like the destination: something may
-   * still log while the application shuts down. Calling it again does
-   * nothing.
+   * and flushes. No listener of this engine is left, and nothing it had
+   * scheduled. That is all it changes: something may still run while an
+   * application shuts down, and the destination and the log store are
+   * yours, so scenarios, BI events and logs started afterwards work as
+   * before. Calling it again does nothing.
    */
   dispose(): void;
 }
@@ -151,14 +151,13 @@ export function uwtCreateTelemetry(options: UwtTelemetryOptions): UwtTelemetry {
   });
 
   let disposed = false;
-  const live = () => enabled && !disposed;
 
   return {
     scenarios,
     bi,
     logging,
     setUserId(userId) {
-      if (live()) {
+      if (enabled) {
         uwtSafeVoid(
           'telemetry.setUserId',
           () => destination.setUserId(userId),
@@ -167,7 +166,7 @@ export function uwtCreateTelemetry(options: UwtTelemetryOptions): UwtTelemetry {
       }
     },
     flush(beacon) {
-      if (live()) {
+      if (enabled) {
         uwtSafeVoid('telemetry.flush', () => destination.flush(beacon), report);
         uwtSafeVoidMaybeAsync(
           'telemetry.logFlush',

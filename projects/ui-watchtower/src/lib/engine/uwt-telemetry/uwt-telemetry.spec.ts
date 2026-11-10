@@ -500,25 +500,60 @@ describe('uwtCreateTelemetry', () => {
       expect(logApi.flushCount).toBe(1);
     });
 
-    it('should leave everything inert afterwards, with no timer or listener', () => {
-      jest.useFakeTimers();
-      const listener = jest.fn();
-      const { telemetry, sink } = engine({
-        scenarios: { defaultTimeoutMs: 60_000 }
-      });
-      telemetry.scenarios.onSettled(listener);
-
+    it('should change nothing else afterwards: BI events, the user and flushes still reach the destination', () => {
+      const { telemetry, sink } = engine();
       telemetry.dispose();
-      const late = telemetry.scenarios.start({ name: 'checkout' });
-      late.complete();
+      const flushedByDispose = sink.flushes.length;
+
       telemetry.bi.track('export_clicked');
       telemetry.setUserId('user-1');
+      telemetry.flush(false);
 
-      expect(late.isSettled).toBe(false);
-      expect(jest.getTimerCount()).toBe(0);
+      expect(sink.ofType('com.cart.bi')).toEqual([
+        expect.objectContaining({ eventName: 'export_clicked' })
+      ]);
+      expect(sink.userId).toBe('user-1');
+      expect(sink.flushes.slice(flushedByDispose)).toEqual([false]);
+    });
+
+    it('should forget the listeners it had, and watch the page no more', () => {
+      const listener = jest.fn();
+      const { telemetry, sink } = engine();
+      telemetry.scenarios.onSettled(listener);
+      const flushesBefore = sink.flushes.length;
+
+      telemetry.dispose();
+      window.dispatchEvent(new Event('pagehide'));
+      telemetry.scenarios.start({ name: 'checkout' }).complete();
+
+      expect(sink.flushes).toHaveLength(flushesBefore + 1); // dispose's own
       expect(listener).not.toHaveBeenCalled();
-      expect(sink.events).toEqual([]);
-      expect(sink.userId).toBeUndefined();
+    });
+
+    it('should treat a scenario started afterwards as a normal one: recorded when ended', () => {
+      const { telemetry, sink } = engine();
+      telemetry.dispose();
+
+      telemetry.scenarios.start({ name: 'checkout' }).complete();
+
+      expect(sink.ofType('com.cart.scenario')).toEqual([
+        expect.objectContaining({ scenarioName: 'checkout', status: 'success' })
+      ]);
+    });
+
+    it('should time out a scenario started afterwards and never ended, as any other', () => {
+      jest.useFakeTimers();
+      const { telemetry, sink } = engine({
+        scenarios: { defaultTimeoutMs: 5_000 }
+      });
+      telemetry.dispose();
+
+      telemetry.scenarios.start({ name: 'checkout' });
+      jest.advanceTimersByTime(5_000);
+
+      expect(sink.ofType('com.cart.scenario')).toEqual([
+        expect.objectContaining({ scenarioName: 'checkout', status: 'timeout' })
+      ]);
     });
 
     it("should keep loggers writing to the log store afterwards: it is the application's, and holds no resource", async () => {

@@ -1,4 +1,4 @@
-import { Injectable, NgZone } from '@angular/core';
+import { inject, Injectable, NgZone, OnDestroy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   UWT_REDACTED,
@@ -2146,6 +2146,44 @@ describe('UwtScenarioTelemetryService', () => {
         status: 'success',
         metadata: { real: true }
       });
+    });
+  });
+
+  describe('teardown', () => {
+    it('should still record a scenario that a service starts and ends in its own ngOnDestroy', () => {
+      // Angular destroys a service before those that inject it, so this one
+      // starts its scenario after UwtScenarioTelemetryService was destroyed.
+      @Injectable({ providedIn: 'root' })
+      class ClosingService implements OnDestroy {
+        private readonly scenarios = inject(UwtScenarioTelemetryService);
+
+        ngOnDestroy(): void {
+          this.scenarios.start({ name: 'closing' }).complete();
+        }
+      }
+      TestBed.inject(ClosingService);
+
+      TestBed.resetTestingModule();
+
+      expect(onlyScenarioRecord()).toMatchObject({
+        scenarioName: 'closing',
+        status: 'success'
+      });
+    });
+
+    it('should still time out a scenario started after destroy and never ended, as before', () => {
+      jest.useFakeTimers();
+      configure({ defaultTimeoutMs: 5_000 });
+
+      service.ngOnDestroy();
+      service.start({ name: 'late' });
+      jest.advanceTimersByTime(5_000);
+
+      expect(onlyScenarioRecord()).toMatchObject({
+        scenarioName: 'late',
+        status: 'timeout'
+      });
+      jest.useRealTimers();
     });
   });
 
