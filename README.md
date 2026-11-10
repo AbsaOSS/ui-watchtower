@@ -181,6 +181,7 @@ publishes the core from that PR's branch:
 
 ```bash
 npm login
+git fetch origin
 git switch release-please--branches--main
 npm ci && npm run build
 npm publish dist/ui-watchtower
