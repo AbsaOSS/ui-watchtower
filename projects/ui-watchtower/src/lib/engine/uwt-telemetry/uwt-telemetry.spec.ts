@@ -13,6 +13,7 @@ import {
 } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { UWT_REDACTED } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
+import * as uwtTelemetrySafeUtil from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import { UwtTelemetryOptions, uwtCreateTelemetry } from './uwt-telemetry';
 
 /** Keeps what the engine sends, so a test can assert on it. */
@@ -511,6 +512,138 @@ describe('uwtCreateTelemetry', () => {
       expect(sink.events).toEqual([]);
       expect(sink.userId).toBeUndefined();
       expect(logApi.records).toEqual([]);
+    });
+
+    it('should dispose each concern only once', () => {
+      const { telemetry, logApi } = engine();
+
+      telemetry.logging.dispose();
+      telemetry.logging.dispose();
+      telemetry.scenarios.dispose();
+      telemetry.scenarios.dispose();
+
+      expect(logApi.flushCount).toBe(1);
+    });
+  });
+
+  describe('BI event details', () => {
+    it('should drop an event without a name', () => {
+      const { telemetry, sink } = engine();
+
+      telemetry.bi.track('' as never);
+
+      expect(sink.events).toEqual([]);
+    });
+
+    it('should write events to the console under debugBI', () => {
+      localStorage.setItem('debugBI', 'true');
+      const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+      const { telemetry } = engine();
+
+      telemetry.bi.track('export_clicked');
+
+      expect(log).toHaveBeenCalledWith(
+        '[cart][bi] export_clicked -> com.cart.bi',
+        expect.objectContaining({ eventName: 'export_clicked' })
+      );
+      localStorage.removeItem('debugBI');
+    });
+
+    it('should forget expired events first, then the oldest, once it remembers dedupMaxKeys', () => {
+      jest.useFakeTimers();
+      const { telemetry, sink } = engine({
+        bi: { dedupWindowMs: 1000, dedupMaxKeys: 2 }
+      });
+      const track = (name: string) => telemetry.bi.track(name as never);
+
+      track('a');
+      track('b');
+      jest.advanceTimersByTime(1001);
+      track('c'); // a and b have expired: forgotten
+      track('d');
+      track('e'); // nothing expired: c, the oldest, is forgotten
+      track('d'); // still remembered: a duplicate
+      track('c'); // forgotten, so recorded again
+
+      expect(sink.events.map((e) => e.payload.eventName)).toEqual([
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'c'
+      ]);
+    });
+  });
+
+  describe('logging details', () => {
+    it('should hand out a logger that does nothing while off', () => {
+      const { telemetry, logApi } = engine({ enabled: false });
+      const logger = telemetry.logging.getLogger('checkout');
+
+      logger.log('a');
+      logger.warn('b');
+      logger.error('c');
+
+      expect(logApi.records).toEqual([]);
+    });
+
+    it('should write records to the console under debugLogger, with logger, context and correlation id', () => {
+      localStorage.setItem('debugLogger', 'true');
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const { telemetry } = engine();
+
+      telemetry.logging
+        .getLogger('checkout')
+        .warn('Slow payment', { context: 'pay', correlationId: 'sc-1' });
+
+      expect(warn).toHaveBeenCalledWith(
+        '[cart][checkout][pay] Slow payment (sc-1)',
+        expect.objectContaining({ message: 'Slow payment' })
+      );
+      localStorage.removeItem('debugLogger');
+    });
+  });
+
+  describe('scenario details', () => {
+    it('should report a suspicious number of scenarios in flight', () => {
+      const report = jest.fn();
+      const { telemetry } = engine({ report });
+
+      for (let i = 0; i <= 50; i++) {
+        telemetry.scenarios.start({ name: 'checkout' });
+      }
+
+      expect(report).toHaveBeenCalledWith(
+        'warn',
+        expect.stringContaining('High number of active scenarios (51)')
+      );
+    });
+
+    it('should call no listener, and report, when a record cannot be copied for them', () => {
+      const report = jest.fn();
+      const listener = jest.fn();
+      const { telemetry, sink } = engine({ report });
+      telemetry.scenarios.onSettled(listener);
+      const copy = uwtTelemetrySafeUtil.uwtDeepClone;
+      jest
+        .spyOn(uwtTelemetrySafeUtil, 'uwtDeepClone')
+        .mockImplementation((value) => {
+          if ((value as { scenarioName?: unknown })?.scenarioName) {
+            throw new Error('cannot copy');
+          }
+          return copy(value);
+        });
+
+      telemetry.scenarios.start({ name: 'checkout' }).complete();
+
+      expect(listener).not.toHaveBeenCalled();
+      expect(sink.events).toHaveLength(1);
+      expect(report).toHaveBeenCalledWith(
+        'error',
+        'scenarioTelemetry.notify failed',
+        expect.any(Error)
+      );
     });
   });
 });

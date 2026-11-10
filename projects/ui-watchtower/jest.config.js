@@ -22,5 +22,8 @@ module.exports = {
     '{src,rxjs,rum}/**/*.ts',
     '!**/*.spec.ts',
     '!**/public-api.ts'
-  ]
+  ],
+  coverageThreshold: {
+    global: { statements: 90, branches: 90, functions: 90, lines: 90 }
+  }
 };

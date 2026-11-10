@@ -36,5 +36,8 @@ module.exports = {
     '!projects/**/public-api.ts',
     // Compiled by the typecheck, never run.
     '!projects/**/type-tests/**'
-  ]
+  ],
+  coverageThreshold: {
+    global: { statements: 90, branches: 90, functions: 90, lines: 90 }
+  }
 };
