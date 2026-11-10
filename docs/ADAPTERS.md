@@ -96,14 +96,16 @@ cover its wiring:
 ## Adding an adapter to this repository
 
 An adapter can live anywhere and depend on the published core. To release it
-from this repository, together with the core, at the same version:
+from this repository, with a version of its own; each core release then also
+releases it, with its dependency on the core moved:
 
-1. **The package.** `projects/<adapter>/` with its `package.json` (the
-   version the core has, and the core as a `^` dependency), README and
+1. **The package.** `projects/<adapter>/` with its `package.json` (its own
+   version, and `^` the core's current version as a dependency), README and
    LICENSE, built into `dist/<adapter>` by `npm run build`, after the core.
 2. **Release Please.** Add the package to `release-please-config.json`, with
-   a `component`, and add that component to the `linked-versions` group. Add
-   its path to `.release-please-manifest.json`, at the current version.
+   a `component` and an `initial-version` (e.g. `0.1.0`), its first release.
+   Release Please adds it to `.release-please-manifest.json` when it
+   releases.
 3. **Publishing.** Add it to `PACKAGES` in
    [scripts/publish-packages.mjs](../scripts/publish-packages.mjs), after the
    core, with `dependsOn: '@absaoss-cps/ui-watchtower'`. Add its
@@ -120,5 +122,5 @@ from this repository, together with the core, at the same version:
 5. **Docs.** Add a row to the root README's package table.
 
 Start with `PACKAGES`: `npm run test:release` then fails, in CI too, until
-the config, the manifest, the linked group, the package's `package.json` and
-the release job's outputs all match it.
+the config (or the manifest), the package's `package.json` and the release
+job's outputs all match it.

@@ -17,8 +17,8 @@ import { PACKAGES, publishPackages } from './publish-packages.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const [CORE, NGX] = PACKAGES.map((pkg) => pkg.name);
 const HEAD = 'a1b2c3d';
-const CORE_TAG = 'ui-watchtower-v0.5.0';
-const NGX_TAG = 'ngx-ui-watchtower-v0.5.0';
+const CORE_TAG = 'ui-watchtower-v0.6.0';
+const NGX_TAG = 'ngx-ui-watchtower-v0.5.2';
 
 const roots = [];
 after(() =>
@@ -26,7 +26,8 @@ after(() =>
 );
 
 /**
- * Both packages built at 0.5.0; `tags` point at HEAD, `annotated` too as
+ * Each package built at its own version: the core at 0.6.0, the Angular
+ * package at 0.5.2 on `^0.6.0`. `tags` point at HEAD, `annotated` too as
  * annotated tags, `elsewhere` at another commit; the registry holds `onNpm`. `failing` makes a command fail:
  * `{ 'view <spec>': '<npm error code>', 'publish <name>': true }`.
  */
@@ -36,14 +37,14 @@ function workspace({
   elsewhere = [],
   onNpm = [],
   failing = {},
-  range = '^0.5.0',
+  range = '^0.6.0',
   built = {}
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'uwt-publish-'));
   roots.push(root);
   const manifests = {
-    [CORE]: { name: CORE, version: '0.5.0' },
-    [NGX]: { name: NGX, version: '0.5.0', dependencies: { [CORE]: range } },
+    [CORE]: { name: CORE, version: '0.6.0' },
+    [NGX]: { name: NGX, version: '0.5.2', dependencies: { [CORE]: range } },
     ...built
   };
   for (const pkg of PACKAGES) {
@@ -137,32 +138,32 @@ describe('publishing a release', () => {
     assert.deepEqual(release.published, [CORE, NGX]);
   });
 
-  it('publishes a coordinated release of both packages, the core first', () => {
-    const release = workspace({ onNpm: [`${CORE}@0.4.0`, `${NGX}@0.4.0`] });
+  it('publishes a release of both packages, the core first', () => {
+    const release = workspace({ onNpm: [`${CORE}@0.5.0`, `${NGX}@0.5.1`] });
 
     publishPackages(release);
 
     assert.deepEqual(release.published, [CORE, NGX]);
     assert.deepEqual(release.lines, [
-      `${CORE}@0.5.0: published`,
-      `${NGX}@0.5.0: published`
+      `${CORE}@0.6.0: published`,
+      `${NGX}@0.5.2: published`
     ]);
   });
 
   it('retries a partial release: skips the core already on npm, publishes the Angular package', () => {
-    const release = workspace({ onNpm: [`${CORE}@0.5.0`] });
+    const release = workspace({ onNpm: [`${CORE}@0.6.0`] });
 
     publishPackages(release);
 
     assert.deepEqual(release.published, [NGX]);
     assert.deepEqual(release.lines, [
-      `${CORE}@0.5.0: skipped, already on npm`,
-      `${NGX}@0.5.0: published`
+      `${CORE}@0.6.0: skipped, already on npm`,
+      `${NGX}@0.5.2: published`
     ]);
   });
 
   it('can run again after a complete release, publishing nothing', () => {
-    const release = workspace({ onNpm: [`${CORE}@0.5.0`, `${NGX}@0.5.0`] });
+    const release = workspace({ onNpm: [`${CORE}@0.6.0`, `${NGX}@0.5.2`] });
 
     publishPackages(release);
 
@@ -192,18 +193,18 @@ describe('publishing a release', () => {
 
     assert.throws(
       () => publishPackages(release),
-      /npm publish @absaoss-cps\/ui-watchtower@0\.5\.0 failed/
+      /npm publish @absaoss-cps\/ui-watchtower@0\.6\.0 failed/
     );
     assert.deepEqual(release.published, []);
     assert.ok(!release.commands.some((command) => command.includes(NGX)));
   });
 
   it('stops on any npm answer other than not found, taking it for neither published nor missing', () => {
-    const release = workspace({ failing: { [`view ${CORE}@0.5.0`]: 'E401' } });
+    const release = workspace({ failing: { [`view ${CORE}@0.6.0`]: 'E401' } });
 
     assert.throws(
       () => publishPackages(release),
-      /npm view @absaoss-cps\/ui-watchtower@0\.5\.0 failed: E401/
+      /npm view @absaoss-cps\/ui-watchtower@0\.6\.0 failed: E401/
     );
     assert.deepEqual(release.published, []);
   });
@@ -212,7 +213,7 @@ describe('publishing a release', () => {
     const release = workspace({
       tags: [NGX_TAG],
       elsewhere: [CORE_TAG],
-      onNpm: [`${CORE}@0.5.0`]
+      onNpm: [`${CORE}@0.6.0`]
     });
 
     publishPackages(release);
@@ -220,7 +221,7 @@ describe('publishing a release', () => {
     assert.deepEqual(release.published, [NGX]);
     assert.equal(
       release.lines[0],
-      `${CORE}@0.5.0: skipped, not released at this commit`
+      `${CORE}@0.6.0: skipped, not released at this commit`
     );
   });
 
@@ -229,24 +230,24 @@ describe('publishing a release', () => {
 
     assert.throws(
       () => publishPackages(release),
-      /needs @absaoss-cps\/ui-watchtower@0\.5\.0, which is not on npm/
+      /needs @absaoss-cps\/ui-watchtower@0\.6\.0, which is not on npm/
     );
     assert.deepEqual(release.published, []);
   });
 
-  it('publishes nothing when the Angular package does not depend on the core released with it', () => {
-    const release = workspace({ range: '^0.4.0' });
+  it('publishes nothing when the Angular package does not depend on the core it was built against', () => {
+    const release = workspace({ range: '^0.5.0' });
 
     assert.throws(
       () => publishPackages(release),
-      /depends on @absaoss-cps\/ui-watchtower@\^0\.4\.0/
+      /depends on @absaoss-cps\/ui-watchtower@\^0\.5\.0/
     );
     assert.deepEqual(release.published, []);
   });
 
   it('publishes nothing from a directory that is not the built package', () => {
     const release = workspace({
-      built: { [NGX]: { name: NGX, version: '0.5.0', private: true } }
+      built: { [NGX]: { name: NGX, version: '0.5.2', private: true } }
     });
 
     assert.throws(
@@ -269,18 +270,24 @@ describe('the release wiring', () => {
 
   it('publishes the packages Release Please releases, under the same names and tags', () => {
     const manifest = JSON.parse(read('.release-please-manifest.json'));
-    const linked = config.plugins.find(
-      (plugin) => plugin.type === 'linked-versions'
+    const plugins = config.plugins.map((plugin) => plugin.type);
+
+    assert.ok(
+      plugins.includes('node-workspace'),
+      "node-workspace moves the adapters' dependency on the core"
+    );
+    assert.ok(
+      !plugins.includes('linked-versions'),
+      'each package versioned on its own'
     );
 
     for (const pkg of PACKAGES) {
       assert.equal(config.packages[pkg.path].component, pkg.component);
       assert.equal(config.packages[pkg.path]['package-name'], pkg.name);
       assert.equal(JSON.parse(read(`${pkg.path}/package.json`)).name, pkg.name);
-      assert.ok(pkg.path in manifest, `${pkg.path} is in the manifest`);
       assert.ok(
-        linked.components.includes(pkg.component),
-        `${pkg.component} is linked`
+        pkg.path in manifest || config.packages[pkg.path]['initial-version'],
+        `${pkg.path} is in the manifest, or has an initial-version`
       );
       assert.match(pkg.dist, /^dist\//);
     }

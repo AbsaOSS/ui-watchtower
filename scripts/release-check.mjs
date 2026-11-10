@@ -74,23 +74,37 @@ const commit = (sha, message, ...files) => ({ sha, message, files });
 const file = (pkg, name = 'src/index.ts') => `${pkg.path}/${name}`;
 const json = (files, path) => JSON.parse(files[path]);
 
-/** The release files at one linked `version`: what a release leaves behind. */
-function filesAt(version) {
+/**
+ * The release files with each package at its version in `versions` (by
+ * component), and a dependent on `^` its dependency's: what a release leaves
+ * behind.
+ */
+function filesAt(versions) {
   const files = {
     'release-please-config.json': read('release-please-config.json'),
     '.release-please-manifest.json': JSON.stringify(
-      Object.fromEntries(PACKAGES.map((pkg) => [pkg.path, version]))
+      Object.fromEntries(
+        PACKAGES.map((pkg) => [pkg.path, versions[pkg.component]])
+      )
     )
   };
   for (const pkg of PACKAGES) {
     const packageJson = JSON.parse(read(`${pkg.path}/package.json`));
-    packageJson.version = version;
+    packageJson.version = versions[pkg.component];
     if (pkg.dependsOn) {
-      packageJson.dependencies[pkg.dependsOn] = `^${version}`;
+      const dependency = PACKAGES.find((other) => other.name === pkg.dependsOn);
+      packageJson.dependencies[pkg.dependsOn] =
+        `^${versions[dependency.component]}`;
     }
     files[`${pkg.path}/package.json`] = JSON.stringify(packageJson, null, 2);
   }
   return files;
+}
+
+/** The minor release after `version`: what a `feat` brings before 1.0. */
+function minorAfter(version) {
+  const [major, minor] = version.split('.');
+  return `${major}.${Number(minor) + 1}.0`;
 }
 
 /** The repository after merging `pullRequest`. */
@@ -205,32 +219,93 @@ async function main() {
     ];
     return { merged, versions, range };
   };
-  const linkedAt = (version, ...changes) => ({
-    files: filesAt(version),
+  /** A package's changelog entry for `version`: from its heading to the next. */
+  const entry = (merged, pkg, version) => {
+    const changelog = merged[`${pkg.path}/CHANGELOG.md`] ?? '';
+    const heading = new RegExp(
+      `^## \\[?${version.replace(/\./g, '\\.')}\\]?[ (]`,
+      'm'
+    );
+    const start = changelog.search(heading);
+    if (start < 0) {
+      return '';
+    }
+    const end = changelog.indexOf('\n## ', start + 1);
+    return changelog.slice(start, end < 0 ? undefined : end);
+  };
+  /** The releases merging `pullRequest` creates, as `path tag sha`. */
+  const releasesAfter = async (state, pullRequest) => {
+    const title = pullRequest.title.toString();
+    const releases = await (
+      await manifestOf({
+        files: merge(state.files, pullRequest),
+        releases: state.releases,
+        commits: [commit('m1', title), ...state.commits],
+        pulls: [
+          {
+            headBranchName: pullRequest.headRefName,
+            baseBranchName: 'main',
+            number: 1,
+            title,
+            body: pullRequest.body.toString(),
+            labels: pullRequest.labels,
+            files: [],
+            sha: 'm1'
+          }
+        ]
+      })
+    ).buildReleases();
+    return releases
+      .map((created) => `${created.path} ${created.tag} ${created.sha}`)
+      .sort();
+  };
+  /** The releases expected for `[package, version]` pairs. */
+  const tagsOf = (...released) =>
+    released
+      .map(([pkg, version]) => `${pkg.path} ${pkg.component}-v${version} m1`)
+      .sort();
+  /** Each package released at its version in `versions`, then `changes`. */
+  const releasedAt = (versions, ...changes) => ({
+    files: filesAt(versions),
     releases: PACKAGES.map((pkg) =>
-      release(`${pkg.component}-v${version}`, 'r1')
+      release(`${pkg.component}-v${versions[pkg.component]}`, 'r1')
     ),
     commits: [
       ...changes,
-      commit('r1', 'chore: release main', file(CORE, 'package.json'))
+      commit(
+        'r1',
+        'chore: release main',
+        ...PACKAGES.map((pkg) => file(pkg, 'package.json'))
+      )
     ]
   });
 
   checkConfigKeys(configSchema, parser);
-  const current = manifest[CORE.path];
   check(
-    PACKAGES.every((pkg) => manifest[pkg.path] === current),
-    'both packages at one version in the manifest'
+    PACKAGES.every(
+      (pkg) =>
+        pkg.path in manifest || config.packages[pkg.path]?.['initial-version']
+    ),
+    'every package in the manifest, or given an initial-version'
+  );
+  check(
+    !config.plugins.some((plugin) => plugin.type === 'linked-versions'),
+    'independent versions: no linked-versions group'
   );
   console.log(
-    `✔ config: only keys Release Please defines; both packages at ${current}`
+    '✔ config: only keys Release Please defines; each package versioned on its own'
   );
 
-  // The first linked release, replayed from the workspace as it is: the core
-  // never released, the Angular package's last release tagged v<version>
-  // (before linking) at bootstrap-sha, which keeps what that release already
-  // shipped out of the new changelogs. While git has that tag, bootstrap-sha
-  // must be its commit; once the packages are linked, the tag is gone.
+  // The first release, replayed from the workspace as it is. The core: its
+  // initial-version until it has a release of its own. The Angular package:
+  // its last release tagged v<version> (before its tags named the component)
+  // at bootstrap-sha, which keeps what that release shipped out of the new
+  // changelog. While git has that tag, bootstrap-sha must be its commit.
+  const current = manifest[NGX.path];
+  const coreFirst = manifest[CORE.path]
+    ? minorAfter(manifest[CORE.path])
+    : config.packages[CORE.path]['initial-version'];
+  const ngxNext = minorAfter(current);
   const lastTagged = spawnSync(
     'git',
     ['rev-parse', '--verify', '--quiet', `v${current}^{commit}`],
@@ -268,86 +343,126 @@ async function main() {
       commit('c0', 'feat: a feature already released', file(NGX))
     ]
   };
-  const [major, minor] = current.split('.');
-  const next = `${major}.${Number(minor) + 1}.0`;
   const firstPullRequest = await pullRequestFor(first);
-  check(firstPullRequest, 'a release PR for the first linked release');
+  check(firstPullRequest, 'a release PR for the first release');
   const firstRelease = outcome(first.files, firstPullRequest);
-  // Each package's new changelog entry: from its heading to the one before.
-  const changelogs = PACKAGES.map((pkg) => {
-    const changelog = firstRelease.merged[`${pkg.path}/CHANGELOG.md`] ?? '';
-    const start = changelog.indexOf(`## [${next}]`);
-    const end = changelog.indexOf('\n## ', start + 1);
-    return start < 0 ? '' : changelog.slice(start, end < 0 ? undefined : end);
-  });
+  const coreEntry = entry(firstRelease.merged, CORE, coreFirst);
+  const ngxEntry = entry(firstRelease.merged, NGX, ngxNext);
   check(
-    firstRelease.versions[CORE.component] === next &&
-      firstRelease.versions[NGX.component] === next,
-    `both packages released at ${next}, got ${JSON.stringify(firstRelease.versions)}`
+    firstRelease.versions[CORE.component] === coreFirst &&
+      firstRelease.versions[NGX.component] === ngxNext,
+    `the core at ${coreFirst} and the Angular package at ${ngxNext}, got ${JSON.stringify(firstRelease.versions)}`
   );
   check(
-    firstRelease.range === `^${next}`,
-    `the Angular package on ^${next}, got ${firstRelease.range}`
+    firstRelease.range === `^${coreFirst}`,
+    `the Angular package on ^${coreFirst}, got ${firstRelease.range}`
+  );
+  const firstManifest = json(
+    firstRelease.merged,
+    '.release-please-manifest.json'
   );
   check(
-    PACKAGES.every(
-      (pkg) =>
-        json(firstRelease.merged, '.release-please-manifest.json')[pkg.path] ===
-        next
-    ),
-    `the manifest at ${next}`
+    firstManifest[CORE.path] === coreFirst &&
+      firstManifest[NGX.path] === ngxNext,
+    `the manifest at ${coreFirst} and ${ngxNext}, got ${JSON.stringify(firstManifest)}`
   );
-  check(changelogs.every(Boolean), `a ${next} entry in both changelogs`);
   check(
-    changelogs[0].includes('add the framework-independent engine') &&
-      !changelogs[0].includes('flush logs on page hide'),
+    coreEntry && ngxEntry,
+    `a ${coreFirst} entry in the core's changelog and a ${ngxNext} one in the Angular package's`
+  );
+  check(
+    coreEntry.includes('add the framework-independent engine') &&
+      !coreEntry.includes('flush logs on page hide'),
     "only the core's own changes in its changelog"
   );
   check(
-    changelogs[1].includes('flush logs on page hide') &&
-      !changelogs.some((changelog) => changelog.includes('already released')),
+    ngxEntry.includes('flush logs on page hide') &&
+      ![coreEntry, ngxEntry].some((text) => text.includes('already released')),
     'nothing from the release before in the new entries'
   );
+  const firstTags = await releasesAfter(first, firstPullRequest);
+  const firstExpected = tagsOf([CORE, coreFirst], [NGX, ngxNext]);
+  check(
+    JSON.stringify(firstTags) === JSON.stringify(firstExpected),
+    `merging it to create ${firstExpected.join(', ')}; got ${firstTags.join(', ')}`
+  );
   console.log(
-    `✔ first linked release: both packages ${current} → ${next}, the Angular package on ^${next}, two changelogs` +
-      (lastTagged ? `, from v${current}'s commit` : '')
+    `✔ first release: the core at ${coreFirst}, the Angular package ${current} → ${ngxNext} on ^${coreFirst}, two changelogs` +
+      (lastTagged ? `, from v${current}'s commit` : '') +
+      `; merging creates ${CORE.component}-v${coreFirst} and ${NGX.component}-v${ngxNext}`
   );
 
-  for (const [what, change, expected] of [
+  // Later releases, from packages at versions of their own.
+  const start = { [CORE.component]: '0.6.0', [NGX.component]: '0.5.1' };
+  for (const [what, changes, expected] of [
     [
-      'an Angular-only fix',
-      commit('d1', 'fix: an Angular-only fix', file(NGX)),
-      '0.5.1'
+      'an Angular-only fix releases only the Angular package',
+      [commit('d1', 'fix: an Angular-only fix', file(NGX))],
+      { core: '0.6.0', ngx: '0.5.2', released: [NGX] }
     ],
     [
-      'a core-only feature',
-      commit('d1', 'feat: a core-only feature', file(CORE)),
-      '0.6.0'
+      'a core feature releases the core, and the Angular package to move its dependency',
+      [commit('d1', 'feat: a core feature', file(CORE))],
+      { core: '0.7.0', ngx: '0.5.2', released: [CORE, NGX] }
     ],
     [
-      'a breaking change before 1.0',
-      commit('d1', 'feat!: drop an option', file(CORE)),
-      '0.6.0'
+      'a breaking core change before 1.0 does the same',
+      [commit('d1', 'feat!: drop an option', file(CORE))],
+      { core: '0.7.0', ngx: '0.5.2', released: [CORE, NGX] }
+    ],
+    [
+      'changes to both give each its own bump',
+      [
+        commit('d2', 'feat: an Angular feature', file(NGX)),
+        commit('d1', 'fix: a core fix', file(CORE))
+      ],
+      { core: '0.6.1', ngx: '0.6.0', released: [CORE, NGX] }
     ]
   ]) {
-    const state = linkedAt('0.5.0', change);
+    const state = releasedAt(start, ...changes);
     const pullRequest = await pullRequestFor(state);
-    check(pullRequest, `a release PR for ${what}`);
-    const { versions, range } = outcome(state.files, pullRequest);
+    check(pullRequest, `a release PR: ${what}`);
+    const { merged, versions, range } = outcome(state.files, pullRequest);
     check(
-      versions[CORE.component] === expected &&
-        versions[NGX.component] === expected,
-      `${what} to release both packages at ${expected}, got ${JSON.stringify(versions)}`
+      versions[CORE.component] === expected.core &&
+        versions[NGX.component] === expected.ngx,
+      `${what}: the core at ${expected.core} and the Angular package at ${expected.ngx}, got ${JSON.stringify(versions)}`
     );
     check(
-      range === `^${expected}`,
-      `the Angular package on ^${expected} after ${what}, got ${range}`
+      range === `^${expected.core}`,
+      `${what}: the Angular package on ^${expected.core}, got ${range}`
     );
-    console.log(`✔ ${what} releases both packages: 0.5.0 → ${expected}`);
+    if (expected.released.includes(CORE)) {
+      const ngxEntry = entry(merged, NGX, expected.ngx);
+      check(
+        ngxEntry.includes(
+          `${CORE.name} bumped from ^${start[CORE.component]} to ^${expected.core}`
+        ),
+        `${what}: the dependency update in the Angular package's changelog, got ${JSON.stringify(ngxEntry)}`
+      );
+    }
+    const tags = await releasesAfter(state, pullRequest);
+    const tagsExpected = tagsOf(
+      ...expected.released.map((pkg) => [
+        pkg,
+        pkg === CORE ? expected.core : expected.ngx
+      ])
+    );
+    check(
+      JSON.stringify(tags) === JSON.stringify(tagsExpected),
+      `${what}: merging to create ${tagsExpected.join(', ')}; got ${tags.join(', ')}`
+    );
+    const core =
+      expected.core === start[CORE.component]
+        ? `core unchanged at ${expected.core}`
+        : `core ${start[CORE.component]} → ${expected.core}`;
+    console.log(
+      `✔ ${what}: ${core}, Angular ${start[NGX.component]} → ${expected.ngx} on ^${expected.core}`
+    );
   }
 
-  const quiet = linkedAt(
-    '0.5.0',
+  const quiet = releasedAt(
+    start,
     commit('e4', 'docs: explain a setting', file(CORE, 'README.md')),
     commit('e3', 'refactor: tidy the engine', file(CORE)),
     commit('e2', 'test: cover a case', file(NGX, 'src/a.spec.ts')),
@@ -359,43 +474,6 @@ async function main() {
   );
   console.log(
     '✔ no release from docs, refactors or tests, nor from changes outside the packages'
-  );
-
-  const merged = merge(first.files, firstPullRequest);
-  const releases = await (
-    await manifestOf({
-      files: merged,
-      releases: first.releases,
-      commits: [
-        commit('m1', firstPullRequest.title.toString()),
-        ...first.commits
-      ],
-      pulls: [
-        {
-          headBranchName: firstPullRequest.headRefName,
-          baseBranchName: 'main',
-          number: 1,
-          title: firstPullRequest.title.toString(),
-          body: firstPullRequest.body.toString(),
-          labels: firstPullRequest.labels,
-          files: [],
-          sha: 'm1'
-        }
-      ]
-    })
-  ).buildReleases();
-  const created = releases
-    .map((created) => `${created.path} ${created.tag} ${created.sha}`)
-    .sort();
-  const expected = PACKAGES.map(
-    (pkg) => `${pkg.path} ${pkg.component}-v${next} m1`
-  ).sort();
-  check(
-    JSON.stringify(created) === JSON.stringify(expected),
-    `merging it to create ${expected.join(', ')}; got ${created.join(', ')}`
-  );
-  console.log(
-    `✔ merging the release PR creates ${PACKAGES.map((pkg) => `${pkg.component}-v${next}`).join(' and ')} at the merge commit: the tags publishing looks for`
   );
 }
 

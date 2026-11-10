@@ -15,7 +15,7 @@ Telemetry for frontend applications, in three parts:
 Events go to AWS CloudWatch RUM or another destination you choose; logs go
 to a backend you provide.
 
-It comes as two packages, released together at one version:
+It comes as two packages, each with its own version:
 
 | Package                                                                                          | Use it in                                                                                                                                              | Guide                                          |
 | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
@@ -46,8 +46,9 @@ docs/           ADAPTERS.md: how to write a framework adapter
 scripts/        the public API snapshot, the packaging smoke test, and publishing
 ```
 
-The Angular package depends on the core, never the other way round. Both
-share one version and are released together (see [Releases](#releases)).
+The Angular package depends on the core, never the other way round. Each
+package has its own version; a core release also releases the Angular
+package, with its dependency moved (see [Releases](#releases)).
 
 ## Getting started
 
@@ -136,20 +137,29 @@ Squash-merge pull requests: the title then becomes the commit message on
 ## Releases
 
 Releases are automated with [release-please](https://github.com/googleapis/release-please)
-— don't publish by hand. Both packages share one version and always release
-together: a change to either releases both.
+— don't publish by hand. Each package has its own version and changelog, and
+is released when it changes:
 
-1. Every push to `main` updates one release PR. `feat` bumps the minor
-   version, `fix`, `perf` and `revert` the patch; until 1.0, a breaking change
-   bumps the minor. Other types don't trigger a release.
-2. The release PR holds both version bumps, each package's `CHANGELOG.md`
-   entry, and the Angular package's dependency on the core, moved to `^` the
-   new version.
-3. Merging it tags both releases, `ui-watchtower-v<version>` and
+| A change to         | Releases                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| The Angular package | The Angular package                                                                        |
+| The core            | The core, and a patch of the Angular package that moves its dependency to `^` the new core |
+| Both                | Each, with its own bump                                                                    |
+
+1. Every push to `main` updates one release PR, for every package with
+   changes. `feat` bumps the minor version, `fix`, `perf` and `revert` the
+   patch; until 1.0, a breaking change bumps the minor. Other types don't
+   trigger a release.
+2. The release PR holds each released package's version bump and
+   `CHANGELOG.md` entry. When the core is released, Release Please's
+   `node-workspace` plugin also moves the Angular package's dependency on the
+   core and releases it as a patch, so it always depends on the core it was
+   built against.
+3. Merging it tags each release, `ui-watchtower-v<version>` or
    `ngx-ui-watchtower-v<version>` (until 0.4.0, the Angular package's tags
-   were `v<version>`), and creates their GitHub releases. GitHub Actions then
-   publishes the core, and only after it the Angular package, through trusted
-   publishing — no npm token.
+   were `v<version>`), and creates its GitHub release. GitHub Actions then
+   publishes what was released, the core before the Angular package, through
+   trusted publishing — no npm token.
 
 **A failed publish** stops before the next package, so the Angular package
 never depends on a core that isn't on npm. To finish a partial release, run
@@ -163,32 +173,41 @@ gh workflow run release-please.yml --ref ngx-ui-watchtower-v<version>
 package only if its release tag points at that commit and npm doesn't have
 the version yet; any other answer from npm stops it.
 
-**The core's first publish is by hand.** npm sets up trusted publishing only
-for a package that exists. Before the first release PR is merged, an
-`@absaoss-cps` owner publishes `@absaoss-cps/ui-watchtower` once, at the
-version in `.release-please-manifest.json`, from `main`:
+**The core's first release is 0.1.0, and its first publish is by hand.** The
+core's `initial-version` in `release-please-config.json` sets that version.
+npm sets up trusted publishing only for a package that exists. Before the
+first release PR that releases the core is merged, an `@absaoss-cps` owner
+publishes the core from that PR's branch:
 
 ```bash
 npm login
+git switch release-please--branches--main
 npm ci && npm run build
 npm publish dist/ui-watchtower
 ```
 
 Then, on npmjs.com, in the package's settings, add the trusted publisher the
 Angular package has: GitHub Actions, `AbsaOSS/ui-watchtower`, workflow
-`release-please.yml`. If the release PR is merged first, publishing stops at
-the core; do the above, then run the workflow on the release tag.
+`release-please.yml`. After the merge, publishing finds 0.1.0 on npm, skips
+it, and publishes the Angular package. If the release PR is merged first,
+publishing stops at the core; publish it as above from the
+`ui-watchtower-v0.1.0` tag, then run the workflow on the release tag.
 
 `bootstrap-sha` in `release-please-config.json` is the commit tagged
-`v0.4.0`: it keeps what that release shipped out of the first linked
-changelogs, and is read only until both packages have a release. If another
-`v` release reaches `main` first, set it to that release's commit.
-`npm run release:check` compares the two.
+`v0.4.0`: it keeps what that release shipped out of the first changelogs,
+and is read only until both packages have a release. If another `v` release
+reaches `main` first, set it to that release's commit. `npm run release:check`
+compares the two.
 
 `npm run release:check` replays releases through the Release Please version
-the workflow runs, on this config: one changed package releases both, the
-dependency moves with them, and merging creates the tags publishing looks
-for. It installs Release Please, so it needs a network.
+the workflow runs, on this config:
+
+- the first release, with the core at 0.1.0;
+- an Angular-only change releasing only the Angular package;
+- a core change also releasing the Angular package, with its dependency moved;
+- merging creating the tags publishing looks for.
+
+It installs Release Please, so it needs a network.
 
 ## License
 

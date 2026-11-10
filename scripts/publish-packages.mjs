@@ -103,7 +103,10 @@ function tagPointsAt(run, release, head) {
   return listing.split('\n').some((line) => line.split('\t')[0] === head);
 }
 
-/** Linked versions: the adapter depends on the core it was released with. */
+/**
+ * The adapter depends on `^` the core it was built against: Release Please's
+ * node-workspace plugin moves that range with every core release.
+ */
 function checkDependencyRange(release, releases) {
   if (!release.dependsOn) {
     return;
@@ -113,7 +116,7 @@ function checkDependencyRange(release, releases) {
   if (range !== `^${dependency.version}`) {
     throw new Error(
       `${release.name}@${release.version} depends on ${dependency.name}@${range}, ` +
-        `not on ^${dependency.version}, the version released with it`
+        `not on ^${dependency.version}, the version it was built against`
     );
   }
 }

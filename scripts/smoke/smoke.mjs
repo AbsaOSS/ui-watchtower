@@ -243,11 +243,10 @@ try {
   const ngx = pack('dist/ngx-ui-watchtower');
   checkTarball(core, ['aws-rum-web', 'rxjs']);
   checkTarball(ngx, ['aws-rum-web']);
-  check(core.version === ngx.version, 'both packages at one version');
   const coreRange = ngx.manifest.dependencies['@absaoss-cps/ui-watchtower'];
   check(
     coreRange?.replace(/^[\^~]/, '') === core.version,
-    `the Angular package to depend on the core it is released with (${core.version}), not ${coreRange}`
+    `the Angular package to depend on the core it was built against (${core.version}), not ${coreRange}`
   );
   check(
     !ngx.manifest.peerDependencies['@absaoss-cps/ui-watchtower'],

@@ -20,19 +20,13 @@
   "packages": {
     "projects/ui-watchtower": {
       "package-name": "@absaoss-cps/ui-watchtower",
-      "component": "ui-watchtower"
+      "component": "ui-watchtower",
+      "initial-version": "0.1.0"
     },
     "projects/ngx-ui-watchtower": {
       "package-name": "@absaoss-cps/ngx-ui-watchtower",
       "component": "ngx-ui-watchtower"
     }
   },
-  "plugins": [
-    { "type": "node-workspace", "merge": false },
-    {
-      "type": "linked-versions",
-      "groupName": "ui-watchtower",
-      "components": ["ui-watchtower", "ngx-ui-watchtower"]
-    }
-  ]
+  "plugins": [{ "type": "node-workspace" }]
 }
