@@ -695,7 +695,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     const document = this.document;
     const origin = document.defaultView?.origin;
 
-    // X-Ray trace header only on same-origin requests; a cross-origin
+    // The trace header only on same-origin requests; a cross-origin
     // request with an unexpected header fails CORS preflight. The client
     // tests each URL as the caller passed it — Angular's HttpClient passes
     // `/api/...` unresolved — so resolve it the way the browser will
@@ -703,7 +703,7 @@ export class UwtRumTelemetrySink extends UwtTelemetrySink implements OnDestroy {
     // RegExp, as the client's config expects, whose `test` does that; the
     // pattern itself never matches, so anything that bypasses `test` adds
     // no header rather than adding it everywhere.
-    const excluded = this.options?.xRayExcludeUrls ?? [];
+    const excluded = this.options?.traceHeaderExcludeUrls ?? [];
     const sameOrigin = Object.assign(/(?!)/, {
       test: (url: string) => {
         try {

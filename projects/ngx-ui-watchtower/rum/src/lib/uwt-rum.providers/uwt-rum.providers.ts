@@ -31,11 +31,11 @@ import { UwtRumTelemetrySink } from '../uwt-rum-telemetry.sink/uwt-rum-telemetry
  *   { provide: UWT_RUM_CREDENTIALS_PROVIDER, useExisting: CartRumCredentials }
  * ]
  *
- * // keep the X-Ray header off an endpoint that redirects to another origin
- * provideUwtTelemetryRumSink({ xRayExcludeUrls: [/\/files\//] });
+ * // keep the trace header off an endpoint that redirects to another origin
+ * provideUwtTelemetryRumSink({ traceHeaderExcludeUrls: [/\/files\//] });
  * ```
  *
- * @param options optional settings, e.g. URLs to keep the X-Ray header off
+ * @param options optional settings, e.g. URLs to keep the trace header off
  * @returns providers wiring the RUM sink
  *
  * @group Utils

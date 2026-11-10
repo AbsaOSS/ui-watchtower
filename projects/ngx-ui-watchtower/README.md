@@ -106,14 +106,15 @@ exclude. Set those in code.
 
 ### AWS X-Ray
 
-RUM adds an `X-Amzn-Trace-Id` header to your same-origin requests, including
-those from embedded fragments, so AWS X-Ray can follow them into your
-backend. If an endpoint redirects to another origin (e.g. a download that
-302s to S3), the browser sends the header there too, and the request fails
-unless that origin allows the header in CORS. Keep the header off such URLs:
+RUM adds a trace header (`X-Amzn-Trace-Id`, or `traceparent` with
+`enableW3CTraceId`) to your same-origin requests, including those from
+embedded fragments, so AWS X-Ray can follow them into your backend. If an
+endpoint redirects to another origin (e.g. a download that 302s to S3), the
+browser sends the header there too, and the request fails unless that origin
+allows the header in CORS. Keep the header off such URLs:
 
 ```ts
-provideUwtTelemetryRumSink({ xRayExcludeUrls: [/\/files\//] });
+provideUwtTelemetryRumSink({ traceHeaderExcludeUrls: [/\/files\//] });
 ```
 
 ### Log backend

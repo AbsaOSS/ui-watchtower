@@ -124,7 +124,7 @@ Everything each entry point exports, by role.
 | Redaction, for custom sinks | `uwtRedactMetadata`, `uwtNormalizeError`, `uwtScrubString`, `uwtRedactConfigFor`, `UwtRedactConfig`, `UWT_DEFAULT_REDACT_CONFIG`, `UwtPiiValuePattern`, `UWT_REDACTED` (`'[redacted]'`, the replacement value)                                                                                              |
 | Utilities                   | `uwtUuid()`, `uwtIsDebugEnabled(flag, name?)` + `UwtDebugFlag` (`'debugLogger' \| 'debugScenario' \| 'debugBI'`)                                                                                                                                                                                            |
 
-**`@absaoss-cps/ngx-ui-watchtower/rum`:** `provideUwtTelemetryRumSink` + `UwtRumSinkOptions` (`xRayExcludeUrls`), `UwtRumTelemetrySink`,
+**`@absaoss-cps/ngx-ui-watchtower/rum`:** `provideUwtTelemetryRumSink` + `UwtRumSinkOptions` (`traceHeaderExcludeUrls`), `UwtRumTelemetrySink`,
 `UWT_RUM_CREDENTIALS_PROVIDER`, `UwtRumCredentialsProvider`,
 `UwtRumBootstrap` (`{ config, credentials? }`), `UwtRumAppMonitorConfig`,
 `UwtRumCredentials` (`accessKeyId`, `secretAccessKey`, `sessionToken`,
@@ -992,13 +992,14 @@ unchanged, and settling the scenario stays with the caller or
 header yourself: `headers: { [UWT_DEFAULT_SCENARIO_HEADER]: scenario.id }`.
 
 **The X-Ray trace stays as it is.** The RUM client starts a new trace for
-every request and sends it as `X-Amzn-Trace-Id`, so one scenario spans
-several traces, and a retry gets its own. It does this for same-origin
+every request and sends it as `X-Amzn-Trace-Id` (`traceparent` with
+`enableW3CTraceId`), so one scenario spans several traces, and a retry gets
+its own. It does this for same-origin
 requests, relative URLs (`/api/...`) included, and for a fragment's
 requests too ([§13](#what-behaves-the-same-across-realms)). A same-origin
 endpoint that redirects cross-origin (to S3, an IdP) passes both headers
 on, so the target must allow them in CORS. Otherwise list the path in
-`provideUwtTelemetryRumSink({ xRayExcludeUrls: [/\/files\//] })`, and don't mark that request with
+`provideUwtTelemetryRumSink({ traceHeaderExcludeUrls: [/\/files\//] })`, and don't mark that request with
 a scenario. The two headers travel together;
 the backend links them by adding the scenario id to its trace as an
 annotation (an indexed, searchable label), and to its log lines:
@@ -1572,13 +1573,14 @@ SDK config, so the SDK's default applies.
 
 `config` mirrors the SDK and usually comes from the backend. Settings that
 belong to the application's own code go to the provider instead, as
-`UwtRumSinkOptions`. Today that is `xRayExcludeUrls`: same-origin URLs that
-must not get the X-Ray header, such as an endpoint that redirects to another
-origin which doesn't allow the header (see
+`UwtRumSinkOptions`. Today that is `traceHeaderExcludeUrls`: same-origin URLs
+that must not get the trace header (`X-Amzn-Trace-Id`, or `traceparent` with
+`enableW3CTraceId`), such as an endpoint that redirects to another origin
+which doesn't allow the header (see
 [§8](#sending-the-scenario-to-your-backend)):
 
 ```ts
-provideUwtTelemetryRumSink({ xRayExcludeUrls: [/\/files\//] });
+provideUwtTelemetryRumSink({ traceHeaderExcludeUrls: [/\/files\//] });
 ```
 
 ### Per-logger levels

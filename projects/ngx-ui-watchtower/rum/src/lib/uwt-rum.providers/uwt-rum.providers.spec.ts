@@ -49,7 +49,7 @@ describe('provideUwtTelemetryRumSink', () => {
   beforeEach(() => configure());
 
   it('should hand its options to the sink', () => {
-    const options = { xRayExcludeUrls: [/\/files\//] };
+    const options = { traceHeaderExcludeUrls: [/\/files\//] };
     configure(options);
 
     expect(TestBed.inject(UWT_RUM_SINK_OPTIONS)).toBe(options);

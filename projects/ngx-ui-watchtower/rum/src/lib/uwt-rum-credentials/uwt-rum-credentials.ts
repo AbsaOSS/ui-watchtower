@@ -133,7 +133,10 @@ export interface UwtRumAppMonitorConfig {
   /** Whether to emit X-Ray trace ids. Default `true`. */
   enableXRay?: boolean;
 
-  /** Whether to emit W3C trace context ids alongside X-Ray's. Default `false`. */
+  /**
+   * Sends the trace header in W3C format, `traceparent`, instead of
+   * `X-Amzn-Trace-Id`. X-Ray still records the trace. Default `false`.
+   */
   enableW3CTraceId?: boolean;
 
   /** Whether resource-timing events record the resource's URL. Default `true`. */

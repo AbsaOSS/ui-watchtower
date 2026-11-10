@@ -228,10 +228,10 @@ describe('UwtRumTelemetrySink', () => {
       expect(traced('?page=2')).toBe(true);
     });
 
-    it('should leave out URLs listed in xRayExcludeUrls, relative or absolute', async () => {
+    it('should leave out URLs listed in traceHeaderExcludeUrls, relative or absolute', async () => {
       configure({
         // `g` on purpose: it must not skip every other request.
-        sinkOptions: { xRayExcludeUrls: [/\/files\//g] }
+        sinkOptions: { traceHeaderExcludeUrls: [/\/files\//g] }
       });
       await sink.init();
 
