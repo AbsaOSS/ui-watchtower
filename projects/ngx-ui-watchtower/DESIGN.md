@@ -2135,6 +2135,14 @@ scrolls, and every dock has one — the body, or the dialog's content — so the
 inspector passes the page's scroll on to it, and the kit does the rest. Only
 elements of the inspector hear it, never the app's.
 
+Spacing follows one scale, set as custom properties on the inspector host:
+`--uwt-inspector-space-s` (8px) inside a cluster of controls,
+`--uwt-inspector-space-m` (12px) between controls and between their rows,
+`--uwt-inspector-space-l` (24px) between groups, and `--uwt-inspector-pad`
+(20px) from the edge of a pane. What belongs together sits closer than what
+doesn't. They are internal, not part of the API. Buttons beside an input are
+as tall as it, so a row reads as one line.
+
 Wheeling over the inspector doesn't scroll the app under it. The body and the
 dialog's content use `overscroll-behavior: contain`; and because a part with
 nothing to scroll, like the header, still passes the wheel on in some browsers

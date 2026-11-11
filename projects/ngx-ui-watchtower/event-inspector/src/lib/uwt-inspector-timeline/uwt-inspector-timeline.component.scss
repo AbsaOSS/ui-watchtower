@@ -6,7 +6,7 @@
 .uwt-inspector-timeline {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--uwt-inspector-space-m);
 }
 
 // Export sits by the kind toggle, as it exports the kind shown. On the
@@ -16,7 +16,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1rem;
+  gap: var(--uwt-inspector-space-m) 1rem;
 }
 
 .uwt-inspector-timeline__notice {
@@ -32,8 +32,10 @@
 // detail), and an open row's payload wraps rather than widening the table.
 // Not a fixed layout: the open row spans 100 columns, which would squeeze
 // the real ones.
+// A little apart from the controls above it: the table is what they act on.
 :host ::ng-deep .uwt-inspector-timeline__table {
   width: 100%;
+  margin-top: calc(var(--uwt-inspector-space-s) / 2);
 }
 
 td {
@@ -109,20 +111,20 @@ td {
 .uwt-inspector-timeline__detail {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.5rem 0.25rem;
+  gap: var(--uwt-inspector-space-m);
+  padding: var(--uwt-inspector-space-m) 0.25rem;
 }
 
 .uwt-inspector-timeline__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1.25rem;
+  gap: var(--uwt-inspector-space-s) 1rem;
   margin: 0;
   font-size: 0.8125rem;
 
   div {
     display: flex;
-    gap: 0.375rem;
+    gap: var(--uwt-inspector-space-s);
   }
 
   dt {

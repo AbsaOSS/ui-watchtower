@@ -1,4 +1,13 @@
 :host {
+  // One spacing scale for the whole inspector, so that what belongs together
+  // sits closer than what doesn't: `s` inside a cluster of controls, `m`
+  // between controls and between their rows, `l` between groups, `pad` from
+  // the edge of a pane.
+  --uwt-inspector-space-s: 0.5rem;
+  --uwt-inspector-space-m: 0.75rem;
+  --uwt-inspector-space-l: 1.5rem;
+  --uwt-inspector-pad: 1.25rem;
+
   display: block;
   color: var(--cps-text-primary);
 }
@@ -45,7 +54,7 @@
 .uwt-inspector__body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--uwt-inspector-space-l);
   overscroll-behavior: contain;
 }
 
@@ -60,13 +69,13 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 1rem;
+  padding: var(--uwt-inspector-pad);
 }
 
 .uwt-inspector__toolbar {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--uwt-inspector-space-m);
 }
 
 .uwt-inspector__status-row {
@@ -74,7 +83,7 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1rem;
+  gap: var(--uwt-inspector-space-m) 1rem;
 }
 
 .uwt-inspector__status {
@@ -116,7 +125,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1rem;
+  gap: var(--uwt-inspector-space-m) 1rem;
 }
 
 .uwt-inspector__paused {
@@ -139,8 +148,8 @@
 .uwt-inspector__footer {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding-top: 0.5rem;
+  gap: var(--uwt-inspector-space-s);
+  padding-top: var(--uwt-inspector-space-m);
   border-top: 1px solid var(--cps-border-color);
   font-size: 0.75rem;
   color: var(--cps-text-secondary);

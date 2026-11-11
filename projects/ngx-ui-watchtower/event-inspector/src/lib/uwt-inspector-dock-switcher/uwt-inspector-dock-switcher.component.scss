@@ -2,7 +2,7 @@
 :host {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--uwt-inspector-space-m);
   font-size: 1rem;
   font-family: 'Source Sans Pro', sans-serif;
   color: var(--cps-color-text-dark);
