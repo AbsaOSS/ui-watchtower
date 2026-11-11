@@ -20,6 +20,7 @@
   "homepage": "https://github.com/AbsaOSS/ui-watchtower",
   "license": "Apache-2.0",
   "dependencies": {
+    "@absaoss-cps/ui-watchtower": "^0.1.0",
     "tslib": "^2.8.1"
   },
   "sideEffects": false,

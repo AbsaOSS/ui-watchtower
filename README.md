@@ -10,7 +10,9 @@
 
 Source of [`@absaoss-cps/ngx-ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ngx-ui-watchtower),
 a telemetry library for Angular apps: scenarios (user end-to-end journeys or specific functional workflows through an app), BI events and
-logs, with an optional AWS CloudWatch RUM sink.
+logs, with an optional AWS CloudWatch RUM sink. It builds on
+[`@absaoss-cps/ui-watchtower`](projects/ui-watchtower/README.md), the
+framework-independent engine, which lives here too.
 
 How to use the library: [projects/ngx-ui-watchtower/README.md](projects/ngx-ui-watchtower/README.md)
 (also the npm page).
@@ -19,13 +21,21 @@ How it is designed: [projects/ngx-ui-watchtower/DESIGN.md](projects/ngx-ui-watch
 ## Layout
 
 ```text
+projects/ui-watchtower/
+  src/          @absaoss-cps/ui-watchtower — the framework-independent engine
+  README.md     usage guide, published to npm
+  package.json  the published package's manifest
 projects/ngx-ui-watchtower/
   src/          main entry point — @absaoss-cps/ngx-ui-watchtower
   rum/          secondary entry point — @absaoss-cps/ngx-ui-watchtower/rum
+  type-tests/   consumer type tests
   README.md     usage guide, published to npm
   DESIGN.md     full design
   package.json  the published package's manifest
+scripts/        the public API snapshot
 ```
+
+The Angular package depends on the core, never the other way round.
 
 ## Getting started
 
@@ -37,22 +47,25 @@ npm run test
 npm run build
 ```
 
-The package is built to `dist/ngx-ui-watchtower`.
+The packages are built to `dist/ui-watchtower` and `dist/ngx-ui-watchtower`,
+the core first: the Angular package compiles against the built core, as an
+application does. Tests and the typecheck read the core's source.
 
 ## Scripts
 
-| Script                  | What it does                                                    |
-| ----------------------- | --------------------------------------------------------------- |
-| `npm run build`         | Builds the package (production, partial compilation)            |
-| `npm run watch`         | Rebuilds on change (development)                                |
-| `npm run test`          | Runs the unit tests (Jest)                                      |
-| `npm run test:coverage` | Runs the unit tests with coverage, as CI does                   |
-| `npm run typecheck`     | Type-checks every library and spec tsconfig, and the type tests |
-| `npm run api:check`     | Compares the built public API with its committed snapshot       |
-| `npm run api:update`    | Writes that snapshot again, for an intended API change          |
-| `npm run lint`          | ESLint, no warnings allowed                                     |
-| `npm run format`        | Formats with Prettier                                           |
-| `npm run format:check`  | Checks formatting without writing                               |
+| Script                  | What it does                                                   |
+| ----------------------- | -------------------------------------------------------------- |
+| `npm run build`         | Builds both packages (production), the core first              |
+| `npm run watch`         | Builds the core, then rebuilds the Angular package on change   |
+| `npm run test`          | Runs the unit tests of both packages (Jest)                    |
+| `npm run test:core`     | Runs the core's unit tests only: plain Jest, no Angular        |
+| `npm run test:coverage` | Runs the unit tests with coverage, as CI does                  |
+| `npm run typecheck`     | Builds the core, then type-checks every tsconfig and type test |
+| `npm run api:check`     | Compares the built public APIs with their committed snapshots  |
+| `npm run api:update`    | Writes those snapshots again, for an intended API change       |
+| `npm run lint`          | ESLint, no warnings allowed                                    |
+| `npm run format`        | Formats with Prettier                                          |
+| `npm run format:check`  | Checks formatting without writing                              |
 
 Three checks guard what consumers depend on:
 
@@ -60,9 +73,8 @@ Three checks guard what consumers depend on:
   Angular compiler, a consumer that uses every public export, and one that
   augments the name registries: registered names accepted, others rejected,
   `string` while nothing is registered.
-- **The API snapshot** (`projects/ngx-ui-watchtower/public-api.snapshot.json`)
-  records every export of the built package with its members and
-  signatures. After an intended change, run `npm run api:update` and review
+- **The API snapshots** (`public-api.snapshot.json` in each package) record
+  every export of the built packages with its members and signatures. After an intended change, run `npm run api:update` and review
   the diff.
 - **The broadcast wire fixture**
   (`projects/ngx-ui-watchtower/src/lib/sinks/uwt-broadcast/uwt-broadcast.wire.fixture.json`) records

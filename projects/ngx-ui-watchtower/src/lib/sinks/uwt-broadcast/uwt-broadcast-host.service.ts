@@ -20,7 +20,7 @@ import {
   UwtLogQuery
 } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { uwtClassifyTelemetryEvent } from '../../utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
-import { uwtSessionElapsed } from '../../utils/uwt-session-start.util/uwt-session-start.util';
+import { uwtSessionElapsed } from '@absaoss-cps/ui-watchtower';
 
 /** The identity fields scenario, BI and log records carry. */
 interface UwtIdentified {

@@ -7,7 +7,7 @@ import {
   UWT_TELEMETRY_EVENT_TYPE,
   UWT_TELEMETRY_IDENTITY
 } from '@absaoss-cps/ngx-ui-watchtower';
-import { uwtSessionElapsed } from '../../../../src/lib/utils/uwt-session-start.util/uwt-session-start.util';
+import { uwtSessionElapsed } from '@absaoss-cps/ui-watchtower';
 import {
   UWT_RUM_CREDENTIALS_PROVIDER,
   UwtRumBootstrap

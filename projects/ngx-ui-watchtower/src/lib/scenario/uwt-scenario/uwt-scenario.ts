@@ -30,7 +30,7 @@ import {
   uwtRedactMetadata,
   uwtScrubString
 } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-import { uwtSessionElapsed } from '../../utils/uwt-session-start.util/uwt-session-start.util';
+import { uwtSessionElapsed } from '@absaoss-cps/ui-watchtower';
 import {
   uwtDeepClone,
   uwtElapsedNow,

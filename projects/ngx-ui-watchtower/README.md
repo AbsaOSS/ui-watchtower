@@ -26,7 +26,10 @@ npm install @absaoss-cps/ngx-ui-watchtower
 npm install aws-rum-web   # only for the AWS RUM sink
 ```
 
-Requires Angular 21 or 22 and RxJS 7.8.
+Requires Angular 21 or 22 and RxJS 7.8. It brings
+[`@absaoss-cps/ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ui-watchtower),
+the framework-independent engine it builds on, with it: there is nothing more
+to install or configure.
 
 ## Setup
 

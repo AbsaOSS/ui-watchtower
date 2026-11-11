@@ -192,6 +192,13 @@ providers: [
 
 ### Packaging and internals
 
+- **The framework-independent code lives in `@absaoss-cps/ui-watchtower`.**
+  This package depends on it as a regular dependency, so installing this
+  package installs it too, and re-exports what it has always exported, under
+  the same names. The dependency runs one way: the core imports neither
+  Angular nor this package, which a lint rule enforces. The library build
+  compiles against the core's built declarations, not its source, so it sees
+  the core exactly as an application does.
 - **Every export is explicit.** The barrels list their exports one by one —
   in a published package each exported name is a compatibility promise. Id
   generation, the clock, the fail-open wrappers, User Timings and the
