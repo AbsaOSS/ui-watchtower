@@ -8,6 +8,8 @@
  * cookie across reloads and tabs. Where storage is blocked, nothing is kept.
  */
 
+// Named for the package that introduced it. Kept: stored values outlive a
+// deploy, and a shell and its fragments, on different versions, share them.
 const STORAGE_KEY = 'ngx-ui-watchtower.sessionStarts';
 
 /**

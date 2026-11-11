@@ -1,5 +1,12 @@
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import {
+  uwtClassifyTelemetryEvent,
+  UwtLogQuery,
+  UwtLogRecord,
+  uwtSessionElapsed,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
+import {
   uwtSafe,
   uwtSafeVoid,
   uwtSafeVoidMaybeAsync
@@ -10,17 +17,10 @@ import {
   uwtElectBroadcastHostLeader,
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
-import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { uwtTelemetryEnabled } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UwtBroadcastTelemetrySink } from './uwt-broadcast-telemetry.sink';
 import { UwtBroadcastLogApiProvider } from '../../providers/uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
-import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
-import {
-  UWT_LOG_API_PROVIDER,
-  UwtLogQuery
-} from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
-import { uwtClassifyTelemetryEvent } from '../../utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
-import { uwtSessionElapsed } from '@absaoss-cps/ui-watchtower';
+import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 
 /** The identity fields scenario, BI and log records carry. */
 interface UwtIdentified {

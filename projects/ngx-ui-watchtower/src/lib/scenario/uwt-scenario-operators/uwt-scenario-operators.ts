@@ -1,8 +1,10 @@
 import { defer } from 'rxjs';
 import type { MonoTypeOperatorFunction, Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import type { UwtScenarioOutcome } from '../../models/uwt-scenario.models/uwt-scenario.models';
-import type { UwtScenario } from '../uwt-scenario/uwt-scenario';
+import type {
+  UwtScenario,
+  UwtScenarioOutcome
+} from '@absaoss-cps/ui-watchtower';
 import { uwtSafe } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 
 /**

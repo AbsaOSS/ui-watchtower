@@ -1,28 +1,26 @@
 import { inject, Injectable } from '@angular/core';
 import {
+  UwtBIEvent,
+  UwtBIEventDetail,
+  UwtBIEventName,
+  uwtEventTypes,
+  uwtNow,
+  uwtRedactConfigFor,
+  UwtTelemetryMetadata,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
+import {
   UWT_REDACT_CONFIG,
   uwtTelemetryEnabled,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_BI_TELEMETRY_CONFIG } from '../../config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
-import type {
-  UwtBIEvent,
-  UwtBIEventDetail,
-  UwtBIEventName
-} from '../../models/uwt-bi.models/uwt-bi.models';
-import {
-  uwtEventTypes,
-  UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { uwtDebugWrite } from '../../utils/uwt-debug-flag.util/uwt-debug-flag.util';
 import {
-  uwtRedactConfigFor,
   uwtRedactMetadata,
   uwtScrubString
 } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import {
-  uwtNow,
   uwtSafe,
   uwtSafeVoid
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';

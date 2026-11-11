@@ -23,6 +23,7 @@ How it is designed: [projects/ngx-ui-watchtower/DESIGN.md](projects/ngx-ui-watch
 ```text
 projects/ui-watchtower/
   src/          @absaoss-cps/ui-watchtower — the framework-independent engine
+  type-tests/   consumer type tests, without a framework
   README.md     usage guide, published to npm
   package.json  the published package's manifest
 projects/ngx-ui-watchtower/
@@ -69,10 +70,11 @@ application does. Tests and the typecheck read the core's source.
 
 Three checks guard what consumers depend on:
 
-- **Type tests** (`projects/ngx-ui-watchtower/type-tests/`) compile, with the
-  Angular compiler, a consumer that uses every public export, and one that
-  augments the name registries: registered names accepted, others rejected,
-  `string` while nothing is registered.
+- **Type tests** (`type-tests/` in each package) compile a consumer that uses
+  every public export, and one that augments the name registries: registered
+  names accepted, others rejected, `string` while nothing is registered. The
+  Angular package's are compiled by the Angular compiler, the core's by plain
+  `tsc`.
 - **The API snapshots** (`public-api.snapshot.json` in each package) record
   every export of the built packages with its members and signatures. After an intended change, run `npm run api:update` and review
   the diff.

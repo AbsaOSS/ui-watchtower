@@ -1,9 +1,12 @@
+/**
+ * @jest-environment jsdom
+ */
 import { UWT_DEFAULT_TELEMETRY_CONFIG } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UwtScenarioRecord } from '../../models/uwt-scenario.models/uwt-scenario.models';
 import { UwtTelemetryMetadata } from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { UWT_DEFAULT_REDACT_CONFIG } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-import { uwtMarkSessionStart } from '@absaoss-cps/ui-watchtower';
+import { uwtMarkSessionStart } from '../../utils/uwt-session-start.util/uwt-session-start.util';
 import { UwtScenario, UwtScenarioDeps } from './uwt-scenario';
 
 /** Captures what the scenario emitted, so a test can assert on it. */

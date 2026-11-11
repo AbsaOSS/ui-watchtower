@@ -11,8 +11,15 @@ import { UwtTelemetryBroadcastHost } from '../../sinks/uwt-broadcast/uwt-broadca
 import { UwtBroadcastTelemetrySink } from '../../sinks/uwt-broadcast/uwt-broadcast-telemetry.sink';
 import { UWT_BROADCAST_CHANNEL } from '../../sinks/uwt-broadcast/uwt-broadcast.messages';
 import { UwtNoopTelemetrySink } from '../../sinks/uwt-telemetry/uwt-noop-telemetry.sink/uwt-noop-telemetry.sink';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
-import { UwtRedactConfig } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
+import {
+  UWT_DEFAULT_TELEMETRY_CONFIG,
+  UwtBITelemetryConfig,
+  UwtLogConfig,
+  UwtRedactConfig,
+  UwtScenarioTelemetryConfig,
+  UwtTelemetryIdentity,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
 import { UwtBroadcastLogApiProvider } from '../uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
 import { UWT_LOG_API_PROVIDER } from '../uwt-log-api.provider/uwt-log-api.provider';
 import { uwtSafeVoid } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
@@ -20,22 +27,11 @@ import {
   UWT_REDACT_CONFIG,
   UWT_TELEMETRY_ENABLED,
   uwtTelemetryEnabled,
-  UWT_TELEMETRY_IDENTITY,
-  UWT_DEFAULT_TELEMETRY_CONFIG,
-  UwtTelemetryIdentity
+  UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
-import {
-  UWT_BI_TELEMETRY_CONFIG,
-  UwtBITelemetryConfig
-} from '../../config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
-import {
-  UWT_LOG_CONFIG,
-  UwtLogConfig
-} from '../../config/uwt-log.config/uwt-log.config';
-import {
-  UWT_SCENARIO_TELEMETRY_CONFIG,
-  UwtScenarioTelemetryConfig
-} from '../../config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
+import { UWT_BI_TELEMETRY_CONFIG } from '../../config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
+import { UWT_LOG_CONFIG } from '../../config/uwt-log.config/uwt-log.config';
+import { UWT_SCENARIO_TELEMETRY_CONFIG } from '../../config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
 
 /**
  * One optional concern's providers, composed onto {@link provideUwtTelemetry}.

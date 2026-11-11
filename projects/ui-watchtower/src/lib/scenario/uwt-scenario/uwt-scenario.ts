@@ -30,7 +30,7 @@ import {
   uwtRedactMetadata,
   uwtScrubString
 } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-import { uwtSessionElapsed } from '@absaoss-cps/ui-watchtower';
+import { uwtSessionElapsed } from '../../utils/uwt-session-start.util/uwt-session-start.util';
 import {
   uwtDeepClone,
   uwtElapsedNow,
@@ -38,6 +38,7 @@ import {
   uwtNow,
   uwtSafe,
   uwtSafeVoid,
+  UwtReporter,
   uwtUuid
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import {
@@ -48,8 +49,8 @@ import {
 } from '../../utils/uwt-user-timings-internal.util/uwt-user-timings-internal.util';
 
 /**
- * Collaborators a scenario needs. Supplied by
- * {@link UwtScenarioTelemetryService}; not part of the public API.
+ * Collaborators a scenario needs. Supplied by whatever starts scenarios;
+ * not part of the public API.
  */
 export interface UwtScenarioDeps {
   /** The application's identity, shared by every telemetry concern. */
@@ -59,8 +60,13 @@ export interface UwtScenarioDeps {
   /** Redaction settings, shared by every telemetry concern. */
   redact: UwtRedactConfig;
   sink: UwtTelemetrySink;
-  /** Schedules timers outside Angular's zone when the host provides one. */
-  runOutsideAngular?: <T>(callback: () => T) => T;
+  /**
+   * Schedules timers outside the host framework's change detection, when it
+   * has one: Angular passes `NgZone.runOutsideAngular`.
+   */
+  runOutside?: <T>(callback: () => T) => T;
+  /** Receives what the scenario handles silently; see {@link UwtReporter}. */
+  report?: UwtReporter;
   /** Called once with the scenario's id when it reaches a terminal state. */
   onSettled: (scenarioId: string, record: UwtScenarioRecord) => void;
   /** Telemetry is switched off: the scenario records, times and sends nothing. */
@@ -81,8 +87,8 @@ const MAX_TIMEOUT_MS = 2_147_483_647;
 /**
  * A single in-flight user journey or feature execution.
  *
- * Each call to {@link UwtScenarioTelemetryService.start} returns a fresh
- * instance, so scenarios can run concurrently without interfering.
+ * Each call to `start` returns a fresh instance, so scenarios can run
+ * concurrently without interfering.
  *
  * @example
  * ```typescript
@@ -175,17 +181,18 @@ export class UwtScenario {
       uwtIsDebugEnabled('debugScenario');
     this.metadata = uwtSafe(
       'scenario.construct',
-      () => uwtRedactMetadata(options.metadata, deps.redact) ?? {},
-      {}
+      () => uwtRedactMetadata(options.metadata, deps.redact, deps.report) ?? {},
+      {},
+      deps.report
     );
     this.feature = options.feature
-      ? uwtScrubString(options.feature, deps.redact)
+      ? uwtScrubString(options.feature, deps.redact, deps.report)
       : undefined;
     this.operation = options.operation
-      ? uwtScrubString(options.operation, deps.redact)
+      ? uwtScrubString(options.operation, deps.redact, deps.report)
       : undefined;
     this.route = options.route
-      ? uwtScrubString(options.route, deps.redact)
+      ? uwtScrubString(options.route, deps.redact, deps.report)
       : undefined;
 
     const backdated =
@@ -210,8 +217,8 @@ export class UwtScenario {
   }
 
   /**
-   * The scenario's unique identifier and correlation id — pass it to
-   * {@link UwtLoggerService} calls, BI events, and backend requests to
+   * The scenario's unique identifier and correlation id — pass it to log
+   * calls, BI events, and backend requests to
    * reassemble a journey across frontend and backend telemetry.
    */
   get id(): string {
@@ -270,7 +277,7 @@ export class UwtScenario {
         name,
         startOffset: Math.round(uwtNow() - this.startedAt),
         metadata: this.openStepIncluded
-          ? uwtRedactMetadata(metadata, this.deps.redact)
+          ? uwtRedactMetadata(metadata, this.deps.redact, this.deps.report)
           : undefined
       };
 
@@ -322,9 +329,10 @@ export class UwtScenario {
    */
   setData(metadata: UwtTelemetryMetadata): this {
     return this.mutate('setData', () => {
-      const safe = uwtRedactMetadata(metadata, this.deps.redact);
+      const { redact, report } = this.deps;
+      const safe = uwtRedactMetadata(metadata, redact, report);
       if (safe) {
-        uwtMergeMetadata(this.metadata, safe, this.deps.redact);
+        uwtMergeMetadata(this.metadata, safe, redact, report);
       }
     });
   }
@@ -444,7 +452,7 @@ export class UwtScenario {
         application: this.deps.identity.application
       };
     }
-    const { redact } = this.deps;
+    const { redact, report } = this.deps;
     const settled = this.isSettled;
 
     const aggregates = this.collectAggregates();
@@ -495,7 +503,7 @@ export class UwtScenario {
       record.reason = this.settledReason;
     }
     if (this.settleError !== undefined) {
-      record.error = uwtNormalizeError(this.settleError, redact);
+      record.error = uwtNormalizeError(this.settleError, redact, report);
     }
 
     return record;
@@ -521,72 +529,80 @@ export class UwtScenario {
     if (this.inert) {
       return;
     }
-    uwtSafeVoid(`scenario.${status}`, () => {
-      if (this.isSettled) {
-        return;
-      }
+    uwtSafeVoid(
+      `scenario.${status}`,
+      () => {
+        if (this.isSettled) {
+          return;
+        }
 
-      this.clearTimeout();
-      this.clearMarkCleanupTimer();
-      this._duration = uwtNow() - this.startedAt;
-      this._status = status;
+        this.clearTimeout();
+        this.clearMarkCleanupTimer();
+        this._duration = uwtNow() - this.startedAt;
+        this._status = status;
 
-      const { message, reason } = outcome ?? {};
-      const { redact } = this.deps;
+        const { message, reason } = outcome ?? {};
+        const { redact, report } = this.deps;
 
-      const resolvedMessage = message
-        ? uwtScrubString(message, redact)
-        : undefined;
-      const resolvedReason = reason
-        ? uwtScrubString(reason, redact)
-        : undefined;
-      const resolvedMetadata = uwtRedactMetadata(outcome?.metadata, redact);
+        const resolvedMessage = message
+          ? uwtScrubString(message, redact, report)
+          : undefined;
+        const resolvedReason = reason
+          ? uwtScrubString(reason, redact, report)
+          : undefined;
+        const resolvedMetadata = uwtRedactMetadata(
+          outcome?.metadata,
+          redact,
+          report
+        );
 
-      this.closeOpenStep(
-        status,
-        {
-          message: resolvedMessage,
-          reason: resolvedReason,
-          metadata: resolvedMetadata
-        },
-        error,
-        true
-      );
+        this.closeOpenStep(
+          status,
+          {
+            message: resolvedMessage,
+            reason: resolvedReason,
+            metadata: resolvedMetadata
+          },
+          error,
+          true
+        );
 
-      this.steps.push({
-        name: 'scenario-end',
-        startOffset: Math.round(this._duration),
-        endOffset: Math.round(this._duration),
-        stepDelta: 0,
-        elapsed: Math.round(uwtElapsedNow()),
-        status,
-        ...(resolvedMessage && { message: resolvedMessage }),
-        ...(resolvedReason && { reason: resolvedReason }),
-        ...(resolvedMetadata && { metadata: resolvedMetadata }),
-        ...(status === 'failure' &&
-          error !== undefined && {
-            error: uwtNormalizeError(error, redact)
-          })
-      });
+        this.steps.push({
+          name: 'scenario-end',
+          startOffset: Math.round(this._duration),
+          endOffset: Math.round(this._duration),
+          stepDelta: 0,
+          elapsed: Math.round(uwtElapsedNow()),
+          status,
+          ...(resolvedMessage && { message: resolvedMessage }),
+          ...(resolvedReason && { reason: resolvedReason }),
+          ...(resolvedMetadata && { metadata: resolvedMetadata }),
+          ...(status === 'failure' &&
+            error !== undefined && {
+              error: uwtNormalizeError(error, redact, report)
+            })
+        });
 
-      this.settleOutcome = outcome;
-      this.settleError = error;
-      this.settledMessage = resolvedMessage;
-      this.settledReason = resolvedReason;
+        this.settleOutcome = outcome;
+        this.settleError = error;
+        this.settledMessage = resolvedMessage;
+        this.settledReason = resolvedReason;
 
-      if (resolvedMetadata) {
-        uwtMergeMetadata(this.metadata, resolvedMetadata, redact);
-      }
+        if (resolvedMetadata) {
+          uwtMergeMetadata(this.metadata, resolvedMetadata, redact, report);
+        }
 
-      this.measureScenarioTiming();
+        this.measureScenarioTiming();
 
-      const record = this.toRecord();
-      this.deps.onSettled(this._id, record);
-      this.emit(
-        { kind: 'scenario', payload: record },
-        `${status} in ${Math.round(this._duration)}ms`
-      );
-    });
+        const record = this.toRecord();
+        this.deps.onSettled(this._id, record);
+        this.emit(
+          { kind: 'scenario', payload: record },
+          `${status} in ${Math.round(this._duration)}ms`
+        );
+      },
+      this.deps.report
+    );
   }
 
   /** The active telemetry sink's session id, when it has one. */
@@ -594,7 +610,8 @@ export class UwtScenario {
     return uwtSafe(
       'scenario.getSessionId',
       () => this.deps.sink.getSessionId(),
-      undefined
+      undefined,
+      this.deps.report
     );
   }
 
@@ -603,7 +620,8 @@ export class UwtScenario {
     return uwtSafe(
       'scenario.getUserId',
       () => this.deps.sink.getUserId(),
-      undefined
+      undefined,
+      this.deps.report
     );
   }
 
@@ -643,7 +661,7 @@ export class UwtScenario {
     }
     this.openStep = undefined;
 
-    const { redact } = this.deps;
+    const { redact, report } = this.deps;
     step.endOffset = Math.round(uwtNow() - this.startedAt);
     step.stepDelta = step.endOffset - step.startOffset;
     step.elapsed = Math.round(uwtElapsedNow());
@@ -652,24 +670,25 @@ export class UwtScenario {
     if (detail?.message) {
       step.message = alreadyRedacted
         ? detail.message
-        : uwtScrubString(detail.message, redact);
+        : uwtScrubString(detail.message, redact, report);
     }
     if (detail?.reason) {
       step.reason = alreadyRedacted
         ? detail.reason
-        : uwtScrubString(detail.reason, redact);
+        : uwtScrubString(detail.reason, redact, report);
     }
     if (detail?.metadata) {
       step.metadata = uwtMergeMetadata(
         step.metadata ?? {},
         alreadyRedacted
           ? detail.metadata
-          : uwtRedactMetadata(detail.metadata, redact),
-        redact
+          : uwtRedactMetadata(detail.metadata, redact, report),
+        redact,
+        report
       );
     }
     if (status === 'failure' && error !== undefined) {
-      step.error = uwtNormalizeError(error, redact);
+      step.error = uwtNormalizeError(error, redact, report);
     }
 
     // The two synthetic boundary markers never pass through here, so this
@@ -773,7 +792,7 @@ export class UwtScenario {
 
     const remainingMs = Math.max(0, timeoutMs - (uwtNow() - this.startedAt));
 
-    this.timeoutHandle = this.runOutsideAngular(() =>
+    this.timeoutHandle = this.runOutside(() =>
       setTimeout(
         () => {
           this.timeoutHandle = undefined;
@@ -803,8 +822,8 @@ export class UwtScenario {
    *
    * This clears marks only — it does not settle the scenario. A scenario
    * left unsettled this way never fires {@link UwtScenarioDeps.onSettled},
-   * so it stays in {@link UwtScenarioTelemetryService}'s active registry for
-   * the life of the page.
+   * so it stays among the active scenarios of whatever started it for the
+   * life of the page.
    */
   private scheduleMarkCleanupFallback(): void {
     const fallbackMs = this.deps.scenarioTelemetryConfig.markCleanupFallbackMs;
@@ -812,7 +831,7 @@ export class UwtScenario {
       return;
     }
 
-    this.markCleanupTimer = this.runOutsideAngular(() =>
+    this.markCleanupTimer = this.runOutside(() =>
       setTimeout(
         () => {
           this.markCleanupTimer = undefined;
@@ -828,8 +847,9 @@ export class UwtScenario {
     this.markCleanupTimer = UwtScenario.clearHandle(this.markCleanupTimer);
   }
 
-  private runOutsideAngular<T>(callback: () => T): T {
-    return this.deps.runOutsideAngular?.(callback) ?? callback();
+  private runOutside<T>(callback: () => T): T {
+    const { runOutside } = this.deps;
+    return runOutside ? runOutside(callback) : callback();
   }
 
   /**
@@ -862,12 +882,16 @@ export class UwtScenario {
     if (this.inert) {
       return this;
     }
-    uwtSafeVoid(`scenario.${operation}`, () => {
-      if (this.isSettled) {
-        return;
-      }
-      apply();
-    });
+    uwtSafeVoid(
+      `scenario.${operation}`,
+      () => {
+        if (this.isSettled) {
+          return;
+        }
+        apply();
+      },
+      this.deps.report
+    );
     return this;
   }
 
@@ -887,8 +911,11 @@ export class UwtScenario {
         ? this.eventTypes.scenario
         : this.eventTypes.scenarioStep;
 
-    uwtDebugWrite('debugScenario', () =>
-      writeToConsole(summary, eventType, emission.payload)
+    uwtDebugWrite(
+      'debugScenario',
+      () => writeToConsole(summary, eventType, emission.payload),
+      undefined,
+      this.deps.report
     );
     this.deps.sink.record(eventType, emission.payload);
   }
