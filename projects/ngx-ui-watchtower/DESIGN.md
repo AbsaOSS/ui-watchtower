@@ -249,7 +249,9 @@ across realms).
   document as its `DOCUMENT` and its own cps-ui-kit notification and
   announcer services, so tooltips, menus and messages appear in the window.
   The app's stylesheets are copied in and kept in step, since Angular adds
-  a component's styles when it first renders. One session holds the
+  a component's styles when it first renders. Its icon is the inspector's
+  own mark, an SVG taken from the logo it drew, as a library can't count on
+  serving a file. One session holds the
   captured history from opening to closing, so moving between docks — each
   a fresh view — loses nothing.
 - **Test doubles live in the specs that use them**, declared inline, never in
