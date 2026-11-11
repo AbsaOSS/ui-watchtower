@@ -54,6 +54,13 @@ import {
 const ANNOUNCE_EVERY_MS = 10_000;
 
 /**
+ * Narrower than this, in rem, the dock buttons give way to a menu: beside the
+ * status line they no longer fit one row. A pane opens at 36rem, so it is
+ * only a pane dragged towards its 30rem minimum, or a dialog on a phone.
+ */
+const DOCK_MENU_BELOW_REM = 34;
+
+/**
  * The Event Inspector's content, shown by {@link UwtEventInspectorService}
  * in a non-modal cps-dialog, a pane or its own window. Capturing is
  * controlled here — pause and clear apply to everything — while the
@@ -152,6 +159,9 @@ export class UwtInspectorComponent {
   /** A maximized dialog covers the app, so it isn't see-through. */
   protected readonly maximized = signal(false);
 
+  /** Too narrow for the dock buttons, which a menu replaces. */
+  protected readonly compact = signal(false);
+
   private readonly dialogLogo = viewChild('dialogLogo', { read: ElementRef });
 
   private readonly pauseSwitch = viewChild('pauseSwitch', { read: ElementRef });
@@ -173,6 +183,47 @@ export class UwtInspectorComponent {
       });
     afterNextRender(() => this.placeDialogLogo());
     this.keepScrollingInside();
+    this.watchWidth();
+  }
+
+  /**
+   * Whether the inspector is too narrow for the dock buttons: in a narrow
+   * pane they would take a row of their own. Not in the separate window,
+   * whose menu would open against the app's window.
+   */
+  private watchWidth(): void {
+    const zone = inject(NgZone);
+    const destroyRef = inject(DestroyRef);
+    afterNextRender(() => {
+      const host = this.host.nativeElement;
+      const view = host.ownerDocument.defaultView;
+      if (!view?.ResizeObserver) {
+        return;
+      }
+      const rem =
+        parseFloat(
+          view.getComputedStyle(host.ownerDocument.documentElement).fontSize
+        ) || 16;
+      let width = -1;
+      const observer = new view.ResizeObserver(([entry]) => {
+        // Only width matters, and what changes the layout waits for the next
+        // frame: doing it here, as the row's height changes, would make the
+        // browser report a ResizeObserver loop.
+        if (entry.contentRect.width === width) {
+          return;
+        }
+        width = entry.contentRect.width;
+        view.requestAnimationFrame(() => {
+          const compact =
+            width < DOCK_MENU_BELOW_REM * rem && this.dock() !== 'window';
+          if (compact !== this.compact()) {
+            zone.run(() => this.compact.set(compact));
+          }
+        });
+      });
+      zone.runOutsideAngular(() => observer.observe(host));
+      destroyRef.onDestroy(() => observer.disconnect());
+    });
   }
 
   /**

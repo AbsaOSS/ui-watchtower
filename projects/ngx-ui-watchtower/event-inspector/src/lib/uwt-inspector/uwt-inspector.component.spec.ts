@@ -786,4 +786,85 @@ describe('UwtInspectorComponent', () => {
       expect(wheel(target).defaultPrevented).toBe(false);
     });
   });
+
+  describe('dock menu', () => {
+    const original = window.ResizeObserver;
+    let resize: (width: number) => void;
+    const trigger = () => el().querySelector('.uwt-inspector-dock__trigger');
+    const group = () => el().querySelector('.uwt-inspector-dock__group');
+
+    /** Opens the inspector in `dock`, with a ResizeObserver to drive. */
+    const open = async (dock: 'right' | 'window') => {
+      fixture.destroy();
+      // cps-ui-kit observes things too: only what watches the inspector drives.
+      type Callback = ConstructorParameters<typeof ResizeObserver>[0];
+      window.ResizeObserver = class {
+        private readonly callback: Callback;
+
+        constructor(callback: Callback) {
+          this.callback = callback;
+        }
+
+        observe(target: Element): void {
+          if (target === fixture.nativeElement) {
+            resize = (width) =>
+              this.callback(
+                [{ contentRect: { width } } as ResizeObserverEntry],
+                this as unknown as ResizeObserver
+              );
+          }
+        }
+
+        disconnect(): void {}
+      } as unknown as typeof ResizeObserver;
+      fixture = TestBed.createComponent(UwtInspectorComponent);
+      fixture.componentRef.setInput('dock', dock);
+      fixture.detectChanges();
+      // Observing starts after the first render, a tick on. (whenStable
+      // would wait for the inspector's interval.)
+      await new Promise<void>((resolve) =>
+        jest.requireActual('timers').setImmediate(resolve)
+      );
+    };
+
+    beforeEach(() => {
+      // The change is made on the next frame: here, at once.
+      jest
+        .spyOn(window, 'requestAnimationFrame')
+        .mockImplementation((frame) => {
+          frame(0);
+          return 0;
+        });
+    });
+
+    afterEach(() => {
+      window.ResizeObserver = original;
+      jest.restoreAllMocks();
+    });
+
+    it('should swap the dock buttons for a menu in a pane narrower than 34rem, and back', async () => {
+      await open('right');
+      expect(group()).not.toBeNull();
+
+      resize(479);
+      fixture.detectChanges();
+      expect(trigger()).not.toBeNull();
+      expect(group()).toBeNull();
+
+      resize(576);
+      fixture.detectChanges();
+      expect(trigger()).toBeNull();
+      expect(group()).not.toBeNull();
+    });
+
+    it('should keep the buttons in the separate window, however narrow', async () => {
+      await open('window');
+
+      resize(300);
+      fixture.detectChanges();
+
+      expect(trigger()).toBeNull();
+      expect(group()).not.toBeNull();
+    });
+  });
 });

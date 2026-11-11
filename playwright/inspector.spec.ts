@@ -69,7 +69,9 @@ test('a phone-sized screen offers only the dialog and the window, and opens a re
   await shortcut(page);
   await expect(page.locator('.cps-dialog uwt-inspector')).toBeVisible();
   await expect(page.locator('uwt-inspector-pane')).toHaveCount(0);
-  await expect(page.locator('[data-dock]')).toHaveCount(2);
+  // Too narrow for the buttons: a menu, with the same two to offer.
+  await page.locator('.uwt-inspector-dock__trigger').click();
+  await expect(page.locator('[role="menuitemradio"]')).toHaveCount(2);
   await page.getByRole('button', { name: 'Close dialog' }).click();
   await expect(page.locator('uwt-inspector')).toHaveCount(0);
 
@@ -295,4 +297,38 @@ test('shows every kind in one timeline, and any shape — an unrecognised type, 
   await press(page, 'A 300,000-character payload');
   await expand('lab_huge_payload');
   await expect(timeline).toContainText('Large payload: showing the first');
+});
+
+test('a pane at its default width shows the dock buttons; dragged narrow, a menu of them', async ({
+  page
+}) => {
+  await press(page, 'Right pane');
+  const pane = page.locator('uwt-inspector-pane');
+  await expect(pane.locator('[data-dock]')).toHaveCount(5);
+  await expect(pane.locator('.uwt-inspector-dock__trigger')).toHaveCount(0);
+
+  // Down to its minimum, 30rem, by the keyboard: the handle's arrow away
+  // from the app narrows it, and stops there.
+  await pane.getByRole('separator').focus();
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press('ArrowRight');
+  }
+  expect(Math.round((await pane.boundingBox())!.width)).toBe(480);
+  const trigger = pane.locator('.uwt-inspector-dock__trigger');
+  await expect(trigger).toBeVisible();
+  await expect(pane.locator('[data-dock]')).toHaveCount(0);
+  await expect(trigger).toHaveAccessibleName('Dock position: Dock right');
+
+  await trigger.click();
+  const items = page.getByRole('menuitemradio');
+  await expect(items).toHaveCount(5);
+  await expect(
+    page.getByRole('menuitemradio', { name: 'Dock right' })
+  ).toHaveAttribute('aria-checked', 'true');
+
+  await page.getByRole('menuitemradio', { name: 'Dock bottom' }).click();
+  await expect(page.locator('uwt-inspector-pane')).toHaveAttribute(
+    'class',
+    /uwt-inspector-pane--bottom/
+  );
 });

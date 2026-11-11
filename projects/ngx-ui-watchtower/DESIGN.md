@@ -2127,6 +2127,12 @@ A screen narrower than 640px has no room for a pane: the Dock buttons offer
 only the dialog and the window, and a pane remembered from a wider screen
 opens as a dialog there.
 
+Where the inspector is narrower than 34rem — a pane dragged towards its 30rem
+minimum, or a dialog on a phone — the five Dock buttons would take a row of
+their own, so one button shows the current dock and opens a menu of them all,
+each named. A pane opens at 36rem and keeps the buttons. The separate window
+always keeps them: a menu there would open against the app's window.
+
 A list opened from the inspector — the filter's field and condition, Export —
 closes when the page scrolls. The inspector is fixed, so the page scrolls under
 it, while cps-ui-kit puts an open list in the page, where it would scroll away
