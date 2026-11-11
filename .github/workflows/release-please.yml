@@ -4,17 +4,22 @@ on:
   push:
     branches:
       - main
+  # Retries a failed or partial publish: run it on the release tag,
+  # e.g. `gh workflow run release-please.yml --ref ngx-ui-watchtower-v0.5.0`.
+  workflow_dispatch:
 
 permissions: {}
 
 jobs:
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
     outputs:
-      release_created: ${{ steps.release.outputs['projects/ngx-ui-watchtower--release_created'] }}
+      core_release_created: ${{ steps.release.outputs['projects/ui-watchtower--release_created'] }}
+      ngx_release_created: ${{ steps.release.outputs['projects/ngx-ui-watchtower--release_created'] }}
     steps:
       - uses: googleapis/release-please-action@v5
         id: release
@@ -26,7 +31,13 @@ jobs:
 
   publish:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    # After a release of either package, or when run by hand to retry. On a
+    # manual run release-please is skipped, which !cancelled() lets through.
+    if: >-
+      ${{ !cancelled() && (
+      github.event_name == 'workflow_dispatch' ||
+      needs.release-please.outputs.core_release_created == 'true' ||
+      needs.release-please.outputs.ngx_release_created == 'true') }}
     runs-on: ubuntu-latest
     permissions:
       # Required for npm trusted publishing (OIDC). No npm token needed.
@@ -48,9 +59,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build library
+      - name: Build both packages
         run: npm run build
 
+      # The core, then the Angular package: each only if its release tag
+      # points at this commit and the version isn't on npm yet.
       - name: Publish to npm
-        working-directory: dist/ngx-ui-watchtower
-        run: npm publish
+        run: node scripts/publish-packages.mjs

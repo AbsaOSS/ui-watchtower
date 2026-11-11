@@ -96,7 +96,9 @@ fails where it always did: the logger needs a log provider but no
 destination, scenarios need a destination and no log provider. The services
 are root singletons, so each concern exists once per injector, and all of
 them share the one destination and log provider. `settled$` is the core's
-`onSettled` as an Observable that completes on destroy; `traceScenario` is the
+`onSettled` as an Observable that completes on destroy. It listens to the
+core only while subscribed, so no record is copied while nobody is
+subscribed; `traceScenario` is the
 core's `./rxjs` operator, reporting through this package's dev-mode
 reporter. Framework-free applications compose the same three classes with
 `uwtCreateTelemetry`.
@@ -210,7 +212,10 @@ providers: [
   the same names. The dependency runs one way: the core imports neither
   Angular nor this package, which a lint rule enforces. The library build
   compiles against the core's built declarations, not its source, so it sees
-  the core exactly as an application does.
+  the core exactly as an application does. An application upgrading from
+  0.4 changes nothing. Another framework's adapter needs only the core's
+  public entry points, as this package does;
+  `docs/ADAPTERS.md` is a short guide.
 - **What the core owns, this package re-exports.** The engine, the models
   and name registries, the configuration types and defaults
   (`uwtResolveTelemetryConfig` completes every `with*` feature), redaction,
@@ -238,13 +243,23 @@ providers: [
   fixes each entry point's `rootDir` to its own `src`, so
   `@absaoss-cps/ngx-ui-watchtower/rum` can't import the main entry's
   internals by relative path and carries small copies of what it needs: its
-  Angular helpers and the reporter.
+  Angular helpers and the reporter. A spec (`uwt-rum-internal.util.spec.ts`)
+  runs both copies against the same cases, and fails if their exports or
+  behaviour differ, so they can't drift apart.
 - **What is published is tested as published.** `npm run smoke` installs
   both tarballs into consumers outside the workspace: a framework-free one
   with neither Angular nor `aws-rum-web` installed, and an Angular
   application, prerendered as a fragment without `aws-rum-web` — which then
   holds no RUM code — and as a shell with `/rum`, whose RUM client is a chunk
   loaded on demand.
+- **Each package has its own version.** A change to this package releases
+  only this package. A core release also releases this package as a patch:
+  Release Please's `node-workspace` plugin moves its dependency on the core
+  to `^` the new version in the same release PR, so it always depends on the
+  core it was built against. The release workflow publishes the core first
+  and this package only after it, so this package never depends on a core
+  version npm doesn't have. Publishing skips what npm already has, so running
+  the workflow again on the release tag completes a partial release.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
@@ -2197,6 +2212,12 @@ providers: [
 
 Code inside a fragment does not change: same services, same calls. One
 session, one budget, one bundle.
+
+| Realm          | Destination                                         | RUM and `UWT_RUM_CREDENTIALS_PROVIDER` | `UWT_LOG_API_PROVIDER`                 |
+| -------------- | --------------------------------------------------- | -------------------------------------- | -------------------------------------- |
+| Standalone app | Its own: `provideUwtTelemetryRumSink()`, or another | The app's                              | The app's                              |
+| Shell          | Its own, plus `provideUwtTelemetryBroadcastHost()`  | The shell's: the only ones on the page | The shell's, also for fragments' logs  |
+| Fragment       | `provideUwtTelemetrySink('broadcast')`              | None: the shell's records for it       | Bound by `'broadcast'`, to the shell's |
 
 Either side may be built without Angular. The protocol — the messages, the
 host, the forwarding sink and log provider — lives in

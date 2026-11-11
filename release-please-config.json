@@ -1,27 +1,32 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "release-type": "node",
-  "include-component-in-tag": false,
-  "bootstrap-sha": "ebd38afab87af29f9ee27ecfa0eea90b81978881",
+  "bootstrap-sha": "1c05bd23b30ddf8105aab40ece85db32750cd2db",
+  "bump-minor-pre-major": true,
+  "changelog-path": "CHANGELOG.md",
+  "changelog-sections": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "perf", "section": "Performance Improvements" },
+    { "type": "revert", "section": "Reverts" },
+    { "type": "docs", "section": "Documentation", "hidden": true },
+    { "type": "style", "section": "Styles", "hidden": true },
+    { "type": "chore", "section": "Miscellaneous Chores", "hidden": true },
+    { "type": "refactor", "section": "Code Refactoring", "hidden": true },
+    { "type": "test", "section": "Tests", "hidden": true },
+    { "type": "build", "section": "Build System", "hidden": true },
+    { "type": "ci", "section": "Continuous Integration", "hidden": true }
+  ],
   "packages": {
+    "projects/ui-watchtower": {
+      "package-name": "@absaoss-cps/ui-watchtower",
+      "component": "ui-watchtower",
+      "initial-version": "0.1.0"
+    },
     "projects/ngx-ui-watchtower": {
-      "release-type": "node",
       "package-name": "@absaoss-cps/ngx-ui-watchtower",
-      "changelog-path": "CHANGELOG.md",
-      "bump-minor-pre-major": true,
-      "changelog-sections": [
-        { "type": "feat", "section": "Features" },
-        { "type": "fix", "section": "Bug Fixes" },
-        { "type": "perf", "section": "Performance Improvements" },
-        { "type": "revert", "section": "Reverts" },
-        { "type": "docs", "section": "Documentation", "hidden": true },
-        { "type": "style", "section": "Styles", "hidden": true },
-        { "type": "chore", "section": "Miscellaneous Chores", "hidden": true },
-        { "type": "refactor", "section": "Code Refactoring", "hidden": true },
-        { "type": "test", "section": "Tests", "hidden": true },
-        { "type": "build", "section": "Build System", "hidden": true },
-        { "type": "ci", "section": "Continuous Integration", "hidden": true }
-      ]
+      "component": "ngx-ui-watchtower"
     }
-  }
+  },
+  "plugins": [{ "type": "node-workspace" }]
 }
