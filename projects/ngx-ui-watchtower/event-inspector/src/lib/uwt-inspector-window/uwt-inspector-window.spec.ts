@@ -85,6 +85,11 @@ describe('uwtOpenInspectorWindow', () => {
       expect.stringMatching(/^popup,width=\d+,height=\d+$/)
     );
     expect(doc.title).toBe('Event Inspector · shop');
+    const icon = doc.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    expect(icon?.type).toBe('image/svg+xml');
+    expect(decodeURIComponent(icon?.href ?? '')).toMatch(
+      /^data:image\/svg\+xml,<svg xmlns="http:\/\/www.w3.org\/2000\/svg".*<\/svg>$/
+    );
     expect(doc.head.textContent).toContain('.app {}');
     expect(doc.head.textContent).not.toContain('.stale');
     expect(doc.querySelector('.uwt-inspector__title')?.textContent).toBe(

@@ -212,6 +212,20 @@ test('a separate window, with its own header and no slider', async ({
     window.locator('.uwt-inspector__brand uwt-inspector-logo')
   ).toHaveCount(1);
   await expect(window).toHaveTitle('Event Inspector · watchtower-lab');
+  // Its own icon, which the browser can draw.
+  const icon = window.locator('link[rel="icon"]');
+  await expect(icon).toHaveCount(1);
+  expect(
+    await icon.evaluate(
+      (link: HTMLLinkElement) =>
+        new Promise<number>((resolve) => {
+          const image = new Image();
+          image.onload = () => resolve(image.naturalWidth);
+          image.onerror = () => resolve(0);
+          image.src = link.href;
+        })
+    )
+  ).toBeGreaterThan(0);
   await expect(window.locator('cps-slider')).toHaveCount(0);
 });
 

@@ -100,6 +100,7 @@ export function uwtOpenInspectorWindow(
     created.setInput('dock', 'window');
     options.appRef.attachView(created.hostView);
     created.changeDetectorRef.detectChanges();
+    setIcon(doc);
   } catch (error) {
     // Half open: close it again, for the caller to open a dialog instead.
     created?.destroy();
@@ -151,6 +152,21 @@ export function uwtOpenInspectorWindow(
       popup.close();
     }
   };
+}
+
+/**
+ * Gives the window the inspector's own mark as its icon, taken from the logo
+ * it drew: an app's icon, if any, would say nothing about this window, and a
+ * library can't count on serving a file.
+ */
+function setIcon(doc: Document): void {
+  const logo = doc.querySelector('uwt-inspector-logo svg');
+  if (logo) {
+    const link = doc.head.appendChild(doc.createElement('link'));
+    link.rel = 'icon';
+    link.type = 'image/svg+xml';
+    link.href = `data:image/svg+xml,${encodeURIComponent(new XMLSerializer().serializeToString(logo))}`;
+  }
 }
 
 /** 1200×800 at most the screen the first time, then where it was last. */
