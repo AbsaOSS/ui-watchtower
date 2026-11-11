@@ -71,3 +71,19 @@ for (const signOut of ['Sign out (undefined)', "Sign out ('')"]) {
     expect(tracked(events)[0].metadata.signedIn).toBe(false);
   });
 }
+
+test('the header says whether someone is signed in, and links to this page, keeping the options', async ({
+  page
+}) => {
+  await openLab(page, 'bi?destination=noop');
+  const user = page.locator('.lab-header').getByRole('link', {
+    name: /^Signed (in|out)$/
+  });
+  await expect(user).toBeVisible();
+
+  await user.click();
+
+  await expect(page).toHaveURL(/\/identity\?destination=noop/);
+  await expect(page.locator('lab-root main h1').first()).toBeVisible();
+  await expect(user).toHaveAttribute('aria-current', 'page');
+});

@@ -71,9 +71,15 @@ function inEffect(now?: string, next?: string): string {
         </div>
       </details>
       <span class="lab-spacer"></span>
-      <span class="lab-user">{{
-        identity().userId ? 'Signed in' : 'Signed out'
-      }}</span>
+      <a
+        class="lab-user"
+        routerLink="identity"
+        queryParamsHandling="preserve"
+        ariaCurrentWhenActive="page"
+        routerLinkActive="active"
+        title="Identity page"
+        >{{ identity().userId ? 'Signed in' : 'Signed out' }}</a
+      >
       <button
         type="button"
         class="lab-header-button"
