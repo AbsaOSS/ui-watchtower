@@ -9,7 +9,10 @@ import {
 } from '@angular/core';
 import { UwtTelemetryBroadcastHost } from '../../sinks/uwt-broadcast/uwt-broadcast-host.service';
 import { UwtBroadcastTelemetrySink } from '../../sinks/uwt-broadcast/uwt-broadcast-telemetry.sink';
-import { UWT_BROADCAST_CHANNEL } from '../../sinks/uwt-broadcast/uwt-broadcast.messages';
+import {
+  UWT_BROADCAST_CHANNEL,
+  UwtBroadcastConnectionRef
+} from '../../sinks/uwt-broadcast/uwt-broadcast.messages';
 import { UwtNoopTelemetrySink } from '../../sinks/uwt-telemetry/uwt-noop-telemetry.sink/uwt-noop-telemetry.sink';
 import {
   UWT_DEFAULT_TELEMETRY_CONFIG,
@@ -376,6 +379,8 @@ export function provideUwtTelemetrySink(
   switch (mode) {
     case 'broadcast':
       return makeEnvironmentProviders([
+        // One channel for the realm's sink and log provider.
+        UwtBroadcastConnectionRef,
         provideUwtTelemetryDestination(UwtBroadcastTelemetrySink),
         UwtBroadcastLogApiProvider,
         {

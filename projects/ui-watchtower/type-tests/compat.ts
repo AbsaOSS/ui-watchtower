@@ -11,6 +11,18 @@ import {
   UwtTraceScenarioOptions
 } from '@absaoss-cps/ui-watchtower/rxjs';
 import {
+  UWT_BROADCAST_LOG_QUERY_TIMEOUT_MS,
+  UWT_DEFAULT_BROADCAST_CHANNEL,
+  UwtBroadcastConnection,
+  UwtBroadcastConnectOptions,
+  UwtBroadcastLogApiProvider,
+  UwtBroadcastLogApiProviderOptions,
+  UwtBroadcastMessage,
+  UwtBroadcastTelemetrySink,
+  UwtBroadcastTelemetrySinkOptions,
+  uwtConnectBroadcastChannel,
+  UwtTelemetryBroadcastHost,
+  UwtTelemetryBroadcastHostOptions,
   UWT_DEFAULT_EVENT_NAMESPACE,
   UWT_DEFAULT_REDACT_CONFIG,
   UWT_DEFAULT_TELEMETRY_CONFIG,
@@ -237,4 +249,48 @@ export function concerns(
     new UwtBITelemetry(biOptions),
     new UwtLogTelemetry(logOptions)
   ];
+}
+
+/** A composed page without a framework: a fragment, and the shell hosting it. */
+export function composedPage(
+  shellSink: UwtTelemetrySink,
+  shellLogs: UwtLogApiProvider
+): () => void {
+  const connectOptions: UwtBroadcastConnectOptions = {
+    channelName: UWT_DEFAULT_BROADCAST_CHANNEL,
+    open: true,
+    report
+  };
+  const connection: UwtBroadcastConnection =
+    uwtConnectBroadcastChannel(connectOptions);
+  const sinkOptions: UwtBroadcastTelemetrySinkOptions = {
+    identity,
+    connection
+  };
+  const logOptions: UwtBroadcastLogApiProviderOptions = {
+    connection,
+    runOutside: (callback) => callback(),
+    runInside: (callback) => callback()
+  };
+  const fragment = uwtCreateTelemetry({
+    identity,
+    destination: new UwtBroadcastTelemetrySink(sinkOptions),
+    logApi: new UwtBroadcastLogApiProvider(logOptions)
+  });
+
+  const hostOptions: UwtTelemetryBroadcastHostOptions = {
+    sink: shellSink,
+    logApi: shellLogs,
+    report
+  };
+  const host = new UwtTelemetryBroadcastHost(hostOptions);
+  const flush: UwtBroadcastMessage = { kind: 'flush', beacon: true };
+  connection.post(flush);
+
+  return () => {
+    report('warn', `${host.received} of ${UWT_BROADCAST_LOG_QUERY_TIMEOUT_MS}`);
+    fragment.dispose();
+    host.dispose();
+    connection.close();
+  };
 }

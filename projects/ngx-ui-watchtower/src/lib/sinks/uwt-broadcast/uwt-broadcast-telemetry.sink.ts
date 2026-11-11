@@ -1,16 +1,8 @@
 import { inject, Injectable, OnDestroy } from '@angular/core';
-import {
-  UwtTelemetryError,
-  UwtTelemetryMetadata,
-  UwtTelemetrySink
-} from '@absaoss-cps/ui-watchtower';
+import { UwtBroadcastTelemetrySink as CoreBroadcastTelemetrySink } from '@absaoss-cps/ui-watchtower';
 import { UWT_TELEMETRY_IDENTITY } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
-import { uwtSafeVoid } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
-import {
-  UwtBroadcastConnection,
-  uwtConnectBroadcastChannel,
-  uwtIsBroadcastMessage
-} from './uwt-broadcast.messages';
+import { uwtDevModeReporter } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+import { uwtBroadcastConnectionOptions } from './uwt-broadcast.messages';
 
 /**
  * Telemetry sink for a follower realm — a micro-frontend fragment, a webview
@@ -34,99 +26,19 @@ import {
  */
 @Injectable()
 export class UwtBroadcastTelemetrySink
-  extends UwtTelemetrySink
+  extends CoreBroadcastTelemetrySink
   implements OnDestroy
 {
-  private readonly connection: UwtBroadcastConnection =
-    uwtConnectBroadcastChannel('broadcastSink');
-
-  /** The host's session id, once it has answered. */
-  private sessionId?: string;
-  private userId?: string;
-
-  private readonly config = inject(UWT_TELEMETRY_IDENTITY);
-
-  /**
-   * This realm's own identity, stamped onto everything it forwards.
-   *
-   * The host records through its own RUM client, so without this, forwarded
-   * events would all be labelled as the host's realm.
-   */
-  private readonly origin = {
-    application: this.config.application,
-    environment: this.config.environment,
-    appVersion: this.config.version
-  };
-
   constructor() {
-    super();
-
-    this.connection.onMessage((data) => this.onMessage(data));
-    this.connection.post({ kind: 'identity-request' });
-  }
-
-  /** @inheritdoc */
-  record(
-    eventType: string,
-    payload: object,
-    metadata?: UwtTelemetryMetadata
-  ): void {
-    this.connection.post({
-      kind: 'event',
-      eventType,
-      payload,
-      metadata: { ...metadata, ...this.origin }
+    super({
+      identity: inject(UWT_TELEMETRY_IDENTITY),
+      ...uwtBroadcastConnectionOptions(),
+      report: uwtDevModeReporter
     });
-  }
-
-  /** @inheritdoc */
-  recordError(error: UwtTelemetryError, metadata?: UwtTelemetryMetadata): void {
-    this.connection.post({
-      kind: 'error',
-      error,
-      metadata: { ...metadata, ...this.origin }
-    });
-  }
-
-  /**
-   * The host's session id.
-   *
-   * Returns `undefined` until the host answers.
-   *
-   * @returns the shared session id, when known
-   */
-  getSessionId(): string | undefined {
-    return this.sessionId;
-  }
-
-  /** @inheritdoc */
-  setUserId(userId: string | undefined): void {
-    this.userId = userId;
-    this.connection.post({ kind: 'user', userId });
-  }
-
-  /** @inheritdoc */
-  getUserId(): string | undefined {
-    return this.userId;
-  }
-
-  /** @inheritdoc */
-  flush(beacon = false): void {
-    this.connection.post({ kind: 'flush', beacon });
   }
 
   /** @inheritdoc */
   ngOnDestroy(): void {
-    this.connection.close();
-  }
-
-  private onMessage(data: unknown): void {
-    uwtSafeVoid('broadcastSink.receive', () => {
-      if (!uwtIsBroadcastMessage(data) || data.kind !== 'identity') {
-        return;
-      }
-      this.sessionId = data.sessionId;
-      this.userId = data.userId;
-    });
+    this.dispose();
   }
 }
