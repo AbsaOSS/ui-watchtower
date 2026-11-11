@@ -1,5 +1,5 @@
 import { UwtNoopTelemetrySink } from './uwt-noop-telemetry.sink';
-import { UwtTelemetrySink } from '@absaoss-cps/ui-watchtower';
+import { UwtTelemetrySink } from '../uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 
 describe('UwtNoopTelemetrySink', () => {
   let sink: UwtTelemetrySink;

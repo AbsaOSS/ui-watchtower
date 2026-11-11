@@ -5,19 +5,71 @@ The framework-independent engine behind
 scenario health telemetry, business/UX events and application logs, for any
 JavaScript or TypeScript application.
 
-> **Work in progress.** The engine is moving here from the Angular package in
-> stages: the models, scenarios, redaction and contracts are here; the engine
-> that wires them together is next. Until it lands, use
-> `@absaoss-cps/ngx-ui-watchtower`; it installs this package by itself.
-
 It imports no framework and touches no browser global when imported, so it
 loads in Node, on a server and in a worker as well as in a browser.
+
+> **Work in progress.** The broadcast and AWS RUM destinations are still
+> moving here from the Angular package.
 
 ## Install
 
 ```bash
 npm install @absaoss-cps/ui-watchtower
+npm install rxjs   # only for @absaoss-cps/ui-watchtower/rxjs
 ```
+
+## Use
+
+Create one engine per application, with its identity, where telemetry goes
+and where logs go:
+
+```ts
+import {
+  uwtCreateTelemetry,
+  UwtNoopLogApiProvider,
+  UwtNoopTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
+
+const telemetry = uwtCreateTelemetry({
+  identity: { application: 'cart', environment: 'prod', version: '1.4.0' },
+  destination: new UwtNoopTelemetrySink(), // or your own UwtTelemetrySink
+  logApi: new UwtNoopLogApiProvider(), // or your own UwtLogApiProvider
+  logging: { minLevel: 'warn' } // optional overrides, per concern
+});
+
+// Scenarios: a user journey, its steps and outcome.
+const scenario = telemetry.scenarios.start({ name: 'checkout' });
+scenario.step('pay');
+scenario.complete({ metadata: { items: 2 } });
+
+// BI events.
+telemetry.bi.track('export_clicked', { format: 'csv' });
+
+// Logs, by named logger.
+telemetry.logging.getLogger('checkout').warn('Slow payment');
+
+// When the application, or a fragment, goes away.
+telemetry.dispose();
+```
+
+Every call is fail-open: telemetry never throws into your application.
+Configuration errors still throw, when the engine is created.
+
+| Option                                    | What it does                                                                                       |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `identity`                                | Application, environment and version, carried by every record                                      |
+| `destination`                             | A `UwtTelemetrySink`: where scenarios, BI events and mirrored errors go                            |
+| `logApi`                                  | A `UwtLogApiProvider`: where logs go, and are read back from                                       |
+| `scenarios`, `logging`, `bi`, `redaction` | Overrides of each concern's defaults                                                               |
+| `enabled`                                 | `false` makes everything inert: nothing is recorded, sent or logged                                |
+| `document`                                | The page whose lifecycle settles and flushes telemetry; the global one by default, `null` for none |
+| `report`                                  | Receives what telemetry skips or drops; nothing is reported without one                            |
+| `runOutside`                              | Schedules timers outside a framework's change detection                                            |
+
+`dispose()` stops watching the page, settles scenarios still in flight as
+abandoned and flushes; the engine does nothing after that, and leaves no
+listener or timer behind. The destination and log store you passed are
+yours to close.
 
 ## Declare your names
 
@@ -50,9 +102,8 @@ registries: either module path reaches the same ones.
 
 ## Seeing what telemetry skips
 
-Telemetry never throws into your application, and the engine prints nothing
-by itself. Hand it a `UwtReporter` where you want to see what it skipped or
-dropped, typically in development:
+The engine prints nothing by itself. Hand it a `UwtReporter` where you want
+to see what it skipped or dropped, typically in development:
 
 ```ts
 import { UwtReporter } from '@absaoss-cps/ui-watchtower';
@@ -61,17 +112,31 @@ const report: UwtReporter = (level, message, ...details) =>
   console[level](`[my-app] ${message}`, ...details);
 ```
 
+## RxJS
+
+`traceScenario` settles a scenario from an Observable's outcome. It lives in
+its own entry point, so the main one never loads RxJS:
+
+```ts
+import { traceScenario } from '@absaoss-cps/ui-watchtower/rxjs';
+
+customers$.pipe(traceScenario(scenario)).subscribe();
+```
+
 ## API
 
 | Group         | Exports                                                                                                                                          |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Configuration | `UwtTelemetryIdentity`, `UwtScenarioTelemetryConfig`, `UwtLogConfig`, `UwtBITelemetryConfig`, `UWT_DEFAULT_TELEMETRY_CONFIG`                     |
+| Engine        | `uwtCreateTelemetry`, `UwtTelemetry`, `UwtTelemetryOptions`, `UwtTelemetryDocument`                                                              |
+| Concerns      | `UwtScenarioTelemetry`, `UwtBITelemetry`, `UwtLogTelemetry` and their options, for an adapter composing them itself                              |
+| Configuration | `UwtTelemetryIdentity`, the per-concern config types, `UWT_DEFAULT_TELEMETRY_CONFIG`, `uwtResolveTelemetryConfig`                                |
 | Models        | scenario, step, BI event and log record types; `UWT_LOG_LEVEL_ORDER`, `UWT_TELEMETRY_EVENT_TYPE`, `uwtEventTypes`                                |
 | Names         | `UwtScenarioNames`, `UwtScenarioSteps`, `UwtBIEventNames`, `UwtLoggerNames` and their `Uwt*Name` types                                           |
 | Scenarios     | `UwtScenario`                                                                                                                                    |
-| Contracts     | `UwtTelemetrySink` (a destination), `UwtLogApiProvider` and `UwtLogQuery` (a log backend)                                                        |
+| Contracts     | `UwtTelemetrySink` and `UwtNoopTelemetrySink`; `UwtLogApiProvider`, `UwtLogQuery` and `UwtNoopLogApiProvider`                                    |
 | Redaction     | `uwtRedactMetadata`, `uwtScrubString`, `uwtNormalizeError`, `uwtRedactConfigFor`, `UwtRedactConfig`, `UWT_DEFAULT_REDACT_CONFIG`, `UWT_REDACTED` |
-| Utilities     | `uwtClassifyTelemetryEvent`, `uwtIsDebugEnabled`, `uwtMarkSessionStart`, `uwtUuid`, `UwtReporter`                                                |
+| Utilities     | `uwtClassifyTelemetryEvent`, `uwtIsDebugEnabled`, `uwtMarkSessionStart`, `uwtUuid`, `uwtSafe*`, `UwtReporter`                                    |
+| `/rxjs`       | `traceScenario`, `UwtTraceScenarioOptions`                                                                                                       |
 
 ## License
 

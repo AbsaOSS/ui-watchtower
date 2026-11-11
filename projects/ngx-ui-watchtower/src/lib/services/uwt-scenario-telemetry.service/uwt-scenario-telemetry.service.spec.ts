@@ -1,4 +1,4 @@
-import { Injectable, NgZone } from '@angular/core';
+import { inject, Injectable, NgZone, OnDestroy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   UWT_REDACTED,
@@ -18,6 +18,7 @@ import {
   withRedaction,
   withScenarios
 } from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
+import * as uwtTelemetrySafeUtil from '../../../../../ui-watchtower/src/lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { UwtScenarioTelemetryService } from './uwt-scenario-telemetry.service';
 
@@ -2065,6 +2066,62 @@ describe('UwtScenarioTelemetryService', () => {
       expect(completed).toBe(true);
     });
 
+    it('should complete a subscriber that arrives after destroy', () => {
+      service.ngOnDestroy();
+
+      let completed = false;
+      service.settled$.subscribe({ complete: () => (completed = true) });
+
+      expect(completed).toBe(true);
+    });
+
+    describe('copies of the record', () => {
+      let copy: jest.SpyInstance;
+
+      const recordCopies = () =>
+        copy.mock.calls.filter(
+          ([value]) =>
+            (value as { scenarioName?: unknown } | null)?.scenarioName !==
+            undefined
+        ).length;
+
+      beforeEach(() => {
+        copy = jest.spyOn(uwtTelemetrySafeUtil, 'uwtDeepClone');
+      });
+      afterEach(() => copy.mockRestore());
+
+      it('should make none while nobody subscribes', () => {
+        service.start({ name: 'a' }).complete();
+
+        expect(recordCopies()).toBe(0);
+      });
+
+      it('should make one per record for any number of subscribers, sharing it', () => {
+        const seen: UwtScenarioRecord[] = [];
+        service.settled$.subscribe((r) => seen.push(r));
+        service.settled$.subscribe((r) => seen.push(r));
+
+        service.start({ name: 'a' }).complete();
+
+        expect(recordCopies()).toBe(1);
+        expect(seen).toHaveLength(2);
+        expect(seen[0]).toBe(seen[1]);
+      });
+
+      it('should stop once the last subscriber leaves', () => {
+        const first = service.settled$.subscribe();
+        const second = service.settled$.subscribe();
+        first.unsubscribe();
+
+        service.start({ name: 'a' }).complete();
+        expect(recordCopies()).toBe(1);
+
+        second.unsubscribe();
+        service.start({ name: 'b' }).complete();
+        expect(recordCopies()).toBe(1);
+      });
+    });
+
     it('should not let a throwing subscriber break the scenario', () => {
       // RxJS's Subject.next() already isolates a throwing subscriber, not
       // uwtSafeVoid — this confirms the guarantee holds either way.
@@ -2089,6 +2146,44 @@ describe('UwtScenarioTelemetryService', () => {
         status: 'success',
         metadata: { real: true }
       });
+    });
+  });
+
+  describe('teardown', () => {
+    it('should still record a scenario that a service starts and ends in its own ngOnDestroy', () => {
+      // Angular destroys a service before those that inject it, so this one
+      // starts its scenario after UwtScenarioTelemetryService was destroyed.
+      @Injectable({ providedIn: 'root' })
+      class ClosingService implements OnDestroy {
+        private readonly scenarios = inject(UwtScenarioTelemetryService);
+
+        ngOnDestroy(): void {
+          this.scenarios.start({ name: 'closing' }).complete();
+        }
+      }
+      TestBed.inject(ClosingService);
+
+      TestBed.resetTestingModule();
+
+      expect(onlyScenarioRecord()).toMatchObject({
+        scenarioName: 'closing',
+        status: 'success'
+      });
+    });
+
+    it('should still time out a scenario started after destroy and never ended, as before', () => {
+      jest.useFakeTimers();
+      configure({ defaultTimeoutMs: 5_000 });
+
+      service.ngOnDestroy();
+      service.start({ name: 'late' });
+      jest.advanceTimersByTime(5_000);
+
+      expect(onlyScenarioRecord()).toMatchObject({
+        scenarioName: 'late',
+        status: 'timeout'
+      });
+      jest.useRealTimers();
     });
   });
 

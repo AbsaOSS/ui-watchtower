@@ -13,6 +13,7 @@ import { UWT_BROADCAST_CHANNEL } from '../../sinks/uwt-broadcast/uwt-broadcast.m
 import { UwtNoopTelemetrySink } from '../../sinks/uwt-telemetry/uwt-noop-telemetry.sink/uwt-noop-telemetry.sink';
 import {
   UWT_DEFAULT_TELEMETRY_CONFIG,
+  uwtResolveTelemetryConfig,
   UwtBITelemetryConfig,
   UwtLogConfig,
   UwtRedactConfig,
@@ -60,7 +61,7 @@ export function withLogging(
     providers: [
       {
         provide: UWT_LOG_CONFIG,
-        useValue: { ...UWT_DEFAULT_TELEMETRY_CONFIG.logs, ...config }
+        useValue: uwtResolveTelemetryConfig({ logging: config }).logging
       }
     ]
   };
@@ -81,7 +82,7 @@ export function withScenarios(
     providers: [
       {
         provide: UWT_SCENARIO_TELEMETRY_CONFIG,
-        useValue: { ...UWT_DEFAULT_TELEMETRY_CONFIG.scenario, ...config }
+        useValue: uwtResolveTelemetryConfig({ scenarios: config }).scenarios
       }
     ]
   };
@@ -102,7 +103,7 @@ export function withBIEvents(
     providers: [
       {
         provide: UWT_BI_TELEMETRY_CONFIG,
-        useValue: { ...UWT_DEFAULT_TELEMETRY_CONFIG.bi, ...config }
+        useValue: uwtResolveTelemetryConfig({ bi: config }).bi
       }
     ]
   };
@@ -123,24 +124,11 @@ export function withBIEvents(
 export function withRedaction(
   config: Partial<UwtRedactConfig> = {}
 ): UwtTelemetryFeature {
-  const defaults = UWT_DEFAULT_TELEMETRY_CONFIG.redact;
   return {
     providers: [
       {
         provide: UWT_REDACT_CONFIG,
-        useValue: {
-          ...defaults,
-          ...config,
-          extraKeyPatterns: [
-            ...(config.extraKeyPatterns ?? defaults.extraKeyPatterns)
-          ],
-          extraValuePatterns: [
-            ...(config.extraValuePatterns ?? defaults.extraValuePatterns)
-          ],
-          extraValueTransforms: [
-            ...(config.extraValueTransforms ?? defaults.extraValueTransforms)
-          ]
-        }
+        useValue: uwtResolveTelemetryConfig({ redaction: config }).redaction
       }
     ]
   };

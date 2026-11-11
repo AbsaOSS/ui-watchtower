@@ -2,9 +2,9 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "../../out-tsc/spec-core",
-    "rootDir": "./src",
+    "rootDir": ".",
     "types": ["jest", "node"],
     "isolatedModules": false
   },
-  "include": ["src/**/*.spec.ts", "src/**/*.d.ts"]
+  "include": ["src/**/*.spec.ts", "rxjs/**/*.spec.ts", "src/**/*.d.ts"]
 }

@@ -89,6 +89,19 @@ flowchart TD
 Everything is wired through Angular DI, so a destination can be swapped in
 production and stubbed in tests.
 
+The three services are Angular facades over the core's engine. Each holds the
+core's class for its concern (`UwtScenarioTelemetry`, `UwtBITelemetry`,
+`UwtLogTelemetry`), built from its own injections, so a missing provider still
+fails where it always did: the logger needs a log provider but no
+destination, scenarios need a destination and no log provider. The services
+are root singletons, so each concern exists once per injector, and all of
+them share the one destination and log provider. `settled$` is the core's
+`onSettled` as an Observable that completes on destroy. It listens to the
+core only while subscribed, so no record is copied for nobody; `traceScenario` is the
+core's `./rxjs` operator, reporting through this package's dev-mode
+reporter. Framework-free applications compose the same three classes with
+`uwtCreateTelemetry`.
+
 ### Entry points
 
 Two, each pulling in only what it needs:
@@ -198,24 +211,51 @@ providers: [
   the same names. The dependency runs one way: the core imports neither
   Angular nor this package, which a lint rule enforces. The library build
   compiles against the core's built declarations, not its source, so it sees
-  the core exactly as an application does.
-- **What the core owns, this package re-exports.** The models and name
-  registries, the configuration types and defaults, redaction, `UwtScenario`
-  and the `UwtTelemetrySink` and `UwtLogApiProvider` contracts are the
-  core's. This package keeps the injection tokens, the services and
-  providers, and the destinations that need Angular. `UwtTelemetrySink` is a
-  plain abstract class in the core, not `@Injectable()`: Angular uses it as
-  the destination's token as before, and a custom sink still extends it.
+  the core exactly as an application does. An application upgrading from
+  0.4 changes nothing. Another framework's adapter needs only the core's
+  public entry points, as this package does;
+  `docs/ADAPTERS.md` is a short guide.
+- **What the core owns, this package re-exports.** The engine, the models
+  and name registries, the configuration types and defaults
+  (`uwtResolveTelemetryConfig` completes every `with*` feature), redaction,
+  `UwtScenario`, the `UwtTelemetrySink` and `UwtLogApiProvider` contracts and
+  their no-op implementations are the core's. This package keeps the
+  injection tokens, the services and providers, and the destinations that
+  need Angular. `UwtTelemetrySink` is a plain abstract class in the core, not
+  `@Injectable()`: Angular uses it as the destination's token as before, and
+  a custom sink still extends it. Every class an application provides stays
+  `@Injectable()` here — `UwtNoopTelemetrySink` and `UwtNoopLogApiProvider`
+  are decorated subclasses of the core's — so the published declarations
+  keep their Angular metadata.
 - **Every export is explicit.** The barrels list their exports one by one —
   in a published package each exported name is a compatibility promise. Id
   generation, the clock, the fail-open wrappers, User Timings and the
   broadcast plumbing stay internal so they can change freely. Redaction is
   the exception: a custom sink needs `uwtRedactMetadata`,
   `uwtNormalizeError`, `uwtScrubString` and `uwtRedactConfigFor`.
+- **The RUM sink is the core's too.** Its logic — the lazy `aws-rum-web`
+  import, startup retries, credential refresh, the pre-init buffer, the
+  settings check — lives in `@absaoss-cps/ui-watchtower/rum`. This package's
+  `/rum` keeps `UWT_RUM_CREDENTIALS_PROVIDER`, `provideUwtTelemetryRumSink()`
+  and `UwtRumTelemetrySink`, an injectable subclass of the core's.
 - **The secondary entry keeps private copies of a few utilities.** ng-packagr
   fixes each entry point's `rootDir` to its own `src`, so
   `@absaoss-cps/ngx-ui-watchtower/rum` can't import the main entry's
-  internals by relative path and carries small copies of what it needs.
+  internals by relative path and carries small copies of what it needs: its
+  Angular helpers and the reporter.
+- **What is published is tested as published.** `npm run smoke` installs
+  both tarballs into consumers outside the workspace: a framework-free one
+  with neither Angular nor `aws-rum-web` installed, and an Angular
+  application, prerendered as a fragment without `aws-rum-web` — which then
+  holds no RUM code — and as a shell with `/rum`, whose RUM client is a chunk
+  loaded on demand.
+- **Both packages share one version and release together.** Release Please
+  links their versions: a change to either releases both, and the same
+  release PR moves this package's dependency on the core to `^` the new
+  version. The release workflow publishes the core first and this package
+  only after it, so this package never depends on a core version npm doesn't
+  have. Publishing skips what npm already has, so running the workflow again
+  on the release tag completes a partial release.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
@@ -1591,12 +1631,15 @@ convention, for an application that wants the pre-fallback behavior back.
 ## 11. Error handling and performance
 
 - **Telemetry never breaks the application.** Every public entry point is
-  wrapped and never rethrows. The core prints nothing by itself: it hands a
-  suppressed error, or data it had to drop, to the `UwtReporter` it is
-  given. This package gives it one that writes to the console, prefixed
+  wrapped and never rethrows. The core hands a suppressed error (`'error'`),
+  or data it had to drop (`'warn'`), to the `UwtReporter` it is given. This
+  package gives it one that writes to the console, prefixed
   `[ngx-ui-watchtower]`, in development mode only, so bugs surface in
-  development and production stays silent. Even a broken `console.error`
-  cannot turn a suppressed failure into a throw.
+  development and production stays silent. What cannot work as configured
+  (`'config'`) — a second broadcast host, a host in a forwarding realm, RUM
+  settings of the wrong type — is printed in production too, as it always
+  was; without a reporter, the core prints it itself. Even a broken
+  `console.error` cannot turn a suppressed failure into a throw.
 - **Fail-open.** A broker outage, expired credentials or an SDK throw all
   leave the application behaving exactly as with healthy telemetry. A failed
   broker request at startup is retried with backoff for five minutes. A
@@ -2165,6 +2208,23 @@ providers: [
 
 Code inside a fragment does not change: same services, same calls. One
 session, one budget, one bundle.
+
+| Realm          | Destination                                         | RUM and `UWT_RUM_CREDENTIALS_PROVIDER` | `UWT_LOG_API_PROVIDER`                 |
+| -------------- | --------------------------------------------------- | -------------------------------------- | -------------------------------------- |
+| Standalone app | Its own: `provideUwtTelemetryRumSink()`, or another | The app's                              | The app's                              |
+| Shell          | Its own, plus `provideUwtTelemetryBroadcastHost()`  | The shell's: the only ones on the page | The shell's, also for fragments' logs  |
+| Fragment       | `provideUwtTelemetrySink('broadcast')`              | None: the shell's records for it       | Bound by `'broadcast'`, to the shell's |
+
+Either side may be built without Angular. The protocol — the messages, the
+host, the forwarding sink and log provider — lives in
+`@absaoss-cps/ui-watchtower`, and this package's classes are injectable
+subclasses of the core's. An Angular shell hosts a framework-free fragment,
+and a framework-free shell an Angular one, exchanging the same messages: the
+wire test holds every pairing to the fixture recorded before the core was
+extracted. A fragment wired by `provideUwtTelemetrySink('broadcast')` opens one
+channel for its sink and log provider, closed with its injector. The host
+takes part — counting toward the duplicate check, electing a leader — only in
+a browser with telemetry on, so server-side renders never see each other.
 
 ### Connecting a fragment
 

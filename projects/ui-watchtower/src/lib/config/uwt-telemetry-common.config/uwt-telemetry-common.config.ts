@@ -60,3 +60,67 @@ export const UWT_DEFAULT_TELEMETRY_CONFIG: {
   bi: UWT_DEFAULT_BI_TELEMETRY_CONFIG,
   redact: UWT_DEFAULT_REDACT_CONFIG
 };
+
+/**
+ * Overrides for each concern's configuration: whatever is left out takes the
+ * library default.
+ *
+ * @group Interfaces
+ */
+export interface UwtTelemetryConfigOverrides {
+  scenarios?: Partial<UwtScenarioTelemetryConfig>;
+  logging?: Partial<UwtLogConfig>;
+  bi?: Partial<UwtBITelemetryConfig>;
+  redaction?: Partial<UwtRedactConfig>;
+}
+
+/**
+ * Each concern's configuration, complete.
+ *
+ * @group Interfaces
+ */
+export interface UwtTelemetryConfig {
+  scenarios: UwtScenarioTelemetryConfig;
+  logging: UwtLogConfig;
+  bi: UwtBITelemetryConfig;
+  redaction: UwtRedactConfig;
+}
+
+/**
+ * Completes each concern's configuration with the library defaults: every
+ * override over its default, shallowly. Redaction's pattern and transform
+ * lists are copied into fresh arrays, so callers never share array identity
+ * with the defaults or each other.
+ *
+ * The one place defaults are applied, for the engine and every adapter.
+ *
+ * @param overrides what the application sets
+ * @returns the configuration an engine runs with
+ *
+ * @group Utils
+ */
+export function uwtResolveTelemetryConfig(
+  overrides: UwtTelemetryConfigOverrides = {}
+): UwtTelemetryConfig {
+  const defaults = UWT_DEFAULT_TELEMETRY_CONFIG;
+  const redaction = overrides.redaction ?? {};
+  return {
+    scenarios: { ...defaults.scenario, ...overrides.scenarios },
+    logging: { ...defaults.logs, ...overrides.logging },
+    bi: { ...defaults.bi, ...overrides.bi },
+    redaction: {
+      ...defaults.redact,
+      ...redaction,
+      extraKeyPatterns: [
+        ...(redaction.extraKeyPatterns ?? defaults.redact.extraKeyPatterns)
+      ],
+      extraValuePatterns: [
+        ...(redaction.extraValuePatterns ?? defaults.redact.extraValuePatterns)
+      ],
+      extraValueTransforms: [
+        ...(redaction.extraValueTransforms ??
+          defaults.redact.extraValueTransforms)
+      ]
+    }
+  };
+}
