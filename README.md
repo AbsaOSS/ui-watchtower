@@ -24,6 +24,7 @@ How it is designed: [projects/ngx-ui-watchtower/DESIGN.md](projects/ngx-ui-watch
 projects/ui-watchtower/
   src/          @absaoss-cps/ui-watchtower — the framework-independent engine
   rxjs/         secondary entry point — @absaoss-cps/ui-watchtower/rxjs
+  rum/          secondary entry point — @absaoss-cps/ui-watchtower/rum
   type-tests/   consumer type tests, without a framework
   README.md     usage guide, published to npm
   package.json  the published package's manifest

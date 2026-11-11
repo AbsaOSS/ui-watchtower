@@ -127,6 +127,9 @@
     "uwtConnectBroadcastChannel": [
       "function(options?: UwtBroadcastConnectOptions | undefined): UwtBroadcastConnection"
     ],
+    "uwtConsoleReporter": [
+      "const: UwtReporter"
+    ],
     "uwtCreateTelemetry": [
       "function(options: UwtTelemetryOptions): UwtTelemetry"
     ],
@@ -260,8 +263,14 @@
     "uwtRedactMetadata": [
       "function(value: unknown, config?: UwtRedactConfig | undefined, report?: UwtReporter | undefined): UwtTelemetryMetadata | undefined"
     ],
+    "uwtReport": [
+      "function(report: UwtReporter | undefined, level: UwtReportLevel, message: string, ...details: unknown[]): void"
+    ],
     "UwtReporter": [
-      "type = (level: 'warn' | 'error', message: string, ...details: unknown[]) => void"
+      "type = (level: UwtReportLevel, message: string, ...details: unknown[]) => void"
+    ],
+    "UwtReportLevel": [
+      "type = 'warn' | 'error' | 'config'"
     ],
     "uwtResolveTelemetryConfig": [
       "function(overrides?: UwtTelemetryConfigOverrides | undefined): UwtTelemetryConfig"
@@ -542,6 +551,95 @@
     ],
     "uwtUuid": [
       "function(): string"
+    ]
+  },
+  "@absaoss-cps/ui-watchtower/rum": {
+    "UwtRumAppMonitorConfig": [
+      "interface",
+      "alias?: string | undefined",
+      "allowCookies?: boolean | undefined",
+      "applicationAttributes?: Record<string, string | number | boolean> | undefined",
+      "applicationId: string",
+      "applicationVersion: string",
+      "batchLimit?: number | undefined",
+      "candidatesCacheSize?: number | undefined",
+      "client?: string | undefined",
+      "clientBuilder?: ((endpoint: URL, region: string, credentials?: ClientBuilderCredentials | undefined, compressionStrategy?: { enabled: boolean; } | undefined) => unknown) | undefined",
+      "compressionStrategy?: { enabled: boolean; } | undefined",
+      "cookieAttributes?: { unique?: boolean | undefined; domain?: string | undefined; path?: string | undefined; sameSite?: string | undefined; secure?: boolean | undefined; } | undefined",
+      "debug?: boolean | undefined",
+      "disableAutoPageView?: boolean | undefined",
+      "dispatchInterval?: number | undefined",
+      "enableRumClient?: boolean | undefined",
+      "enableW3CTraceId?: boolean | undefined",
+      "enableXRay?: boolean | undefined",
+      "endpoint?: string | undefined",
+      "eventCacheSize?: number | undefined",
+      "eventPluginsToLoad?: unknown[] | undefined",
+      "fetchFunction?: ((input: RequestInfo | URL, init?: RequestInit | undefined) => Promise<Response>) | undefined",
+      "headers?: Record<string, string> | undefined",
+      "pageIdFormat?: 'PATH' | 'HASH' | 'PATH_AND_HASH' | undefined",
+      "pagesToExclude?: RegExp[] | undefined",
+      "pagesToInclude?: RegExp[] | undefined",
+      "recordResourceUrl?: boolean | undefined",
+      "region: string",
+      "releaseId?: string | undefined",
+      "retries?: number | undefined",
+      "routeChangeComplete?: number | undefined",
+      "routeChangeTimeout?: number | undefined",
+      "sessionAttributes?: Record<string, string | number | boolean> | undefined",
+      "sessionEventLimit?: number | undefined",
+      "sessionLengthSeconds?: number | undefined",
+      "sessionSampleRate?: number | undefined",
+      "signing?: boolean | undefined",
+      "suppressSessionStartEvent?: boolean | undefined",
+      "telemetries?: (string | (string | object)[])[] | undefined",
+      "useBeacon?: boolean | undefined",
+      "userIdRetentionDays?: number | undefined"
+    ],
+    "UwtRumBootstrap": [
+      "interface",
+      "config: UwtRumAppMonitorConfig",
+      "credentials?: UwtRumCredentials | undefined"
+    ],
+    "UwtRumCredentials": [
+      "interface",
+      "accessKeyId: string",
+      "expiration: string",
+      "secretAccessKey: string",
+      "sessionToken: string"
+    ],
+    "UwtRumCredentialsProvider": [
+      "interface",
+      "load(): Promise<UwtRumBootstrap | null>"
+    ],
+    "UwtRumDocument": [
+      "interface",
+      "readonly cookie: string",
+      "readonly defaultView: { readonly location?: { readonly origin: string; } | undefined; readonly navigator: { readonly cookieEnabled: boolean; }; } | null"
+    ],
+    "UwtRumTelemetrySink": [
+      "class",
+      "new (options: UwtRumTelemetrySinkOptions): UwtRumTelemetrySink",
+      "dispose(): void",
+      "flush(beacon?: boolean | undefined): void",
+      "getSessionId(): string | undefined",
+      "getUserId(): string | undefined",
+      "init(): Promise<void>",
+      "record(eventType: string, payload: object, metadata?: UwtTelemetryMetadata | undefined): void",
+      "recordError(error: UwtTelemetryError, metadata?: UwtTelemetryMetadata | undefined): void",
+      "recordPageView(pageId: string): void",
+      "setUserId(userId: string | undefined): void"
+    ],
+    "UwtRumTelemetrySinkOptions": [
+      "interface",
+      "credentialsProvider: UwtRumCredentialsProvider",
+      "document?: UwtRumDocument | null | undefined",
+      "enabled?: boolean | undefined",
+      "identity: UwtTelemetryIdentity",
+      "redact?: UwtRedactConfig | undefined",
+      "report?: UwtReporter | undefined",
+      "runOutside?: (<T>(callback: () => T) => T) | undefined"
     ]
   },
   "@absaoss-cps/ui-watchtower/rxjs": {
