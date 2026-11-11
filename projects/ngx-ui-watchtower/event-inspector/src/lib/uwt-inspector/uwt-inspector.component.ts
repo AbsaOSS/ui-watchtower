@@ -9,6 +9,7 @@ import {
   inject,
   Injector,
   input,
+  NgZone,
   signal,
   viewChild
 } from '@angular/core';
@@ -171,6 +172,91 @@ export class UwtInspectorComponent {
         this.applyTransparency(maximized ? 0 : this.transparency());
       });
     afterNextRender(() => this.placeDialogLogo());
+    this.keepScrollingInside();
+  }
+
+  /**
+   * The inspector is fixed, so the page scrolls under it, and two things
+   * follow.
+   *
+   * cps-ui-kit puts an open list in the page, and closes it when a scrolling
+   * parent of its field scrolls, which the page is not for a fixed pane: the
+   * list would drift away from its field. Each dock has such a parent, the
+   * body or the dialog's content, so the page's scroll is passed on to it.
+   * Only the inspector's elements hear it. Scrolling inside the inspector or
+   * an open list is the kit's own.
+   *
+   * And a part that can't scroll, or has scrolled as far as it goes, passes
+   * the wheel on to the page. `overscroll-behavior` stops that in some
+   * browsers; the rest, and the header, are held here, unless a part under
+   * the pointer can scroll that way. A pinch zoom is left alone.
+   */
+  private keepScrollingInside(): void {
+    const host = this.host.nativeElement;
+    let passing = false;
+
+    this.listen(this.document, 'scroll', (event: Event) => {
+      const target = event.target;
+      if (
+        passing ||
+        (target instanceof Node && host.contains(target)) ||
+        (target instanceof Element && target.closest('.cps-menu-container'))
+      ) {
+        return;
+      }
+      passing = true;
+      [
+        host.querySelector('.uwt-inspector__body'),
+        host.closest('.cps-dialog-content')
+      ].forEach((el) => el?.dispatchEvent(new Event('scroll')));
+      passing = false;
+    });
+
+    this.listen(host, 'wheel', (event: WheelEvent) => {
+      if (event.ctrlKey || event.defaultPrevented) {
+        return;
+      }
+      // In the dialog, the frame's scrolling content holds the inspector.
+      const limit = host.closest('.cps-dialog') ?? host;
+      const down = event.deltaY > 0;
+      const canScroll = (el: Element): boolean =>
+        /auto|scroll/.test(getComputedStyle(el).overflowY) &&
+        // A pixel's slack, for fractional positions.
+        (down
+          ? el.scrollTop + el.clientHeight < el.scrollHeight - 1
+          : el.scrollTop > 0);
+      for (
+        let el = event.target instanceof Element ? event.target : null;
+        el && limit.contains(el);
+        el = el.parentElement
+      ) {
+        if (canScroll(el)) {
+          return;
+        }
+      }
+      event.preventDefault();
+    });
+  }
+
+  /** Listens once rendered, outside the zone, until destroyed. */
+  private listen<E extends Event>(
+    target: EventTarget,
+    type: string,
+    handler: (event: E) => void
+  ): void {
+    const zone = inject(NgZone);
+    const destroyRef = inject(DestroyRef);
+    // Scroll doesn't bubble: capture sees every element's. Wheel can be stopped.
+    const options = { capture: type === 'scroll', passive: type !== 'wheel' };
+    afterNextRender(() => {
+      const listener = handler as (event: Event) => void;
+      zone.runOutsideAngular(() =>
+        target.addEventListener(type, listener, options)
+      );
+      destroyRef.onDestroy(() =>
+        target.removeEventListener(type, listener, options)
+      );
+    });
   }
 
   /** Whether keyboard focus is anywhere in the inspector, header included. */

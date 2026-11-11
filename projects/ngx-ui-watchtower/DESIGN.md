@@ -2125,6 +2125,20 @@ A screen narrower than 640px has no room for a pane: the Dock buttons offer
 only the dialog and the window, and a pane remembered from a wider screen
 opens as a dialog there.
 
+A list opened from the inspector — the filter's field and condition, Export —
+closes when the page scrolls. The inspector is fixed, so the page scrolls under
+it, while cps-ui-kit puts an open list in the page, where it would scroll away
+from its field. The kit closes a list when a scrolling parent of its field
+scrolls, and every dock has one — the body, or the dialog's content — so the
+inspector passes the page's scroll on to it, and the kit does the rest. Only
+elements of the inspector hear it, never the app's.
+
+Wheeling over the inspector doesn't scroll the app under it. The body and the
+dialog's content use `overscroll-behavior: contain`; and because a part with
+nothing to scroll, like the header, still passes the wheel on in some browsers
+(WebKit), the inspector also keeps a wheel from the page unless a part under
+the pointer can scroll that way. Pinch zoom is left alone.
+
 A pane makes room by padding the page's `body` on its side, so content in
 the normal flow moves aside. A page can't shrink the browser's viewport —
 only the browser can, as DevTools does — so whatever is laid out against the

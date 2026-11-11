@@ -46,6 +46,14 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  overscroll-behavior: contain;
+}
+
+// Wheeling over the inspector must not scroll the app under it: what the
+// body can't scroll any further passes to the page. Parts with nothing to
+// scroll are held by the component's wheel listener.
+::ng-deep .uwt-inspector-dialog .cps-dialog-content {
+  overscroll-behavior: contain;
 }
 
 :host(.uwt-inspector--framed) .uwt-inspector__body {

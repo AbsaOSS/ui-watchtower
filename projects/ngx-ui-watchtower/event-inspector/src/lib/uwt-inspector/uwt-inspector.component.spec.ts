@@ -651,4 +651,139 @@ describe('UwtInspectorComponent', () => {
     TestBed.inject(UwtInspectorSession).end();
     expect(monitor.observed).toBe(false);
   });
+
+  describe('page scroll', () => {
+    /** What the kit's menus listen to: the body's own `scroll`. */
+    const heard = () => {
+      const listener = jest.fn();
+      el()
+        .querySelector('.uwt-inspector__body')!
+        .addEventListener('scroll', listener);
+      return listener;
+    };
+
+    it("should tell the page's scroll to its body, which the kit's open lists listen to", () => {
+      const listener = heard();
+
+      document.dispatchEvent(new Event('scroll'));
+
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it("should tell it a scrolling element's too, not only the window's", () => {
+      const listener = heard();
+      const scroller = document.body.appendChild(document.createElement('div'));
+
+      scroller.dispatchEvent(new Event('scroll'));
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      scroller.remove();
+    });
+
+    it('should leave scrolling inside the inspector to the kit, and not answer itself', () => {
+      const listener = heard();
+
+      el()
+        .querySelector('.uwt-inspector__body')!
+        .dispatchEvent(new Event('scroll'));
+
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it("should leave an open list's own scrolling alone", () => {
+      const listener = heard();
+      const list = document.body.appendChild(document.createElement('div'));
+      list.className = 'cps-menu-container';
+
+      list.dispatchEvent(new Event('scroll'));
+
+      expect(listener).not.toHaveBeenCalled();
+      list.remove();
+    });
+
+    it('should stop once destroyed', () => {
+      const listener = heard();
+      fixture.destroy();
+
+      document.dispatchEvent(new Event('scroll'));
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('wheel', () => {
+    const wheel = (
+      target: Element,
+      init: ConstructorParameters<typeof WheelEvent>[1] = { deltaY: 100 }
+    ) => {
+      const event = new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        ...init
+      });
+      target.dispatchEvent(event);
+      return event;
+    };
+    /** A part with `room` to scroll: `top` scrolled of `extent` in a `size` window. */
+    const scrolling = (el: Element, top: number, extent = 400, size = 200) => {
+      (el as HTMLElement).style.overflowY = 'auto';
+      Object.defineProperties(el, {
+        scrollTop: { value: top, configurable: true },
+        clientHeight: { value: size, configurable: true },
+        scrollHeight: { value: extent, configurable: true }
+      });
+    };
+    const body = () => el().querySelector('.uwt-inspector__body')!;
+
+    it('should keep the wheel from the page where nothing in the inspector scrolls', () => {
+      fixture.componentRef.setInput('dock', 'right');
+      fixture.detectChanges();
+
+      expect(wheel(body()).defaultPrevented).toBe(true);
+      expect(
+        wheel(el().querySelector('.uwt-inspector__header')!).defaultPrevented
+      ).toBe(true);
+    });
+
+    it('should let a part scroll while it has room, either way', () => {
+      scrolling(body(), 100);
+
+      expect(wheel(body(), { deltaY: 100 }).defaultPrevented).toBe(false);
+      expect(wheel(body(), { deltaY: -100 }).defaultPrevented).toBe(false);
+    });
+
+    it('should keep it from the page once the part is at its end', () => {
+      scrolling(body(), 200);
+      expect(wheel(body(), { deltaY: 100 }).defaultPrevented).toBe(true);
+
+      scrolling(body(), 0);
+      expect(wheel(body(), { deltaY: -100 }).defaultPrevented).toBe(true);
+    });
+
+    it('should let a scrolling parent have it when what is inside is at its end', () => {
+      scrolling(body(), 100);
+      const inner = body().appendChild(document.createElement('div'));
+      scrolling(inner, 200);
+
+      expect(wheel(inner, { deltaY: 100 }).defaultPrevented).toBe(false);
+    });
+
+    it('should leave a pinch zoom, and a wheel already handled, alone', () => {
+      expect(
+        wheel(body(), { deltaY: 100, ctrlKey: true }).defaultPrevented
+      ).toBe(false);
+      body().addEventListener('wheel', (e) => e.preventDefault(), {
+        once: true
+      });
+      const event = wheel(body());
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('should stop once destroyed', () => {
+      const target = body();
+      fixture.destroy();
+
+      expect(wheel(target).defaultPrevented).toBe(false);
+    });
+  });
 });

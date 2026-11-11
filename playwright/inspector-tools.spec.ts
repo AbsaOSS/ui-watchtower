@@ -363,3 +363,73 @@ test('in forced colours, the dock, the kind shown, Pause and solid buttons keep 
     .getByRole('button', { name: 'Add', exact: true });
   expect(parseFloat(await css(add, 'border-top-width'))).toBeGreaterThan(0);
 });
+
+for (const dock of ['right', 'bottom', 'dialog']) {
+  test(`an open list closes when the page scrolls, instead of drifting away from its field, docked ${dock}`, async ({
+    page
+  }) => {
+    await page.addInitScript(
+      (d) =>
+        localStorage.setItem(
+          'ngx-ui-watchtower.eventInspector',
+          JSON.stringify({ dock: d })
+        ),
+      dock
+    );
+    // A page long enough to scroll, under the fixed inspector.
+    await openLab(page, 'scenarios');
+    await page.locator('.lab-header-button').click();
+    await expect(page.locator('uwt-inspector')).toBeVisible();
+    await page.getByRole('button', { name: 'Add filter' }).click();
+    const builder = page.getByRole('group', { name: 'New filter' });
+    const list = page.locator('.cps-menu-container');
+
+    for (const opener of [
+      builder.getByRole('combobox', { name: 'Field' }),
+      builder.getByRole('combobox', { name: 'Condition' }),
+      timeline(page).getByRole('button', { name: 'Export' })
+    ]) {
+      await opener.click();
+      await expect(list).toBeVisible();
+      await page.mouse.move(300, 400);
+      // The kit starts listening once the list has finished opening.
+      await expect(async () => {
+        await page.mouse.wheel(0, 100);
+        await expect(list).toBeHidden({ timeout: 300 });
+      }).toPass();
+      await page.evaluate(() => window.scrollTo(0, 0));
+    }
+  });
+}
+
+for (const dock of ['right', 'left', 'bottom', 'dialog']) {
+  test(`wheeling over the inspector, docked ${dock}, does not scroll the app under it`, async ({
+    page
+  }) => {
+    await page.addInitScript(
+      (d) =>
+        localStorage.setItem(
+          'ngx-ui-watchtower.eventInspector',
+          JSON.stringify({ dock: d })
+        ),
+      dock
+    );
+    // A page long enough to scroll.
+    await openLab(page, 'scenarios');
+    await page.locator('.lab-header-button').click();
+    await expect(page.locator('uwt-inspector')).toBeVisible();
+
+    const parts = ['.uwt-inspector__body', '.uwt-inspector__header'];
+    for (const part of parts) {
+      const found = page.locator(part).first();
+      if (!(await found.count())) {
+        continue; // The dialog's header is cps-dialog's.
+      }
+      const box = (await found.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + 10);
+      await page.mouse.wheel(0, 200);
+      await page.waitForTimeout(250);
+      expect(await page.evaluate(() => scrollY)).toBe(0);
+    }
+  });
+}
