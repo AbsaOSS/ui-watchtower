@@ -332,6 +332,80 @@ test('a dialog opened after menus were used still shows its tooltips above itsel
     .toBe(true);
 });
 
+test("a key press after a click on the dialog's header leaves what is inside it clickable", async ({
+  page
+}) => {
+  await page.locator('.lab-header-button').click();
+  const dialog = page.locator('.cps-dialog');
+  await expect(dialog.locator('uwt-inspector')).toBeVisible();
+
+  // On the header's bare part, to the right of the title.
+  await dialog
+    .locator('.cps-dialog-header')
+    .click({ position: { x: 350, y: 20 } });
+  // A key press makes the dialog's focus a keyboard focus, and cps-dialog
+  // draws a ring around it that would cover, and take the clicks of, all it
+  // holds.
+  await page.keyboard.press('ArrowDown');
+  await expect(dialog).toBeFocused();
+
+  await dialog
+    .getByRole('button', { name: 'Dock right' })
+    .click({ timeout: 3000 });
+  await expect(page.locator('uwt-inspector-pane')).toBeVisible();
+});
+
+test('Esc closes the dialog from its header, not only from its content', async ({
+  page
+}) => {
+  await page.locator('.lab-header-button').click();
+  const dialog = page.locator('.cps-dialog');
+  await expect(dialog.locator('uwt-inspector')).toBeVisible();
+
+  await dialog
+    .locator('.cps-dialog-header')
+    .click({ position: { x: 350, y: 20 } });
+  await expect(dialog).toBeFocused();
+  await page.keyboard.press('Escape');
+
+  await expect(page.locator('uwt-inspector')).toHaveCount(0);
+});
+
+test('an Esc that closes the inspector is marked handled, so notifications stay; one it leaves alone is not', async ({
+  page
+}) => {
+  // What cps-ui-kit's notifications read: they close on an Esc that reaches
+  // the window unhandled.
+  await page.evaluate(() => {
+    (window as unknown as { escapes: boolean[] }).escapes = [];
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        (window as unknown as { escapes: boolean[] }).escapes.push(
+          e.defaultPrevented
+        );
+      }
+    });
+  });
+  await page.locator('.lab-header-button').click();
+  const dialog = page.locator('.cps-dialog');
+  await expect(dialog.locator('uwt-inspector')).toBeVisible();
+
+  // In the app, outside the inspector: left alone, still open.
+  await page.locator('.lab-nav a').first().focus();
+  await page.keyboard.press('Escape');
+  await expect(dialog.locator('uwt-inspector')).toBeVisible();
+
+  await dialog.locator('.uwt-inspector-search input').focus();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('uwt-inspector')).toHaveCount(0);
+
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { escapes: boolean[] }).escapes
+    )
+  ).toEqual([false, true]);
+});
+
 test('reopens where it was last, after a reload', async ({ page }) => {
   await press(page, 'Right pane');
   await expect(page.locator('uwt-inspector-pane')).toBeVisible();

@@ -2122,7 +2122,7 @@ side, and the choice is remembered in this browser:
 
 | Dock                | What you get                                                                                                                                                                                                                                       |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dialog (default)    | A non-modal dialog on the right, half the screen wide, between 40rem (or nearly all of a small screen) and 64rem. Draggable, resizable and maximizable, with a Transparency slider. Escape inside it closes it; elsewhere, Escape stays the app's. |
+| Dialog (default)    | A non-modal dialog on the right, half the screen wide, between 40rem (or nearly all of a small screen) and 64rem. Draggable, resizable and maximizable, with a Transparency slider. Escape inside it, its header included, closes it and marks the key handled, so cps-ui-kit's notifications stay open; elsewhere, Escape stays the app's. |
 | Separate window     | Its own browser window, which it fills: 1200×800 the first time, then wherever it was last. Closing the window closes the inspector, and so does reloading the app.                                                                                |
 | Left, right, bottom | A pane beside or below the app, which moves aside to make room. Drag its inner edge, or focus it and use the arrow keys, to resize it between 30rem (12rem at the bottom) and 80% of the screen; each side remembers its size.                     |
 

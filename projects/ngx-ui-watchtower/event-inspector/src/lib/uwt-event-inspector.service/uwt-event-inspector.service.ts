@@ -310,7 +310,9 @@ export class UwtEventInspectorService {
         resizable: true,
         maximizable: true,
         // The dialog's own Escape works anywhere on the page; the inspector
-        // closes on Escape from inside it instead.
+        // closes on Escape from inside it instead. Replace this with the
+        // kit's own focus-scoped Escape once it has one:
+        // https://github.com/AbsaOSS/cps-shared-ui/issues/951
         closeOnEscape: false,
         // Docked right at half the screen, so the application stays
         // visible and clickable beside it, but never narrower than 40rem

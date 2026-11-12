@@ -621,6 +621,35 @@ describe('UwtInspectorComponent', () => {
     expect(controls.close).toHaveBeenCalledTimes(1);
   });
 
+  it('should mark an Escape it closes the dialog on as handled, and leave any other alone', () => {
+    TestBed.inject(UwtInspectorSession).controls = {
+      setDock: jest.fn(),
+      close: jest.fn(),
+      panesFit: signal(true)
+    };
+    const search = el().querySelector('.uwt-inspector-search input')!;
+    const escape = () => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true
+      });
+      search.dispatchEvent(event);
+      return event;
+    };
+
+    // The kit's notifications close on an Escape nobody handled.
+    expect(escape().defaultPrevented).toBe(true);
+
+    search.setAttribute('aria-expanded', 'true');
+    expect(escape().defaultPrevented).toBe(false);
+
+    search.removeAttribute('aria-expanded');
+    fixture.componentRef.setInput('dock', 'right');
+    fixture.detectChanges();
+    expect(escape().defaultPrevented).toBe(false);
+  });
+
   it('should offer no pane when the app has no room for one', () => {
     TestBed.inject(UwtInspectorSession).controls = {
       setDock: jest.fn(),

@@ -97,8 +97,7 @@ const INFO =
   host: {
     // Focusable, but not in the tab order: see focusInspector().
     tabindex: '-1',
-    '[class.uwt-inspector--framed]': 'framed()',
-    '(keydown.escape)': 'onEscape($event)'
+    '[class.uwt-inspector--framed]': 'framed()'
   },
   templateUrl: './uwt-inspector.component.html',
   styleUrl: './uwt-inspector.component.scss'
@@ -172,6 +171,8 @@ export class UwtInspectorComponent {
 
   private readonly injector = inject(Injector);
 
+  private readonly zone = inject(NgZone);
+
   /** From what the session already holds: a dock move announces no history. */
   private lastAnnounced = { ...this.store.received() };
 
@@ -188,6 +189,11 @@ export class UwtInspectorComponent {
     afterNextRender(() => this.placeInDialogHeader());
     this.keepScrollingInside();
     this.watchWidth();
+    this.listen<KeyboardEvent>(
+      () => this.frame(),
+      'keydown',
+      (event) => this.onEscape(event)
+    );
   }
 
   /**
@@ -293,23 +299,31 @@ export class UwtInspectorComponent {
     });
   }
 
-  /** Listens once rendered, outside the zone, until destroyed. */
+  /**
+   * Listens once rendered, outside the zone, until destroyed. A target given
+   * as a function is looked up then: the dialog isn't around the host before.
+   */
   private listen<E extends Event>(
-    target: EventTarget,
+    target: EventTarget | (() => EventTarget),
     type: string,
     handler: (event: E) => void
   ): void {
     const zone = inject(NgZone);
     const destroyRef = inject(DestroyRef);
-    // Scroll doesn't bubble: capture sees every element's. Wheel can be stopped.
-    const options = { capture: type === 'scroll', passive: type !== 'wheel' };
+    // Scroll doesn't bubble: capture sees every element's. Wheel and keydown
+    // can be stopped, which a passive listener's preventDefault() would not.
+    const options = {
+      capture: type === 'scroll',
+      passive: type !== 'wheel' && type !== 'keydown'
+    };
     afterNextRender(() => {
       const listener = handler as (event: Event) => void;
+      const element = typeof target === 'function' ? target() : target;
       zone.runOutsideAngular(() =>
-        target.addEventListener(type, listener, options)
+        element.addEventListener(type, listener, options)
       );
       destroyRef.onDestroy(() =>
-        target.removeEventListener(type, listener, options)
+        element.removeEventListener(type, listener, options)
       );
     });
   }
@@ -337,18 +351,27 @@ export class UwtInspectorComponent {
   }
 
   /**
-   * Escape closes the dialog, but only from inside it — it isn't modal, and
-   * the app's own controls use Escape too — and not while one of its lists
-   * or menus is open, which Escape closes first.
+   * Escape closes the dialog, but only from inside it — the header and frame
+   * included — as it isn't modal, and the app's own controls use Escape too;
+   * and not while one of its lists or menus is open, which Escape closes
+   * first. An Escape it closes on is marked handled, as cps-ui-kit's own
+   * dialog does, so the kit's notifications don't also close on it.
+   *
+   * Temporary: cps-dialog's `closeOnEscape` can't be limited to the focus
+   * inside it yet, so this stands in for it:
+   * https://github.com/AbsaOSS/cps-shared-ui/issues/951
    */
-  protected onEscape(event: Event): void {
+  protected onEscape(event: KeyboardEvent): void {
     const target = event.target as Element | null;
     if (
+      event.key === 'Escape' &&
       this.dock() === 'dialog' &&
       !event.defaultPrevented &&
       !target?.closest?.('[aria-expanded="true"]')
     ) {
-      this.close();
+      event.preventDefault();
+      // The listener runs outside the zone; closing the dialog needs it.
+      this.zone.run(() => this.close());
     }
   }
 

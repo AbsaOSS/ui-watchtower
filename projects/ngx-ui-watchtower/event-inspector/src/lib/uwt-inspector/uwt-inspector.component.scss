@@ -70,6 +70,16 @@
   margin-inline: 0.5rem auto;
 }
 
+// cps-dialog's focus ring spans the whole dialog, and as the kit draws it, it
+// takes the clicks of everything inside: after a click on the header and a
+// key press such as Esc, nothing in the dialog would respond.
+// Temporary: remove once the cps-ui-kit fixes it,
+// https://github.com/AbsaOSS/cps-shared-ui/issues/948
+::ng-deep .uwt-inspector-dialog:focus-visible::before,
+::ng-deep .uwt-inspector-dialog:focus-visible::after {
+  pointer-events: none;
+}
+
 .uwt-inspector__body {
   display: flex;
   flex-direction: column;
