@@ -7,10 +7,7 @@ import {
 import { UwtTelemetrySink } from '@absaoss-cps/ngx-ui-watchtower';
 import { CpsButtonComponent } from 'cps-ui-kit';
 import { LabResultsComponent } from '../../lab/lab-results.component';
-
-/** RUM user ids must be UUIDs. */
-const ANNA = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
-const BEN = '9b2d1c6e-7a53-4d0e-8f3b-2c1a5e6d7f80';
+import { ANNA, BEN } from '../../lab/lab-users';
 
 @Component({
   selector: 'lab-identity-page',

@@ -89,7 +89,8 @@ The header's chips show how this load runs; where the broker is set
 differently for the next one, its chip says so: `broker: ok → null after
 reload`. On a narrow screen, or beside a docked pane, the chips fold behind
 **Run settings**, and the page list behind **Pages**.
-The header's **Signed in** or **Signed out** is a link to **Identity**.
+The header's **Signed in** or **Signed out** only shows the state:
+**Identity** and the fragments both sign in and out.
 
 Options, read once at startup like an app's configuration, and kept in the
 address from the start page and through the page links, so a reload keeps

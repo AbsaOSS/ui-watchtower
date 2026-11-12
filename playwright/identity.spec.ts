@@ -72,18 +72,15 @@ for (const signOut of ['Sign out (undefined)', "Sign out ('')"]) {
   });
 }
 
-test('the header says whether someone is signed in, and links to this page, keeping the options', async ({
+test('the header shows who is signed in, from any page, and is no link', async ({
   page
 }) => {
-  await openLab(page, 'bi?destination=noop');
-  const user = page.locator('.lab-header').getByRole('link', {
-    name: /^Signed (in|out)$/
-  });
-  await expect(user).toBeVisible();
-
-  await user.click();
-
-  await expect(page).toHaveURL(/\/identity\?destination=noop/);
-  await expect(page.locator('lab-root main h1').first()).toBeVisible();
-  await expect(user).toHaveAttribute('aria-current', 'page');
+  await navigate(page, 'BI events');
+  const user = page.locator('.lab-header .lab-user');
+  await expect(user).toHaveText('Signed in');
+  await user.hover();
+  await expect(page.locator('.cps-tooltip-content')).toHaveText(
+    `Signed in as Anna (${ANNA})`
+  );
+  await expect(page.locator('.lab-header').getByRole('link')).toHaveCount(0);
 });

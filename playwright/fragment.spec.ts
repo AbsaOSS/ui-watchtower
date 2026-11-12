@@ -90,6 +90,10 @@ for (const { name, path, fragment: locate } of COMPOSITIONS) {
     // Signing in or out in the fragment applies to the shell.
     await press(fragment, 'Sign in as Carla');
     await expect(page.locator('.lab-status')).toContainText(CARLA);
+    await page.locator('.lab-header .lab-user').hover();
+    await expect(page.locator('.cps-tooltip-content')).toHaveText(
+      `Signed in as Carla (${CARLA})`
+    );
     await press(fragment, 'Sign out');
     await expect(page.locator('.lab-status')).not.toContainText(CARLA);
   });

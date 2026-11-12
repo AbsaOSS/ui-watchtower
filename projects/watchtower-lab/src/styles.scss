@@ -113,19 +113,8 @@
 }
 
 .lab-user {
-  color: inherit;
   white-space: nowrap;
-  text-decoration: none;
-
-  &:hover,
-  &:focus-visible,
-  &.active {
-    text-decoration: underline;
-  }
-
-  &:focus-visible {
-    @include cps.focus-ring;
-  }
+  cursor: default;
 }
 
 .lab-header-button {
@@ -164,15 +153,6 @@
     height: 0.0625rem;
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
-  }
-
-  // A link must show where focus is: it comes into view when focused.
-  .lab-user:focus-visible {
-    position: static;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    clip: auto;
   }
 }
 

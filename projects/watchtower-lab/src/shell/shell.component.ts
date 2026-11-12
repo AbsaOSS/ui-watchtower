@@ -19,11 +19,13 @@ import {
   RouterLinkActive,
   RouterOutlet
 } from '@angular/router';
+import { CpsTooltipDirective } from 'cps-ui-kit';
 import { filter } from 'rxjs';
 import { UwtTelemetrySink } from '@absaoss-cps/ngx-ui-watchtower';
 import { UwtEventInspectorService } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
 import { LabLayout } from '../lab/lab-layout.service';
 import { LabRumCredentialsProvider } from '../lab/lab-rum-credentials.provider';
+import { LAB_USER_NAMES } from '../lab/lab-users';
 import { labTelemetriesLabel, LabWire } from '../lab/lab-wire.service';
 import { LAB_OPTIONS, SHELL_GROUPS, SHELL_PAGES } from './shell.config';
 
@@ -43,7 +45,13 @@ function inEffect(now?: string, next?: string): string {
 /** The lab's frame: a fixed header, the pages, and a fixed status bar. */
 @Component({
   selector: 'lab-root',
-  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [
+    CpsTooltipDirective,
+    NgTemplateOutlet,
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // On the document: Safari doesn't focus a button it clicks, so Escape
   // after opening the nav with the mouse wouldn't come from inside it.
@@ -71,14 +79,12 @@ function inEffect(now?: string, next?: string): string {
         </div>
       </details>
       <span class="lab-spacer"></span>
-      <a
+      <span
         class="lab-user"
-        routerLink="identity"
-        queryParamsHandling="preserve"
-        ariaCurrentWhenActive="page"
-        routerLinkActive="active"
-        title="Identity page"
-        >{{ identity().userId ? 'Signed in' : 'Signed out' }}</a
+        [cpsTooltip]="userTitle()"
+        tooltipOpenDelay="0"
+        tooltipPosition="bottom"
+        >{{ identity().userId ? 'Signed in' : 'Signed out' }}</span
       >
       <button
         type="button"
@@ -184,6 +190,16 @@ export class ShellComponent {
     name,
     pages: SHELL_PAGES.filter((page) => page.group === name)
   }));
+
+  /** Who is signed in: their name, when the lab knows it, and their id. */
+  protected readonly userTitle = computed(() => {
+    const id = this.identity().userId;
+    if (!id) {
+      return 'Nobody is signed in';
+    }
+    const name = LAB_USER_NAMES[id];
+    return `Signed in as ${name ? `${name} (${id})` : id}`;
+  });
 
   /** Whether the folded nav is open, on a narrow screen. */
   protected readonly navOpen = signal(false);
