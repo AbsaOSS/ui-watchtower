@@ -91,15 +91,11 @@
     "UwtBITelemetryService": [
       "class",
       "new (): UwtBITelemetryService",
-      "static ɵfac: unknown",
-      "static ɵprov: ɵɵInjectableDeclaration<UwtBITelemetryService>",
       "track(eventName: string, metadata?: UwtTelemetryMetadata | undefined, detail?: UwtBIEventDetail | undefined): void"
     ],
     "UwtBroadcastLogApiProvider": [
       "class",
       "new (): UwtBroadcastLogApiProvider",
-      "static ɵfac: unknown",
-      "static ɵprov: ɵɵInjectableDeclaration<UwtBroadcastLogApiProvider>",
       "dispose(): void",
       "flush(): void",
       "ngOnDestroy(): void",
@@ -109,8 +105,6 @@
     "UwtBroadcastTelemetrySink": [
       "class",
       "new (): UwtBroadcastTelemetrySink",
-      "static ɵfac: unknown",
-      "static ɵprov: ɵɵInjectableDeclaration<UwtBroadcastTelemetrySink>",
       "dispose(): void",
       "flush(beacon?: boolean | undefined): void",
       "getSessionId(): string | undefined",
@@ -167,8 +161,6 @@
     "UwtLoggerService": [
       "class",
       "new (): UwtLoggerService",
-      "static ɵfac: unknown",
-      "static ɵprov: ɵɵInjectableDeclaration<UwtLoggerService>",
       "getLogger(name: string): UwtLogger",
       "ngOnDestroy(): void",
       "query(filter?: UwtLogQuery | undefined): Promise<UwtLogRecord[]>"
@@ -207,16 +199,12 @@
     "UwtNoopLogApiProvider": [
       "class",
       "new (): UwtNoopLogApiProvider",
-      "static ɵfac: unknown",
-      "static ɵprov: ɵɵInjectableDeclaration<UwtNoopLogApiProvider>",
       "query(_filter: UwtLogQuery): Promise<UwtLogRecord[]>",
       "send(_record: UwtLogRecord): void"
     ],
     "UwtNoopTelemetrySink": [
       "class",
       "new (): UwtNoopTelemetrySink",
-      "static ɵfac: unknown",
-      "static ɵprov: ɵɵInjectableDeclaration<UwtNoopTelemetrySink>",
       "flush(_beacon?: boolean | undefined): void",
       "getSessionId(): string | undefined",
       "getUserId(): string | undefined",
@@ -386,8 +374,6 @@
     "UwtScenarioTelemetryService": [
       "class",
       "new (): UwtScenarioTelemetryService",
-      "static ɵfac: unknown",
-      "static ɵprov: ɵɵInjectableDeclaration<UwtScenarioTelemetryService>",
       "find(scenarioId: string): UwtScenario | undefined",
       "findByName(name: string): UwtScenario[]",
       "findByNameAndId(name: string, scenarioId: string): UwtScenario | undefined",
@@ -411,8 +397,6 @@
     "UwtTelemetryBroadcastHost": [
       "class",
       "new (): UwtTelemetryBroadcastHost",
-      "static ɵfac: unknown",
-      "static ɵprov: ɵɵInjectableDeclaration<UwtTelemetryBroadcastHost>",
       "dispose(): void",
       "get received: number",
       "ngOnDestroy(): void"
@@ -557,8 +541,6 @@
     "UwtRumTelemetrySink": [
       "class",
       "new (): UwtRumTelemetrySink",
-      "static ɵfac: unknown",
-      "static ɵprov: ɵɵInjectableDeclaration<UwtRumTelemetrySink>",
       "flush(beacon?: boolean | undefined): void",
       "getSessionId(): string | undefined",
       "getUserId(): string | undefined",
