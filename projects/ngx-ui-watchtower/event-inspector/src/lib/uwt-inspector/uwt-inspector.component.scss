@@ -1,3 +1,5 @@
+@use 'cps-ui-kit/styles/mixins' as cps;
+
 :host {
   // One spacing scale for the whole inspector, so that what belongs together
   // sits closer than what doesn't: `s` inside a cluster of controls, `m`
@@ -10,6 +12,23 @@
 
   display: block;
   color: var(--cps-text-primary);
+}
+
+// What the shortcut focuses (see focusInspector()), with cps-ui-kit's ring in
+// place of the browser's outline. A dialog has padding for it to sit in; a
+// pane or window has none, and would cut it off, so there it goes inside.
+:host(:focus-visible) {
+  @include cps.focus-ring;
+
+  // The ring spans the whole inspector: it mustn't take its clicks.
+  &::before,
+  &::after {
+    pointer-events: none;
+  }
+}
+
+:host(.uwt-inspector--framed:focus-visible) {
+  @include cps.focus-ring(-0.125rem, -0.25rem, 0);
 }
 
 // In a pane or window: a header like cps-dialog's, and a body that scrolls.

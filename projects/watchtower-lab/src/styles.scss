@@ -18,6 +18,12 @@
   &:focus {
     transform: none;
   }
+
+  &:focus-visible {
+    @include cps.focus-ring;
+    // The mixin makes it relative; it must stay fixed to the window.
+    position: fixed;
+  }
 }
 
 .lab-main:focus {
@@ -453,13 +459,16 @@ html.lab-insets {
 }
 
 // A table wider than a small screen scrolls on its own, not the page.
+// A scrolling box takes the focus with an outline, not the mixin's ring: that
+// is drawn inside the box, so it would scroll with the content.
 .lab-scroll {
   overflow-x: auto;
+}
 
-  &:focus-visible {
-    outline: 0.125rem solid var(--cps-color-calm);
-    outline-offset: 0.125rem;
-  }
+.lab-scroll:focus-visible,
+.lab-readout:focus-visible {
+  outline: 0.125rem solid var(--cps-color-calm);
+  outline-offset: 0.125rem;
 }
 
 .lab-note {

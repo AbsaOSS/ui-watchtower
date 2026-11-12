@@ -113,6 +113,27 @@ test('the Dialog button moves it from a pane to the dialog', async ({
   await expect(page.locator('uwt-inspector-pane')).toHaveCount(0);
 });
 
+test('the inspector focused by the shortcut shows the focus ring, not the browser default outline', async ({
+  page
+}) => {
+  await shortcut(page);
+  const inspector = page.locator('.cps-dialog uwt-inspector');
+  await expect(inspector).toBeFocused();
+
+  const look = await inspector.evaluate((el) => {
+    const style = getComputedStyle(el);
+    const ring = getComputedStyle(el, '::before');
+    return {
+      outline: style.outlineStyle,
+      ring: ring.content !== 'none' && parseFloat(ring.borderTopWidth) > 0
+    };
+  });
+  expect(look).toEqual({ outline: 'none', ring: true });
+
+  // The ring spans the inspector, and must leave its controls clickable.
+  await inspector.getByRole('button', { name: 'Clear' }).click();
+});
+
 test('Shift+E+I opens it, brings focus back, and closes it from inside — never while typing', async ({
   page
 }) => {
