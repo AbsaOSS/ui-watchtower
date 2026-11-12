@@ -8,8 +8,9 @@
  *   node scripts/api-snapshot.mjs           compare with the committed snapshots
  *   node scripts/api-snapshot.mjs --update  write them again
  *
- * Run after `npm run build`. Update only for an intended API change, and
- * review the diff.
+ * Run through `npm run api:check` and `npm run api:update`, which build
+ * first, so a stale dist/ never decides the result. Update only for an
+ * intended API change, and review the diff.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -84,10 +85,13 @@ function signatures(type, kind, prefix) {
 function members(type, prefix = '') {
   const lines = checker.getPropertiesOfType(type).flatMap((member) => {
     const flags = modifiers(member);
+    // `ɵ` members (ɵfac, ɵprov, ɵcmp…) are Angular's internals: not public
+    // API, and free to change between minor versions.
     if (
       flags & ts.ModifierFlags.Private ||
       member.name.startsWith('#') ||
       member.name.startsWith('__#') ||
+      member.name.startsWith('ɵ') ||
       member.name === 'prototype'
     ) {
       return [];

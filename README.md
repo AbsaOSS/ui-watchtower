@@ -48,8 +48,8 @@ The package is built to `dist/ngx-ui-watchtower`.
 | `npm run test`          | Runs the unit tests (Jest)                                      |
 | `npm run test:coverage` | Runs the unit tests with coverage, as CI does                   |
 | `npm run typecheck`     | Type-checks every library and spec tsconfig, and the type tests |
-| `npm run api:check`     | Compares the built public API with its committed snapshot       |
-| `npm run api:update`    | Writes that snapshot again, for an intended API change          |
+| `npm run api:check`     | Builds, then compares the public API with its snapshot          |
+| `npm run api:update`    | Builds, then rewrites the snapshot, for an intended change      |
 | `npm run lint`          | ESLint, no warnings allowed                                     |
 | `npm run format`        | Formats with Prettier                                           |
 | `npm run format:check`  | Checks formatting without writing                               |
