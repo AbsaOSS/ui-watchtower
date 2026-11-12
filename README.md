@@ -75,8 +75,8 @@ application does. Tests and the typecheck read the core's source.
 | `npm run test:release`  | Tests the publish script and the release workflow's wiring       |
 | `npm run test:coverage` | Runs the unit tests with coverage, as CI does; fails below 90%   |
 | `npm run typecheck`     | Builds the core, then type-checks every tsconfig and type test   |
-| `npm run api:check`     | Compares the built public APIs with their committed snapshots    |
-| `npm run api:update`    | Writes those snapshots again, for an intended API change         |
+| `npm run api:check`     | Builds both packages, then compares their public APIs            |
+| `npm run api:update`    | Builds both packages, then rewrites their snapshots              |
 | `npm run smoke`         | Installs the built packages, packed, into throwaway consumers    |
 | `npm run release:check` | Replays releases through Release Please on the release config    |
 | `npm run lint`          | ESLint, no warnings allowed                                      |
