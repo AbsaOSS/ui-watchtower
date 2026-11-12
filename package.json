@@ -48,7 +48,7 @@
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
     "aws-rum-web": "^3.2.1",
-    "cps-ui-kit": "^21.32.0",
+    "cps-ui-kit": "^21.33.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-config-standard": "^17.1.0",

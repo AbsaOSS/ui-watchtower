@@ -164,25 +164,6 @@
   color: var(--cps-text-secondary);
 }
 
-.uwt-inspector__footer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--uwt-inspector-space-s);
-  padding-top: var(--uwt-inspector-space-m);
-  border-top: 1px solid var(--cps-border-color);
-  font-size: 0.75rem;
-  color: var(--cps-text-secondary);
-
-  p {
-    margin: 0;
-    max-width: 75ch;
-  }
-
-  kbd {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  }
-}
-
 // Forced colours empty the Pause switch's knob, which says by its side
 // whether updates are paused; a border draws it back.
 @media (forced-colors: active) {

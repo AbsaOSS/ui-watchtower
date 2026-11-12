@@ -19,6 +19,7 @@ import {
   CpsButtonComponent,
   CpsDialogConfig,
   CpsDialogRef,
+  CpsInfoCircleComponent,
   CpsSwitchComponent
 } from 'cps-ui-kit';
 import { CpsSliderComponent } from '../cps-slider/cps-slider.component';
@@ -37,11 +38,7 @@ import {
   UwtInspectorExporter
 } from '../uwt-inspector-export/uwt-inspector-exporter';
 import { uwtInspectorTime } from '../uwt-inspector-timeline/uwt-inspector-rows';
-import {
-  UWT_DEFAULT_INSPECTOR_SHORTCUTS,
-  uwtIsApplePlatform,
-  uwtShortcutLabel
-} from '../uwt-inspector-shortcut/uwt-inspector-shortcut';
+import { UWT_DEFAULT_INSPECTOR_SHORTCUTS } from '../uwt-inspector-shortcut/uwt-inspector-shortcut';
 import { UwtInspectorDockSwitcherComponent } from '../uwt-inspector-dock-switcher/uwt-inspector-dock-switcher.component';
 import { UwtInspectorLogoComponent } from '../uwt-inspector-logo/uwt-inspector-logo.component';
 import { UwtInspectorSession } from '../uwt-inspector-session/uwt-inspector-session';
@@ -61,6 +58,13 @@ const ANNOUNCE_EVERY_MS = 10_000;
 const DOCK_MENU_BELOW_REM = 34;
 
 /**
+ * What the info icon in the header says, in every dock: what the inspector
+ * shows, and what it doesn't.
+ */
+const INFO =
+  "Shows what this app hands to its telemetry destinations, after redaction. A destination can still drop an event, for example when RUM samples a session out. RUM's own page views, errors and performance events aren't shown.";
+
+/**
  * The Event Inspector's content, shown by {@link UwtEventInspectorService}
  * in a non-modal cps-dialog, a pane or its own window. Capturing is
  * controlled here — pause and clear apply to everything — while the
@@ -75,6 +79,7 @@ const DOCK_MENU_BELOW_REM = 34;
   selector: 'uwt-inspector',
   imports: [
     CpsButtonComponent,
+    CpsInfoCircleComponent,
     CpsSliderComponent,
     CpsSwitchComponent,
     UwtInspectorDockSwitcherComponent,
@@ -146,10 +151,7 @@ export class UwtInspectorComponent {
     return at && uwtInspectorTime(at).slice(0, 8);
   });
 
-  protected readonly shortcut = uwtShortcutLabel(
-    this.config.shortcuts,
-    uwtIsApplePlatform(this.document.defaultView?.navigator)
-  );
+  protected readonly info = INFO;
 
   protected readonly maxTransparency = UWT_INSPECTOR_MAX_TRANSPARENCY;
   protected readonly transparency = signal(
@@ -163,6 +165,8 @@ export class UwtInspectorComponent {
   protected readonly compact = signal(false);
 
   private readonly dialogLogo = viewChild('dialogLogo', { read: ElementRef });
+
+  private readonly dialogInfo = viewChild('dialogInfo', { read: ElementRef });
 
   private readonly pauseSwitch = viewChild('pauseSwitch', { read: ElementRef });
 
@@ -181,7 +185,7 @@ export class UwtInspectorComponent {
         this.maximized.set(maximized);
         this.applyTransparency(maximized ? 0 : this.transparency());
       });
-    afterNextRender(() => this.placeDialogLogo());
+    afterNextRender(() => this.placeInDialogHeader());
     this.keepScrollingInside();
     this.watchWidth();
   }
@@ -396,23 +400,28 @@ export class UwtInspectorComponent {
   }
 
   /**
-   * cps-dialog draws the dialog's header, and its icon slot takes only an
-   * icon name, so the mark moves into that slot, before the title. Without
-   * the slot the mark goes.
+   * cps-dialog draws the dialog's header, and its slots take only an icon
+   * name and a tooltip's text, so the mark moves into its icon slot, before
+   * the title, and the info icon into its own, after it: the kit's own info
+   * icon can't be given a width, and this text is long. Without a slot, the
+   * mark and icon go.
    */
-  private placeDialogLogo(): void {
-    const logo: HTMLElement | undefined = this.dialogLogo()?.nativeElement;
-    if (!logo) {
-      return;
-    }
-    const slot = this.host.nativeElement
-      .closest('.cps-dialog')
-      ?.querySelector('.cps-dialog-header-icon');
-    if (slot) {
-      slot.append(logo);
-    } else {
-      logo.remove();
-    }
+  private placeInDialogHeader(): void {
+    const dialog = this.host.nativeElement.closest('.cps-dialog');
+    const place = (
+      moved: ElementRef<HTMLElement> | undefined,
+      slot: string
+    ): void => {
+      const el = moved?.nativeElement;
+      const target = dialog?.querySelector(slot);
+      if (target && el) {
+        target.append(el);
+      } else {
+        el?.remove();
+      }
+    };
+    place(this.dialogLogo(), '.cps-dialog-header-icon');
+    place(this.dialogInfo(), '.cps-dialog-header-info-circle');
   }
 
   /** One polite summary of what arrived since the last one, if anything. */

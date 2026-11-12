@@ -7,7 +7,6 @@ import {
   UwtTelemetryPublishInput
 } from '@absaoss-cps/ngx-ui-watchtower';
 import {
-  UWT_DEFAULT_INSPECTOR_SHORTCUTS,
   UwtEventInspectorService,
   UwtInspectorDock
 } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
@@ -42,7 +41,7 @@ const DOCKS: { value: UwtInspectorDock; label: string }[] = [
             ? 'Disabled with ?inspector=off.'
             : options.inspector === 'noshortcut'
               ? 'No keyboard shortcut (?inspector=noshortcut): open it from here.'
-              : 'Shortcut: ' + shortcuts + '.'
+              : 'Shortcut: Shift+E+I.'
         }}
       </p>
 
@@ -105,9 +104,6 @@ export class InspectorPage {
   protected readonly layout = inject(LabLayout);
   protected readonly options = inject(LAB_OPTIONS);
   protected readonly docks = DOCKS;
-  protected readonly shortcuts = UWT_DEFAULT_INSPECTOR_SHORTCUTS.map(
-    (s) => s.label
-  ).join(' or ');
 
   private readonly bi = inject(UwtBITelemetryService);
   private readonly scenarios = inject(UwtScenarioTelemetryService);

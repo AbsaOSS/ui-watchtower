@@ -1,8 +1,6 @@
 import {
   UWT_DEFAULT_INSPECTOR_SHORTCUTS,
-  uwtIsApplePlatform,
-  uwtMatchesShortcut,
-  uwtShortcutLabel
+  uwtMatchesShortcut
 } from './uwt-inspector-shortcut';
 
 type Mods = Partial<
@@ -98,57 +96,5 @@ describe('uwtMatchesShortcut', () => {
     expect(
       uwtMatchesShortcut(key('Digit8', customMods, '8', true), CUSTOM)
     ).toBe(false);
-  });
-});
-
-describe('uwtShortcutLabel', () => {
-  it('should show Shift+E+I on every platform', () => {
-    expect(uwtShortcutLabel(UWT_DEFAULT_INSPECTOR_SHORTCUTS, true)).toBe(
-      'Shift+E+I'
-    );
-    expect(uwtShortcutLabel(UWT_DEFAULT_INSPECTOR_SHORTCUTS, false)).toBe(
-      'Shift+E+I'
-    );
-  });
-
-  it('should prefer the shortcut written for the platform', () => {
-    const both = [
-      { code: 'Digit8', shift: true, alt: true, meta: true, label: '⇧⌥⌘8' },
-      { ...CUSTOM, label: 'Ctrl+Alt+Shift+8' }
-    ];
-    expect(uwtShortcutLabel(both, true)).toBe('⇧⌥⌘8');
-    expect(uwtShortcutLabel(both, false)).toBe('Ctrl+Alt+Shift+8');
-  });
-
-  it('should describe a shortcut that has no label', () => {
-    expect(
-      uwtShortcutLabel([{ code: 'KeyD', ctrl: true, shift: true }], false)
-    ).toBe('Ctrl+Shift+D');
-    expect(
-      uwtShortcutLabel([{ code: 'KeyI', after: 'KeyE', shift: true }], false)
-    ).toBe('Shift+E+I');
-  });
-
-  it('should be undefined with no shortcuts', () => {
-    expect(uwtShortcutLabel([], false)).toBeUndefined();
-  });
-});
-
-describe('uwtIsApplePlatform', () => {
-  it.each([
-    ['MacIntel', true],
-    ['iPad', true],
-    ['Win32', false],
-    ['Linux x86_64', false]
-  ])('should read %s as %s', (platform, expected) => {
-    expect(uwtIsApplePlatform({ platform } as Navigator)).toBe(expected);
-  });
-
-  it('should prefer userAgentData when present', () => {
-    const nav = {
-      platform: 'Win32',
-      userAgentData: { platform: 'macOS' }
-    } as unknown as Navigator;
-    expect(uwtIsApplePlatform(nav)).toBe(true);
   });
 });

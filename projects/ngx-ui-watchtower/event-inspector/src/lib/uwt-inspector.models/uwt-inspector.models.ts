@@ -67,9 +67,6 @@ export interface UwtInspectorShortcut {
   alt?: boolean;
   shift?: boolean;
   meta?: boolean;
-
-  /** How the shortcut is written for people, e.g. `'Shift+E+I'`. */
-  label?: string;
 }
 
 /**

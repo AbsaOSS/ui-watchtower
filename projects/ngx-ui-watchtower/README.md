@@ -29,7 +29,7 @@ npm install aws-rum-web   # only for the AWS RUM sink
 Requires Angular 21 or 22 and RxJS 7.8.
 
 **Upgrading with an older cps-ui-kit:** the Event Inspector needs cps-ui-kit
-21.32 or later (or 22). npm checks that range whenever cps-ui-kit is
+21.33 or later (or 22). npm checks that range whenever cps-ui-kit is
 installed, so an app on an older version can't install this release until it
 upgrades cps-ui-kit, even if it never uses the Inspector.
 
@@ -367,7 +367,7 @@ localStorage.setItem('debugBI', 'true');
 localStorage.setItem('debugLogger', 'true'); // or 'checkout,cart' for some loggers
 ```
 
-**In the app** — add the Event Inspector (needs `cps-ui-kit` 21.32+ or 22):
+**In the app** — add the Event Inspector (needs `cps-ui-kit` 21.33+ or 22):
 
 ```ts
 import { provideUwtEventInspector } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';

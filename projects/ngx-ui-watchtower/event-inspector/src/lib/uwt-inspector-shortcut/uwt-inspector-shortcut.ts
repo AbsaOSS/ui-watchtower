@@ -10,7 +10,7 @@ import { UwtInspectorShortcut } from '../uwt-inspector.models/uwt-inspector.mode
  * @group Utils
  */
 export const UWT_DEFAULT_INSPECTOR_SHORTCUTS: readonly UwtInspectorShortcut[] =
-  [{ code: 'KeyI', after: 'KeyE', shift: true, label: 'Shift+E+I' }];
+  [{ code: 'KeyI', after: 'KeyE', shift: true }];
 
 /**
  * Whether `event` is exactly `shortcut`, given the key pressed just before
@@ -48,46 +48,6 @@ export function uwtMatchesShortcut(
     event.shiftKey === !!shortcut.shift &&
     event.metaKey === !!shortcut.meta
   );
-}
-
-/** Whether the platform is Apple's, for choosing which label to show. */
-export function uwtIsApplePlatform(nav: Navigator | undefined): boolean {
-  if (!nav) {
-    return false;
-  }
-  const platform =
-    (nav as Navigator & { userAgentData?: { platform?: string } }).userAgentData
-      ?.platform ??
-    nav.platform ??
-    '';
-  return /mac|iphone|ipad/i.test(platform);
-}
-
-/**
- * The shortcut to show people: the one written for this platform when
- * there is one, otherwise the first configured.
- */
-export function uwtShortcutLabel(
-  shortcuts: readonly UwtInspectorShortcut[],
-  apple: boolean
-): string | undefined {
-  const preferred = shortcuts.find((s) => !!s.meta === apple);
-  const chosen = preferred ?? shortcuts[0];
-  return chosen ? (chosen.label ?? describeShortcut(chosen)) : undefined;
-}
-
-function describeShortcut(s: UwtInspectorShortcut): string {
-  const key = (code: string | undefined) => code?.replace(/^Digit|^Key/, '');
-  return [
-    s.ctrl && 'Ctrl',
-    s.alt && 'Alt',
-    s.shift && 'Shift',
-    s.meta && 'Meta',
-    key(s.after),
-    key(s.code)
-  ]
-    .filter(Boolean)
-    .join('+');
 }
 
 /**

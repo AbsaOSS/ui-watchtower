@@ -236,7 +236,7 @@ across realms).
   workspace uses cps-ui-kit 21, the lowest version the Event Inspector
   supports, as it uses the lowest supported Angular. npm checks an optional
   peer's range whenever it is installed, so an app on a cps-ui-kit older
-  than 21.32 can't install the package until it upgrades the kit — even
+  than 21.33 can't install the package until it upgrades the kit — even
   without the Inspector. That is a breaking change for such apps.
 - **`cps-slider` is staged here for cps-ui-kit.** The kit has no slider, so
   the Transparency control is a `cps-slider` written to the kit's
@@ -1352,6 +1352,12 @@ environment because it exposes nothing new: the data is the current user's
 own, already in their browser and visible in the network panel. It stores
 nothing, sends nothing and grants no remote access.
 
+What it shows, and what it doesn't, is said by an info icon by the title in
+every dock, not text on the page: a tooltip, which `cps-info-circle` places
+only where it fits, so it is given a width of its own. A dialog's header is
+cps-dialog's, whose own `headerInfoTooltip` can't take one, so the inspector
+moves its icon into the header's info slot, as it does its mark.
+
 Avoid sharing your screen while it is open, and treat downloads as you would
 any file with ids in it; filenames carry only the application name, the
 kind exported and a timestamp
@@ -2083,7 +2089,7 @@ providers: [
 ];
 ```
 
-It is built from cps-ui-kit — 21.32 or later on Angular 21, or 22 — so the
+It is built from cps-ui-kit — 21.33 or later on Angular 21, or 22 — so the
 app needs cps-ui-kit set up as for any cps-ui-kit dialog (styles, icons,
 animations). It supports the light theme
 only, for now: cps-dialog, which frames it, is light-only, and the kit's
@@ -2197,8 +2203,7 @@ provideUwtEventInspector({
       code: 'KeyD',
       ctrl: true,
       alt: true,
-      shift: true,
-      label: 'Ctrl+Alt+Shift+D'
+      shift: true
     }
   ],
 
@@ -2315,7 +2320,7 @@ limit protects rendering, which costs by the length of the text. A cut never
 splits a surrogate pair.
 
 A shortcut is a `UwtInspectorShortcut` — `{ code, after?, ctrl?, alt?,
-shift?, meta?, label? }`, where `code` is a `KeyboardEvent.code` such as
+shift?, meta? }`, where `code` is a `KeyboardEvent.code` such as
 `'Digit8'` or `'KeyD'`, and an omitted modifier must be up. `after` is a key
 pressed just before `code` with the modifiers still held: the default is
 `{ code: 'KeyI', after: 'KeyE', shift: true }`. Without `ctrl` or `meta`, a

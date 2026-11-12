@@ -8,7 +8,7 @@
     "@angular/animations": ">=21.0.0 <23.0.0",
     "@angular/forms": ">=21.0.0 <23.0.0",
     "aws-rum-web": "^3.2.1",
-    "cps-ui-kit": ">=21.32.0 <23.0.0",
+    "cps-ui-kit": ">=21.33.0 <23.0.0",
     "rxjs": "^7.8.2"
   },
   "peerDependenciesMeta": {

@@ -3,6 +3,12 @@
     <div class="uwt-inspector__brand">
       <uwt-inspector-logo></uwt-inspector-logo>
       <h2 class="uwt-inspector__title">Event Inspector</h2>
+      <cps-info-circle
+        size="small"
+        tooltipPosition="bottom"
+        tooltipMaxWidth="24rem"
+        [tooltipText]="info">
+      </cps-info-circle>
     </div>
     <cps-button
       icon="close-x-2"
@@ -15,8 +21,15 @@
     </cps-button>
   </div>
 } @else {
-  <!-- Moved into cps-dialog's header icon slot once rendered. -->
+  <!-- Moved into cps-dialog's header, by its title, once rendered. -->
   <uwt-inspector-logo #dialogLogo></uwt-inspector-logo>
+  <cps-info-circle
+    #dialogInfo
+    size="small"
+    tooltipPosition="bottom"
+    tooltipMaxWidth="24rem"
+    [tooltipText]="info">
+  </cps-info-circle>
 }
 
 <div class="uwt-inspector__body">
@@ -101,22 +114,4 @@
 
   <uwt-inspector-timeline [maxPayloadChars]="maxPayloadChars">
   </uwt-inspector-timeline>
-
-  <div class="uwt-inspector__footer">
-    <p>
-      Shows what this app hands to its telemetry destinations, after redaction.
-      A destination can still drop an event, for example when RUM samples a
-      session out. RUM's own page views, errors and performance events aren't
-      shown.
-    </p>
-    <p>
-      Contains your session and user ids: avoid sharing your screen while it's
-      open, and share downloads only with your team. History is discarded when
-      you close it.
-      @if (shortcut) {
-        Shortcut: <kbd>{{ shortcut }}</kbd
-        >.
-      }
-    </p>
-  </div>
 </div>

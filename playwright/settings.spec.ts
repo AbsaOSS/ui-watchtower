@@ -291,7 +291,7 @@ test('inspector settings: a custom shortcut, a smaller section, a smaller view',
     inspector: {
       maxEventsPerSection: 10,
       maxPayloadCharsInView: 1000,
-      shortcuts: [{ code: 'F9', label: 'F9' }]
+      shortcuts: [{ code: 'F9' }]
     }
   });
   const inspector = page.locator('uwt-inspector');
@@ -304,7 +304,6 @@ test('inspector settings: a custom shortcut, a smaller section, a smaller view',
 
   await page.keyboard.press('F9');
   await expect(inspector).toBeVisible();
-  await expect(inspector).toContainText('Shortcut: F9');
 
   await press(page, 'A burst of 600 BI events');
   await expect(inspector).toContainText('10 events · 590 oldest dropped');

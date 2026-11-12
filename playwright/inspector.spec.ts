@@ -252,6 +252,86 @@ test('a separate window, with its own header and no slider', async ({
   await expect(window.locator('cps-slider')).toHaveCount(0);
 });
 
+for (const dock of ['dialog', 'right pane', 'separate window']) {
+  test(`${dock}: what it shows is said by an info icon in its header`, async ({
+    page
+  }) => {
+    let where: Page = page;
+    if (dock === 'dialog') {
+      await shortcut(page);
+    } else if (dock === 'right pane') {
+      await press(page, 'Right pane');
+    } else {
+      const popup = page.waitForEvent('popup');
+      await press(page, 'Separate window');
+      where = await popup;
+    }
+
+    const icon = where
+      .locator('.cps-dialog-header, .uwt-inspector__header')
+      .getByTestId('cps-info-circle');
+    await expect(icon).toBeVisible();
+    await expect(where.locator('body')).not.toContainText(
+      'telemetry destinations, after redaction'
+    );
+
+    await icon.hover();
+    const tip = where.locator('.cps-tooltip-content');
+    await expect(tip).toContainText('telemetry destinations, after redaction');
+    await expect(tip).toContainText("RUM's own page views");
+  });
+}
+
+test('a dialog opened after menus were used still shows its tooltips above itself', async ({
+  page
+}) => {
+  await shortcut(page);
+  // Before cps-ui-kit 21.33, each menu opened left its z-index counter
+  // higher, and the next dialog was stacked above its tooltips, which sit at
+  // a fixed 2000.
+  const exportButton = page
+    .locator('.cps-dialog')
+    .getByRole('button', { name: /Export/ });
+  for (let i = 0; i < 3; i++) {
+    await exportButton.click();
+    await expect(exportButton).toHaveAttribute('aria-expanded', 'true');
+    // The kit listens for a click away only once the menu has opened.
+    await expect(async () => {
+      await page.locator('.cps-dialog-header-title').click();
+      await expect(exportButton).toHaveAttribute('aria-expanded', 'false', {
+        timeout: 500
+      });
+    }).toPass();
+  }
+  await page.getByRole('button', { name: 'Dock right' }).click();
+  await expect(page.locator('uwt-inspector-pane')).toBeVisible();
+  await expect(page.locator('.cps-dialog')).toHaveCount(0);
+  await page
+    .locator('uwt-inspector-pane')
+    .getByRole('button', { name: 'Dialog', exact: true })
+    .click();
+  await expect(page.locator('.cps-dialog uwt-inspector')).toBeVisible();
+
+  await page
+    .locator('.cps-dialog-header')
+    .getByTestId('cps-info-circle')
+    .hover();
+  await expect(page.locator('.cps-tooltip-content')).toBeVisible();
+  // Seen, not just there: what is at its centre is the tooltip itself.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const rect = document
+          .querySelector('.cps-tooltip')!
+          .getBoundingClientRect();
+        return !!document
+          .elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
+          ?.closest('.cps-tooltip');
+      })
+    )
+    .toBe(true);
+});
+
 test('reopens where it was last, after a reload', async ({ page }) => {
   await press(page, 'Right pane');
   await expect(page.locator('uwt-inspector-pane')).toBeVisible();
@@ -334,7 +414,9 @@ test('a pane at its default width shows the dock buttons; dragged narrow, a menu
   for (let i = 0; i < 4; i++) {
     await page.keyboard.press('ArrowRight');
   }
-  expect(Math.round((await pane.boundingBox())!.width)).toBe(480);
+  await expect
+    .poll(async () => Math.round((await pane.boundingBox())!.width))
+    .toBe(480);
   const trigger = pane.locator('.uwt-inspector-dock__trigger');
   await expect(trigger).toBeVisible();
   await expect(pane.locator('[data-dock]')).toHaveCount(0);
