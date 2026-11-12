@@ -62,8 +62,8 @@ application does. Tests and the typecheck read the core's source.
 | `npm run test:core`     | Runs the core's unit tests only: plain Jest, no Angular        |
 | `npm run test:coverage` | Runs the unit tests with coverage, as CI does                  |
 | `npm run typecheck`     | Builds the core, then type-checks every tsconfig and type test |
-| `npm run api:check`     | Compares the built public APIs with their committed snapshots  |
-| `npm run api:update`    | Writes those snapshots again, for an intended API change       |
+| `npm run api:check`     | Builds both packages, then compares their public APIs          |
+| `npm run api:update`    | Builds both packages, then rewrites their snapshots            |
 | `npm run lint`          | ESLint, no warnings allowed                                    |
 | `npm run format`        | Formats with Prettier                                          |
 | `npm run format:check`  | Checks formatting without writing                              |
