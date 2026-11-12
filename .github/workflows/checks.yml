@@ -33,10 +33,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build library
-        run: npm run build
-
-      - name: Check the public API
+      - name: Build library and check the public API
         run: npm run api:check
 
   test:
