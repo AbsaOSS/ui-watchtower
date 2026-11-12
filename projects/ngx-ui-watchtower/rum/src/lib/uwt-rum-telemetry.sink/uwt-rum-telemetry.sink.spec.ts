@@ -288,8 +288,9 @@ describe('UwtRumTelemetrySink', () => {
 
       const config = AwsRumCtor.mock.calls[0][3] as { telemetries: unknown[] };
       // Strict: an explicit `undefined` or `null` would replace the SDK's default.
-      expect(config.telemetries).toStrictEqual([
-        ['http', { recordAllRequests: true }]
+      expect(config.telemetries[0]).toStrictEqual([
+        'http',
+        { recordAllRequests: true }
       ]);
       expect(config).not.toHaveProperty('pagesToInclude');
       expect(config).not.toHaveProperty('pagesToExclude');
@@ -470,6 +471,15 @@ describe('UwtRumTelemetrySink', () => {
           'performance',
           ['http', { addXRayTraceIdHeader: [expect.any(RegExp)] }]
         ]
+      });
+    });
+
+    it("should leave the app's telemetries as they are, without adding RUM's error plugin", async () => {
+      configure({ loadImpl: async () => bootstrap({ telemetries: ['http'] }) });
+      await sink.init();
+
+      expect(AwsRumCtor.mock.calls[0][3]).toMatchObject({
+        telemetries: ['http']
       });
     });
 
@@ -997,6 +1007,42 @@ describe('UwtRumTelemetrySink', () => {
         name: 'TypeError',
         message: 'boom'
       });
+    });
+
+    it("should warn once, in every environment, when RUM rejects an error because 'errors' isn't loaded", async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      awsRumInstance.recordError.mockImplementation(() => {
+        throw new Error('Invalid plugin ID: com.amazonaws.rum.js-error');
+      });
+      await sink.init();
+
+      sink.recordError({ name: 'TypeError', message: 'boom' });
+      sink.recordError({ name: 'TypeError', message: 'again' });
+
+      const warned = warn.mock.calls.filter((c) =>
+        String(c[0]).includes("'errors' telemetry isn't loaded")
+      );
+      expect(warned).toHaveLength(1);
+      expect(String(warned[0][0])).toContain('mirrorErrorsToRum: false');
+      warn.mockRestore();
+      awsRumInstance.recordError.mockReset();
+    });
+
+    it('should not take that warning for any other failure of recordError', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      awsRumInstance.recordError.mockImplementation(() => {
+        throw new Error('something else');
+      });
+      await sink.init();
+
+      expect(() =>
+        sink.recordError({ name: 'TypeError', message: 'boom' })
+      ).not.toThrow();
+      expect(
+        warn.mock.calls.some((c) => String(c[0]).includes("'errors' telemetry"))
+      ).toBe(false);
+      warn.mockRestore();
+      awsRumInstance.recordError.mockReset();
     });
 
     it('should buffer an error recorded before init and replay it once ready', async () => {

@@ -85,7 +85,9 @@ export interface UwtLogApiProvider {
    *
    * Called on `pagehide`, on `visibilitychange` going hidden, and on
    * teardown. Must be synchronous and non-blocking. `fetch` with `keepalive`
-   * or `navigator.sendBeacon` are the usual choices.
+   * or `navigator.sendBeacon` are the usual choices — every time, not only
+   * while `document.visibilityState` is `'hidden'`: Safari still says
+   * `visible` while a reloading page hides, and cancels a plain request then.
    */
   flush?(): void;
 }

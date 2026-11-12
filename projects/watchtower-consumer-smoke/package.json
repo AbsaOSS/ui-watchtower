@@ -1,0 +1,5 @@
+{
+  "name": "watchtower-consumer-smoke",
+  "private": true,
+  "description": "A minimal app consuming @absaoss-cps/ngx-ui-watchtower as published: `npm run smoke` packs the library and sets this app up on its own, outside the workspace, with the tarball installed."
+}

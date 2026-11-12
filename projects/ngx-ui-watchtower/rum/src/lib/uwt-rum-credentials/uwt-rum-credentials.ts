@@ -111,7 +111,9 @@ export interface UwtRumAppMonitorConfig {
    * Built-in telemetry categories to enable. Defaults to errors, performance
    * and same-origin HTTP. The SDK's own default also includes `'replay'`
    * (session replay via `rrweb`); this library does not enable it by
-   * default.
+   * default. `recordError` and `mirrorErrorsToRum` need `'errors'` in this
+   * list (or its plugin in `eventPluginsToLoad`); without it, errors aren't
+   * mirrored to RUM and the console warns once.
    *
    * Options the SDK matches with `RegExp.test` or calls as a function —
    * `urlsToInclude`, `urlsToExclude`, `addXRayTraceIdHeader` (also a

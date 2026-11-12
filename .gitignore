@@ -6,6 +6,7 @@
 
 # Node
 /node_modules
+/projects/watchtower-consumer-smoke/node_modules
 npm-debug.log
 yarn-error.log
 
@@ -30,6 +31,9 @@ yarn-error.log
 .sass-cache/
 /connect.lock
 /coverage
+/test-results
+/playwright-report
+/blob-report
 /libpeerconnection.log
 testem.log
 /typings

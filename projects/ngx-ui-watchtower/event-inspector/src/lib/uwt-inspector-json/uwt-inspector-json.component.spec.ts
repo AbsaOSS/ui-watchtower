@@ -1,0 +1,153 @@
+import { DOCUMENT } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { UwtInspectorJsonComponent } from './uwt-inspector-json.component';
+
+describe('UwtInspectorJsonComponent', () => {
+  let fixture: ComponentFixture<UwtInspectorJsonComponent>;
+  const pre = () => fixture.nativeElement.querySelector('pre') as HTMLElement;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [UwtInspectorJsonComponent, NoopAnimationsModule]
+    }).compileComponents();
+    fixture = TestBed.createComponent(UwtInspectorJsonComponent);
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('should show the payload as indented JSON in a named, focusable region', () => {
+    fixture.componentRef.setInput('value', { a: { b: 1 } });
+    fixture.componentRef.setInput('label', 'Payload of event #3');
+    fixture.detectChanges();
+
+    expect(JSON.parse(pre().textContent ?? '')).toEqual({ a: { b: 1 } });
+    expect(pre().textContent).toContain('\n  "a"');
+    expect(pre().getAttribute('aria-label')).toBe('Payload of event #3');
+    expect(pre().getAttribute('tabindex')).toBe('0');
+  });
+
+  it('should truncate a huge payload in view, and say so', () => {
+    fixture.componentRef.setInput('value', { big: 'x'.repeat(100_000) });
+    fixture.componentRef.setInput('maxChars', 1000);
+    fixture.detectChanges();
+
+    expect(pre().textContent!.length).toBe(1000);
+    expect(fixture.nativeElement.textContent).toContain(
+      'showing the first 1,000 characters'
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'The download contains all of it.'
+    );
+  });
+
+  it('should show at most 65,536 characters when maxChars is larger', () => {
+    fixture.componentRef.setInput('value', { big: 'x'.repeat(200_000) });
+    fixture.componentRef.setInput('maxChars', 100_000);
+    fixture.detectChanges();
+
+    expect(pre().textContent!.length).toBe(64 * 1024);
+    expect(fixture.nativeElement.textContent).toContain(
+      'showing the first 65,536 characters'
+    );
+  });
+
+  it('should show nothing of a payload when maxChars is negative', () => {
+    fixture.componentRef.setInput('value', { big: 'x'.repeat(1000) });
+    fixture.componentRef.setInput('maxChars', -10);
+    fixture.detectChanges();
+
+    expect(pre().textContent).toBe('');
+    expect(fixture.nativeElement.textContent).toContain(
+      'showing the first 0 characters'
+    );
+  });
+
+  it('should measure the limit in characters, not bytes', () => {
+    // 600 Cyrillic letters: about 600 characters of JSON, but 1,200+ bytes.
+    fixture.componentRef.setInput('value', { text: 'ж'.repeat(600) });
+    fixture.componentRef.setInput('maxChars', 1000);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Large payload');
+    expect(pre().textContent).toContain('ж'.repeat(600));
+  });
+
+  it('should not cut a truncated view through the middle of a surrogate pair', () => {
+    const before = '{\n  "big": "';
+    // Lines the first emoji up so the cut would fall inside it.
+    const padding = 'x'.repeat(1000 - 1 - before.length);
+    fixture.componentRef.setInput('value', {
+      big: padding + '😀'.repeat(10)
+    });
+    fixture.componentRef.setInput('maxChars', 1000);
+    fixture.detectChanges();
+
+    const shown = pre().textContent!;
+    expect(shown.length).toBe(1000 - 1);
+    expect(shown.endsWith('x')).toBe(true);
+  });
+
+  it('should render a circular value instead of failing', () => {
+    const value: Record<string, unknown> = { a: 1 };
+    value.self = value;
+    fixture.componentRef.setInput('value', value);
+    fixture.detectChanges();
+    expect(pre().textContent).toContain('"[Circular]"');
+  });
+
+  it('should name the copy button by its visible label, which says what it copies', () => {
+    fixture.componentRef.setInput('value', { a: 1 });
+    fixture.componentRef.setInput('copyLabel', 'Copy event');
+    fixture.detectChanges();
+
+    const copy = fixture.nativeElement.querySelector('cps-button button');
+    expect(copy.textContent.trim()).toBe('Copy event');
+    expect(copy.getAttribute('aria-label')).toBe('Copy event');
+  });
+
+  it('should copy the full JSON', async () => {
+    const writeText = jest.fn(() => Promise.resolve());
+    Object.assign(navigator, { clipboard: { writeText } });
+    fixture.componentRef.setInput('value', { a: 1 });
+    fixture.detectChanges();
+
+    await (
+      fixture.componentInstance as unknown as { copy(): Promise<void> }
+    ).copy();
+    fixture.detectChanges();
+
+    expect(writeText).toHaveBeenCalledWith('{\n  "a": 1\n}');
+    expect(fixture.nativeElement.textContent).toContain('Payload copied');
+  });
+
+  it("should copy through its own window's clipboard, as a separate window has its own", async () => {
+    const frame = document.body.appendChild(document.createElement('iframe'));
+    const own = jest.fn(() => Promise.resolve());
+    const app = jest.fn(() => Promise.resolve());
+    Object.assign(frame.contentWindow!.navigator, {
+      clipboard: { writeText: own }
+    });
+    Object.assign(navigator, { clipboard: { writeText: app } });
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      imports: [UwtInspectorJsonComponent, NoopAnimationsModule]
+    });
+    TestBed.overrideComponent(UwtInspectorJsonComponent, {
+      add: {
+        providers: [{ provide: DOCUMENT, useValue: frame.contentDocument }]
+      }
+    });
+    const inWindow = TestBed.createComponent(UwtInspectorJsonComponent);
+    inWindow.componentRef.setInput('value', { a: 1 });
+    inWindow.detectChanges();
+
+    await (
+      inWindow.componentInstance as unknown as { copy(): Promise<void> }
+    ).copy();
+
+    expect(own).toHaveBeenCalledWith('{\n  "a": 1\n}');
+    expect(app).not.toHaveBeenCalled();
+    frame.remove();
+  });
+});

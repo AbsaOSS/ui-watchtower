@@ -14,6 +14,7 @@ import {
   uwtEventTypes,
   UwtTelemetryMetadata
 } from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { uwtDebugWrite } from '../../utils/uwt-debug-flag.util/uwt-debug-flag.util';
 import {
@@ -70,6 +71,7 @@ export class UwtBITelemetryService {
   );
 
   private readonly sink = inject(UwtTelemetrySink);
+  private readonly monitor = inject(UwtTelemetryMonitor);
   private readonly enabled = uwtTelemetryEnabled();
 
   private readonly eventTypes = uwtEventTypes(this.identity.eventNamespace);
@@ -135,6 +137,13 @@ export class UwtBITelemetryService {
       );
 
       this.sink.record(this.eventTypes.bi, event);
+      this.monitor.publish({
+        kind: 'bi',
+        eventType: this.eventTypes.bi,
+        payload: event,
+        destination: 'sink',
+        origin: { forwarded: false }
+      });
     });
   }
 

@@ -1,0 +1,31 @@
+/*
+ * The consumer smoke app, configured like any app: it doesn't extend the
+ * workspace's tsconfig, so there are no paths into the library's source —
+ * only the package installed in ./node_modules.
+ */
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "outDir": "../../out-tsc/watchtower-consumer-smoke",
+    "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "types": []
+  },
+  "angularCompilerOptions": {
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  },
+  "files": ["src/main.ts", "src/main.server.ts"],
+  "include": ["src/**/*.ts"]
+}

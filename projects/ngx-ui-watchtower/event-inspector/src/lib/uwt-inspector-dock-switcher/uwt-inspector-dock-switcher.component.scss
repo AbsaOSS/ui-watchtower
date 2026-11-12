@@ -1,0 +1,166 @@
+// Styled like cps-button-toggle: calm outline, the current option filled.
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--uwt-inspector-space-m);
+  font-size: 1rem;
+  font-family: 'Source Sans Pro', sans-serif;
+  color: var(--cps-color-text-dark);
+}
+
+.uwt-inspector-dock__group {
+  display: inline-flex;
+}
+
+.uwt-inspector-dock__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0.0625rem solid var(--cps-color-calm);
+  background-color: #fff;
+  color: var(--cps-color-calm);
+  cursor: pointer;
+
+  & + & {
+    margin-left: -0.0625rem;
+  }
+
+  &:first-child {
+    border-radius: 0.25rem 0 0 0.25rem;
+  }
+
+  &:last-child {
+    border-radius: 0 0.25rem 0.25rem 0;
+  }
+
+  &:hover {
+    background-color: var(--cps-color-calm-lighten5);
+  }
+
+  &[aria-pressed='true'] {
+    background-color: var(--cps-color-calm);
+    color: #fff;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 0.0625rem solid var(--cps-color-calm);
+    outline-offset: 0.125rem;
+    box-shadow: 0 0 0 0.25rem var(--cps-color-calm-highlighten);
+  }
+}
+
+svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+.filled {
+  fill: currentColor;
+  stroke: none;
+}
+
+// Narrow: the current dock and a chevron, opening a list of every dock, each
+// named — the buttons' icons alone need their tooltips.
+.uwt-inspector-dock__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 0.0625rem solid var(--cps-color-calm);
+  border-radius: 0.25rem;
+  background-color: #fff;
+  color: var(--cps-color-calm);
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--cps-color-calm-lighten5);
+  }
+
+  &[aria-expanded='true'] {
+    background-color: var(--cps-color-calm);
+    color: #fff;
+  }
+
+  &:focus-visible {
+    outline: 0.0625rem solid var(--cps-color-calm);
+    outline-offset: 0.125rem;
+    box-shadow: 0 0 0 0.25rem var(--cps-color-calm-highlighten);
+  }
+}
+
+.uwt-inspector-dock__chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+// In the overlay cps-menu draws, so it names its own font and colour.
+.uwt-inspector-dock__menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.25rem;
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 0.875rem;
+  color: var(--cps-color-text-dark);
+}
+
+.uwt-inspector-dock__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.25rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--cps-color-calm-lighten5);
+  }
+
+  &[aria-checked='true'] {
+    font-weight: 600;
+    color: var(--cps-color-calm);
+  }
+
+  &:focus-visible {
+    outline: 0.0625rem solid var(--cps-color-calm);
+    outline-offset: -0.0625rem;
+    background-color: var(--cps-color-calm-lighten5);
+  }
+}
+
+.uwt-inspector-dock__item-label {
+  flex: 1;
+}
+
+.uwt-inspector-dock__check {
+  stroke-width: 1.6;
+}
+
+// Forced colours drop the fill that marks the current dock: it takes the
+// system's selection colours instead.
+@media (forced-colors: active) {
+  .uwt-inspector-dock__trigger[aria-expanded='true'],
+  .uwt-inspector-dock__option[aria-pressed='true'] {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background-color: Highlight;
+    color: HighlightText;
+  }
+}

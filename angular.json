@@ -35,6 +35,114 @@
           }
         }
       }
+    },
+    "watchtower-lab": {
+      "projectType": "application",
+      "root": "projects/watchtower-lab",
+      "sourceRoot": "projects/watchtower-lab/src",
+      "prefix": "lab",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/watchtower-lab",
+            "index": "projects/watchtower-lab/src/index.html",
+            "browser": "projects/watchtower-lab/src/main.ts",
+            "server": "projects/watchtower-lab/src/main.server.ts",
+            "polyfills": ["zone.js"],
+            "tsConfig": "projects/watchtower-lab/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "styles": ["projects/watchtower-lab/src/styles.scss"],
+            "assets": [
+              {
+                "glob": "icons.svg",
+                "input": "node_modules/cps-ui-kit/assets",
+                "output": "assets"
+              },
+              {
+                "glob": "logo-mark.svg",
+                "input": "assets/logo",
+                "output": "assets/logo"
+              }
+            ],
+            "optimization": false,
+            "sourceMap": true,
+            "extractLicenses": false,
+            "outputMode": "server",
+            "ssr": {
+              "entry": "projects/watchtower-lab/server/server.ts"
+            },
+            "externalDependencies": ["htmlrewriter"],
+            "security": {
+              "allowedHosts": ["localhost"]
+            }
+          }
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": {
+            "buildTarget": "watchtower-lab:build",
+            "port": 4280
+          }
+        }
+      }
+    },
+    "watchtower-lab-fragment": {
+      "projectType": "application",
+      "root": "projects/watchtower-lab-fragment",
+      "sourceRoot": "projects/watchtower-lab-fragment/src",
+      "prefix": "lab",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/watchtower-lab-fragment",
+            "index": "projects/watchtower-lab-fragment/src/index.html",
+            "browser": "projects/watchtower-lab-fragment/src/main.ts",
+            "tsConfig": "projects/watchtower-lab-fragment/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "styles": ["projects/watchtower-lab-fragment/src/styles.scss"],
+            "baseHref": "/_fragment/lab-fragment/",
+            "deployUrl": "/_fragment/lab-fragment/",
+            "optimization": false,
+            "sourceMap": true,
+            "extractLicenses": false
+          }
+        }
+      }
+    },
+    "watchtower-consumer-smoke": {
+      "projectType": "application",
+      "root": "projects/watchtower-consumer-smoke",
+      "sourceRoot": "projects/watchtower-consumer-smoke/src",
+      "prefix": "smoke",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/watchtower-consumer-smoke",
+            "index": "projects/watchtower-consumer-smoke/src/index.html",
+            "browser": "projects/watchtower-consumer-smoke/src/main.ts",
+            "server": "projects/watchtower-consumer-smoke/src/main.server.ts",
+            "outputMode": "static",
+            "tsConfig": "projects/watchtower-consumer-smoke/tsconfig.app.json",
+            "optimization": true,
+            "sourceMap": false,
+            "extractLicenses": false
+          },
+          "configurations": {
+            "rum": {
+              "outputPath": "dist/watchtower-consumer-smoke-rum",
+              "fileReplacements": [
+                {
+                  "replace": "projects/watchtower-consumer-smoke/src/destination.ts",
+                  "with": "projects/watchtower-consumer-smoke/src/destination.rum.ts"
+                }
+              ]
+            }
+          }
+        }
+      }
     }
   }
 }
