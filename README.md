@@ -35,7 +35,7 @@ projects/ngx-ui-watchtower/
   README.md     usage guide, published to npm
   DESIGN.md     full design
   package.json  the published package's manifest
-scripts/        the public API snapshot
+scripts/        the public API snapshot, and the packaging smoke test
 ```
 
 The Angular package depends on the core, never the other way round.
@@ -66,11 +66,12 @@ application does. Tests and the typecheck read the core's source.
 | `npm run typecheck`     | Builds the core, then type-checks every tsconfig and type test |
 | `npm run api:check`     | Builds both packages, then compares their public APIs          |
 | `npm run api:update`    | Builds both packages, then rewrites their snapshots            |
+| `npm run smoke`         | Installs the built packages, packed, into throwaway consumers  |
 | `npm run lint`          | ESLint, no warnings allowed                                    |
 | `npm run format`        | Formats with Prettier                                          |
 | `npm run format:check`  | Checks formatting without writing                              |
 
-Three checks guard what consumers depend on:
+Four checks guard what consumers depend on:
 
 - **Type tests** (`type-tests/` in each package) compile a consumer that uses
   every public export, and one that augments the name registries: registered
@@ -84,7 +85,14 @@ Three checks guard what consumers depend on:
   (`projects/ngx-ui-watchtower/src/lib/sinks/uwt-broadcast/uwt-broadcast.wire.fixture.json`) records
   every message a shell and a fragment exchange. Shells and fragments are
   deployed separately, so it changes only with a deliberate protocol change:
-  `UPDATE_WIRE_FIXTURE=1 npm test` records it again.
+  `UPDATE_WIRE_FIXTURE=1 npm test` records it again. Every pairing of an
+  Angular or framework-free shell and fragment is held to it.
+- **The smoke test** (`scripts/smoke/`) packs both packages and installs the
+  tarballs, outside this workspace, into a framework-free Node consumer (no
+  Angular, RxJS or `aws-rum-web` installed), a TypeScript one (the core's
+  type tests, and a project without the DOM typings), and an unchanged
+  Angular application, prerendered as a fragment without `aws-rum-web` and as
+  a shell with `/rum`. It installs from the registry, so it needs a network.
 
 ## Before you push
 
@@ -97,6 +105,7 @@ npm run lint
 npm run format:check
 npm run build
 npm run api:check
+npm run smoke
 ```
 
 CI runs the same checks on every pull request and every push to `main`.
