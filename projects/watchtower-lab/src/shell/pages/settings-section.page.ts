@@ -7,9 +7,11 @@ import {
   CpsTextareaComponent
 } from 'cps-ui-kit';
 import { LabLoggerLevelsComponent } from '../../lab/lab-logger-levels.component';
+import { LabSettingStateComponent } from '../../lab/lab-setting-state.component';
 import {
   LAB_DEBUG_FLAGS,
-  LabSettingsDraft
+  LabSettingsDraft,
+  labSettingId
 } from '../../lab/lab-settings-draft.service';
 import {
   LAB_BROKER_MODES,
@@ -24,7 +26,10 @@ import {
 } from '../../lab/lab-shortcuts.component';
 import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
 
-/** One section of Settings: its controls, which write into the shared draft. */
+/**
+ * One section of Settings: its controls, which write into the shared draft,
+ * each with where it stands — not applied yet, or other than the lab's default.
+ */
 @Component({
   selector: 'lab-settings-section',
   imports: [
@@ -33,6 +38,7 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
     CpsSwitchComponent,
     CpsTextareaComponent,
     LabLoggerLevelsComponent,
+    LabSettingStateComponent,
     LabShortcutsComponent,
     RouterLink
   ],
@@ -59,126 +65,141 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
 
       @if (section.path === 'rum-broker') {
         <div class="lab-card">
-          <cps-select
-            label="Answer /rum/init with"
-            [options]="modes"
-            [returnObject]="false"
-            [value]="draft.mode()"
-            width="26rem"
-            (valueChanged)="draft.mode.set($event)" />
+          <div class="lab-field">
+            <cps-select
+              label="Answer /rum/init with"
+              [options]="modes"
+              [returnObject]="false"
+              [value]="draft.mode()"
+              width="26rem"
+              (valueChanged)="draft.mode.set($event)" />
+            <lab-setting-state
+              [change]="draft.changeById().get('rum.mode')"
+              [modified]="draft.modifiedById().get('rum.mode')" />
+          </div>
           <p>
             RUM's own telemetry: the library's default is errors, performance
             and same-origin HTTP. With none, RUM records only page views, the
             session start and the library's events.
           </p>
-          <div class="lab-switches">
-            <cps-switch
-              label="The library's default"
-              [value]="draft.telemetries() === null"
-              (valueChanged)="draft.useDefaultTelemetries($event)" />
+          <div class="lab-field">
+            <div class="lab-switches">
+              <cps-switch
+                label="The library's default"
+                [value]="draft.telemetries() === null"
+                (valueChanged)="draft.useDefaultTelemetries($event)" />
+            </div>
+            @if (draft.telemetries(); as chosen) {
+              <cps-select
+                label="Telemetries"
+                placeholder="None"
+                [options]="telemetryOptions"
+                [returnObject]="false"
+                [multiple]="true"
+                [selectAll]="true"
+                [chips]="true"
+                [value]="chosen"
+                width="26rem"
+                (valueChanged)="draft.telemetries.set($event)" />
+            }
+            <lab-setting-state
+              [change]="draft.changeById().get('rum.telemetries')"
+              [modified]="draft.modifiedById().get('rum.telemetries')" />
           </div>
-          @if (draft.telemetries(); as chosen) {
-            <cps-select
-              label="Telemetries"
-              placeholder="None"
-              [options]="telemetryOptions"
-              [returnObject]="false"
-              [multiple]="true"
-              [selectAll]="true"
-              [chips]="true"
-              [value]="chosen"
-              width="26rem"
-              (valueChanged)="draft.telemetries.set($event)" />
-          }
         </div>
       }
 
       @if (section.fields.length) {
         <div class="lab-card">
           <div class="lab-fields">
-            @for (field of section.fields; track field.section + field.key) {
-              @switch (field.kind) {
-                @case ('switch') {
-                  <cps-switch
-                    [label]="label(field)"
-                    [value]="!!draft.value(field)"
-                    [disabled]="draft.disabled(field)"
-                    (valueChanged)="draft.set(field, $event)" />
-                }
-                @case ('number') {
-                  <cps-input
-                    type="number"
-                    [label]="label(field)"
-                    width="26rem"
-                    [value]="'' + draft.value(field)"
-                    [disabled]="draft.disabled(field)"
-                    (valueChanged)="draft.setNumber(field, $event)" />
-                }
-                @case ('text') {
-                  <cps-input
-                    [label]="label(field)"
-                    width="26rem"
-                    [value]="'' + (draft.value(field) ?? '')"
-                    [disabled]="draft.disabled(field)"
-                    (valueChanged)="draft.set(field, $event)" />
-                }
-                @case ('select') {
-                  <cps-select
-                    [label]="label(field)"
-                    [options]="selectOptions(field)"
-                    [returnObject]="false"
-                    [value]="'' + draft.value(field)"
-                    width="26rem"
-                    [disabled]="draft.disabled(field)"
-                    (valueChanged)="draft.set(field, $event)" />
-                }
-                @case ('multi') {
-                  <cps-select
-                    [label]="label(field)"
-                    [options]="selectOptions(field)"
-                    [returnObject]="false"
-                    [multiple]="true"
-                    [chips]="true"
-                    [value]="list(draft.value(field))"
-                    width="26rem"
-                    [disabled]="draft.disabled(field)"
-                    (valueChanged)="draft.set(field, $event)" />
-                }
-                @case ('lines') {
-                  <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
-                  <cps-textarea
-                    ngSkipHydration
-                    [label]="label(field)"
-                    [rows]="3"
-                    width="26rem"
-                    [value]="
-                      list(draft.value(field)).join(
-                        '
+            @for (field of section.fields; track id(field)) {
+              <div
+                class="lab-field"
+                [class.lab-field-wide]="
+                  field.kind === 'levels' || field.kind === 'shortcuts'
+                ">
+                @switch (field.kind) {
+                  @case ('switch') {
+                    <cps-switch
+                      [label]="label(field)"
+                      [value]="!!draft.value(field)"
+                      [disabled]="draft.disabled(field)"
+                      (valueChanged)="draft.set(field, $event)" />
+                  }
+                  @case ('number') {
+                    <cps-input
+                      type="number"
+                      [label]="label(field)"
+                      width="26rem"
+                      [value]="'' + draft.value(field)"
+                      [disabled]="draft.disabled(field)"
+                      (valueChanged)="draft.setNumber(field, $event)" />
+                  }
+                  @case ('text') {
+                    <cps-input
+                      [label]="label(field)"
+                      width="26rem"
+                      [value]="'' + (draft.value(field) ?? '')"
+                      [disabled]="draft.disabled(field)"
+                      (valueChanged)="draft.set(field, $event)" />
+                  }
+                  @case ('select') {
+                    <cps-select
+                      [label]="label(field)"
+                      [options]="selectOptions(field)"
+                      [returnObject]="false"
+                      [value]="'' + draft.value(field)"
+                      width="26rem"
+                      [disabled]="draft.disabled(field)"
+                      (valueChanged)="draft.set(field, $event)" />
+                  }
+                  @case ('multi') {
+                    <cps-select
+                      [label]="label(field)"
+                      [options]="selectOptions(field)"
+                      [returnObject]="false"
+                      [multiple]="true"
+                      [chips]="true"
+                      [value]="list(draft.value(field))"
+                      width="26rem"
+                      [disabled]="draft.disabled(field)"
+                      (valueChanged)="draft.set(field, $event)" />
+                  }
+                  @case ('lines') {
+                    <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
+                    <cps-textarea
+                      ngSkipHydration
+                      [label]="label(field)"
+                      [rows]="3"
+                      width="26rem"
+                      [value]="
+                        list(draft.value(field)).join(
+                          '
 '
-                      )
-                    "
-                    [disabled]="draft.disabled(field)"
-                    (valueChanged)="draft.setLines(field, $event)" />
-                }
-                @case ('levels') {
-                  <div class="lab-field-wide">
+                        )
+                      "
+                      [disabled]="draft.disabled(field)"
+                      (valueChanged)="draft.setLines(field, $event)" />
+                  }
+                  @case ('levels') {
                     <p class="lab-field-wide__label">{{ label(field) }}</p>
                     <lab-logger-levels
                       [levels]="levelsOf(draft.value(field))"
                       [disabled]="draft.disabled(field)"
                       (changed)="draft.set(field, $event)" />
-                  </div>
-                }
-                @case ('shortcuts') {
-                  <div class="lab-field-wide">
+                  }
+                  @case ('shortcuts') {
                     <p class="lab-field-wide__label">{{ label(field) }}</p>
                     <lab-shortcuts
                       [shortcuts]="shortcutsOf(draft.value(field))"
                       [disabled]="draft.disabled(field)"
                       (changed)="draft.set(field, $event)" />
-                  </div>
+                  }
                 }
-              }
+                <lab-setting-state
+                  [change]="draft.changeById().get(id(field))"
+                  [modified]="draft.modifiedById().get(id(field))" />
+              </div>
             }
           </div>
           @if (section.path === 'app-monitor') {
@@ -200,10 +221,14 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
           <div class="lab-card">
             <div class="lab-switches">
               @for (flag of flags; track flag) {
-                <cps-switch
-                  [label]="flag"
-                  [value]="draft.debug()[flag]"
-                  (valueChanged)="draft.setDebug(flag, $event)" />
+                <div class="lab-field">
+                  <cps-switch
+                    [label]="flag"
+                    [value]="draft.debug()[flag]"
+                    (valueChanged)="draft.setDebug(flag, $event)" />
+                  <lab-setting-state
+                    [modified]="draft.modifiedById().get('debug.' + flag)" />
+                </div>
               }
             </div>
           </div>
@@ -248,6 +273,7 @@ export class SettingsSectionPage {
     (field) => field.section !== 'start' && field.section !== 'broker'
   );
 
+  protected readonly id = labSettingId;
   protected readonly label = labFieldLabel;
   protected readonly flags = LAB_DEBUG_FLAGS;
   protected readonly modes = LAB_BROKER_MODES;

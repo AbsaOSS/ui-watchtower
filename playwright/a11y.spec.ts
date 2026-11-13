@@ -79,10 +79,10 @@ for (const path of PAGES) {
   });
 }
 
-test('Settings with changes not applied, marked in its list and its bar: no violations', async ({
+test('Settings with settings modified and changes not applied, marked in its list, its fields and its bar: no violations', async ({
   page
 }) => {
-  await openLab(page, 'settings/scenarios');
+  await openLab(page, 'settings/scenarios', { scenarios: { maxSteps: 7 } });
   await page
     .locator('cps-switch', { hasText: 'Lifecycle step events' })
     .locator('label.cps-switch')

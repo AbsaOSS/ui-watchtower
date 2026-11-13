@@ -47,6 +47,32 @@ export interface LabConfig {
 }
 
 /**
+ * The lab's own settings, laid over the library's defaults: a {@link LabConfig}
+ * is laid over these. Settings shows them as the lab's defaults.
+ */
+export const LAB_DEFAULTS = {
+  identity: {
+    application: 'watchtower-lab',
+    environment: 'lab',
+    version: '1.0.0'
+  },
+  logging: {
+    minLevel: 'log',
+    levels: { noisy: 'warn' },
+    mirrorErrorsToRum: true
+  },
+  scenarios: { defaultTimeoutMs: 30_000 },
+  redaction: {
+    scanValuePatterns: ['email', 'creditCard', 'ssn', 'ipv4', 'phone']
+  }
+} satisfies {
+  identity: UwtTelemetryIdentity;
+  logging: Partial<UwtLogConfig>;
+  scenarios: Partial<UwtScenarioTelemetryConfig>;
+  redaction: Partial<UwtRedactConfig>;
+};
+
+/**
  * How the lab was started, read once from the query string — the way an app
  * picks its configuration at startup:
  *

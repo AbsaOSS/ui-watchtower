@@ -82,5 +82,8 @@ test('the header shows who is signed in, from any page, and is no link', async (
   await expect(page.locator('.cps-tooltip-content')).toHaveText(
     `Signed in as Anna (${ANNA})`
   );
-  await expect(page.locator('.lab-header').getByRole('link')).toHaveCount(0);
+  // A status, not a link; the run's chips beside it are links into Settings.
+  await expect(
+    page.locator('.lab-header').getByRole('link', { name: /Signed (in|out)/ })
+  ).toHaveCount(0);
 });

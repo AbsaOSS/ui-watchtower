@@ -46,9 +46,50 @@
   align-items: start;
 }
 
+// A control, and under it where it stands: not applied, or modified.
+.lab-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
 // A control that is a list, or has several parts, takes the card's whole width.
 .lab-field-wide {
   grid-column: 1 / -1;
+}
+
+.lab-setting-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+
+  &:empty {
+    display: none;
+  }
+}
+
+.lab-setting-state__tag {
+  padding: 0 0.5rem;
+  border-radius: 0.625rem;
+  background-color: var(--cps-color-highlight-selected);
+  color: var(--cps-color-calm);
+  font-weight: 700;
+}
+
+.lab-setting-state__tag--pending {
+  background-color: #fdf0dc;
+  color: #7a4300;
+}
+
+.lab-setting-state__default {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--cps-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lab-field-wide__label {
@@ -128,7 +169,25 @@
   text-transform: uppercase;
 }
 
-// A section with changes not applied, and the bar that lists them.
+// A section's marks: how many of its settings are modified, and a dot when
+// it has changes not applied — as the bar that lists them has too.
+.lab-settings__marks {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.lab-settings__count {
+  min-width: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 0.625rem;
+  background-color: var(--cps-color-line-light);
+  color: var(--cps-color-text-dark);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
 .lab-settings__dot {
   flex: none;
   width: 0.5rem;
@@ -321,12 +380,24 @@
   min-width: 0;
 }
 
+// Each leads to its setting.
 .lab-chip {
   padding: 0.15rem 0.6rem;
   border-radius: 1rem;
   background-color: #ffffff26;
+  color: inherit;
   font-size: 0.85rem;
+  text-decoration: none;
   white-space: nowrap;
+
+  &:hover {
+    background-color: #ffffff40;
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    @include cps.focus-ring;
+  }
 }
 
 .lab-run-settings {

@@ -78,7 +78,7 @@ function inEffect(now?: string, next?: string): string {
       <div class="lab-chips">
         <ng-container [ngTemplateOutlet]="chips" />
       </div>
-      <details class="lab-run-settings">
+      <details #runSettings class="lab-run-settings">
         <summary>Run settings</summary>
         <div class="lab-run-settings__panel">
           <ng-container [ngTemplateOutlet]="chips" />
@@ -100,18 +100,47 @@ function inEffect(now?: string, next?: string): string {
       </button>
     </header>
 
+    <!-- Each chip leads to its setting; a custom config, to what differs. -->
     <ng-template #chips>
-      <span class="lab-chip">destination: {{ options.destination }}</span>
-      <span class="lab-chip"
-        >telemetry: {{ options.telemetry ? 'on' : 'off' }}</span
+      <a
+        class="lab-chip"
+        routerLink="/settings/delivery"
+        queryParamsHandling="preserve"
+        >destination: {{ options.destination }}</a
       >
-      <span class="lab-chip">broker: {{ broker() }}</span>
-      <span class="lab-chip">rum telemetries: {{ telemetries() }}</span>
+      <a
+        class="lab-chip"
+        routerLink="/settings/delivery"
+        queryParamsHandling="preserve"
+        >telemetry: {{ options.telemetry ? 'on' : 'off' }}</a
+      >
+      <a
+        class="lab-chip"
+        routerLink="/settings/rum-broker"
+        queryParamsHandling="preserve"
+        >broker: {{ broker() }}</a
+      >
+      <a
+        class="lab-chip"
+        routerLink="/settings/rum-broker"
+        queryParamsHandling="preserve"
+        >rum telemetries: {{ telemetries() }}</a
+      >
       @if (options.channel === 'shared') {
-        <span class="lab-chip">channel: shared</span>
+        <a
+          class="lab-chip"
+          routerLink="/settings/delivery"
+          queryParamsHandling="preserve"
+          >channel: shared</a
+        >
       }
       @if (customConfig) {
-        <span class="lab-chip">config: custom</span>
+        <a
+          class="lab-chip"
+          routerLink="/settings"
+          queryParamsHandling="preserve"
+          >config: custom</a
+        >
       }
     </ng-template>
 
@@ -254,6 +283,9 @@ export class ShellComponent {
   private readonly navToggle =
     viewChild.required<ElementRef<HTMLButtonElement>>('navToggle');
 
+  private readonly runSettings =
+    viewChild<ElementRef<HTMLDetailsElement>>('runSettings');
+
   constructor() {
     inject(LabLayout);
     const router = inject(Router);
@@ -265,6 +297,8 @@ export class ShellComponent {
       .subscribe(() => {
         this.path.set(router.url.split(/[?#]/)[0].replace(/^\//, ''));
         this.navOpen.set(false);
+        // Its chips lead into Settings: it folds away once one is followed.
+        this.runSettings()?.nativeElement.removeAttribute('open');
       });
 
     const destroyRef = inject(DestroyRef);

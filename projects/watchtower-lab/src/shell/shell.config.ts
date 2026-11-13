@@ -27,7 +27,12 @@ import {
   provideUwtTelemetryRumSink
 } from '@absaoss-cps/ngx-ui-watchtower/rum';
 import { provideUwtEventInspector } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
-import { LAB_OPTIONS, labRedaction, LabOptions } from '../lab/lab-options';
+import {
+  LAB_DEFAULTS,
+  LAB_OPTIONS,
+  labRedaction,
+  LabOptions
+} from '../lab/lab-options';
 import { labChannel } from '../lab/lab-channel';
 import { LabCustomSink } from '../lab/lab-custom.sink';
 import { LabLogApiProvider } from '../lab/lab-log-api.provider';
@@ -145,24 +150,14 @@ export const shellConfig = (options: LabOptions): ApplicationConfig => {
       provideRouter(routes),
       { provide: LAB_OPTIONS, useValue: options },
       provideUwtTelemetry(
-        {
-          application: 'watchtower-lab',
-          environment: 'lab',
-          version: '1.0.0',
-          ...identity
-        },
+        { ...LAB_DEFAULTS.identity, ...identity },
         // The factory form, read once at startup in an injection context.
         withTelemetryEnabled(() => inject(LAB_OPTIONS).telemetry),
-        withLogging({
-          minLevel: 'log',
-          levels: { noisy: 'warn' },
-          mirrorErrorsToRum: true,
-          ...logging
-        }),
-        withScenarios({ defaultTimeoutMs: 30_000, ...scenarios }),
+        withLogging({ ...LAB_DEFAULTS.logging, ...logging }),
+        withScenarios({ ...LAB_DEFAULTS.scenarios, ...scenarios }),
         withBIEvents(bi),
         withRedaction({
-          scanValuePatterns: ['email', 'creditCard', 'ssn', 'ipv4', 'phone'],
+          ...LAB_DEFAULTS.redaction,
           ...labRedaction(options.config.redaction)
         })
       ),

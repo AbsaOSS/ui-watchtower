@@ -71,9 +71,16 @@ function sectionOf(url: string): string {
                   routerLinkActive="active"
                   ariaCurrentWhenActive="page"
                   >{{ section.label }}
-                  @if (changed().has(section.path)) {
-                    <span class="cps-sr-only">(changes not applied)</span
-                    ><span class="lab-settings__dot" aria-hidden="true"></span>
+                  @if (notes().get(section.path); as note) {
+                    <span class="cps-sr-only">({{ note }})</span>
+                    <span class="lab-settings__marks" aria-hidden="true">
+                      @if (counts().get(section.path); as count) {
+                        <span class="lab-settings__count">{{ count }}</span>
+                      }
+                      @if (changed().has(section.path)) {
+                        <span class="lab-settings__dot"></span>
+                      }
+                    </span>
                   }
                 </a>
               </li>
@@ -167,6 +174,30 @@ export class SettingsPage {
   /** The sections with changes not applied. */
   protected readonly changed = computed(
     () => new Set(this.draft.changes().map((change) => change.section.path))
+  );
+
+  /** How many settings each section has other than the lab's defaults. */
+  protected readonly counts = computed(() => {
+    const counts = new Map<string, number>();
+    for (const { section } of this.draft.modified()) {
+      counts.set(section.path, (counts.get(section.path) ?? 0) + 1);
+    }
+    return counts;
+  });
+
+  /** Each section's marks, as read out: `2 modified, changes not applied`. */
+  protected readonly notes = computed(
+    () =>
+      new Map(
+        LAB_SETTINGS_SECTIONS.map((section) => {
+          const count = this.counts().get(section.path);
+          const notes = [
+            count && `${count} modified`,
+            this.changed().has(section.path) && 'changes not applied'
+          ].filter(Boolean);
+          return [section.path, notes.join(', ')];
+        })
+      )
   );
 
   protected readonly listed = computed(() =>

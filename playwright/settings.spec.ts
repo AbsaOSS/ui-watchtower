@@ -110,10 +110,11 @@ test('each section of Settings is a page of its own, listed by area, saying how 
     Diagnostics: ['Debug flags'],
     Advanced: ['Configuration as JSON', 'Effective configuration']
   };
+  // Each named first: Delivery goes on with its marks, as noop is modified.
   for (const [area, labels] of Object.entries(areas)) {
     await expect(
       sections.getByRole('list', { name: area }).getByRole('link')
-    ).toHaveText(labels);
+    ).toHaveText(labels.map((label) => new RegExp(`^${label}`)));
   }
 
   const main = page.locator('lab-root main');
@@ -214,6 +215,135 @@ test('on a narrow screen, the sections of Settings fold into a picker', async ({
   await expect(page.locator('lab-root main h1').first()).toHaveText(
     'Scenarios'
   );
+});
+
+test("a setting other than the lab's default is marked, with its default and a Reset that waits to be applied", async ({
+  page
+}) => {
+  await openLab(page, 'settings/bi-events', { bi: { dedupWindowMs: 0 } });
+  const field = page.locator('.lab-field', { hasText: 'BI dedup window' });
+  await expect(field).toContainText('Modified');
+  await expect(field).toContainText('Lab default: 400');
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Settings sections' })
+      .getByRole('link', { name: 'BI events (1 modified)' })
+  ).toBeVisible();
+
+  await field
+    .getByRole('button', {
+      name: 'Reset BI dedup window, ms to the lab default'
+    })
+    .click();
+  await expect(field).toContainText('Not applied');
+  // The control shows what the next load will have: the lab's default.
+  await expect(field.locator('input')).toHaveValue('400');
+  await expect(pending(page)).toContainText('BI events › BI dedup window, ms');
+  await field.getByRole('button', { name: 'Undo BI dedup window, ms' }).click();
+  await expect(pending(page)).toHaveCount(0);
+  await expect(field).toContainText('Modified');
+  await expect(field.locator('input')).toHaveValue('0');
+
+  await field.getByRole('button', { name: /^Reset/ }).click();
+  await applyAndReload(page);
+  await expect(page.locator('.lab-header')).not.toContainText('config:');
+  await expect(
+    page.locator('.lab-field', { hasText: 'BI dedup window' })
+  ).not.toContainText('Modified');
+});
+
+test("the overview lists what differs from the lab's defaults: a debug flag resets at once, the rest wait to be applied", async ({
+  page,
+  backend
+}) => {
+  await backend.setBrokerMode('null');
+  await page.addInitScript(() => localStorage.setItem('debugBI', 'true'));
+  await openLab(page, 'settings?destination=noop', {
+    logging: { minLevel: 'warn' }
+  });
+  const review = page.locator('lab-settings-overview');
+  const modified = review.locator('.lab-card', {
+    hasText: "Different from the lab's defaults"
+  });
+  for (const text of [
+    'Delivery › Destination',
+    'rum → noop',
+    'Logging › Minimum level',
+    'log → warn',
+    'RUM broker › Answer /rum/init with',
+    'ok → null',
+    'Debug flags › debugBI',
+    'off → on'
+  ]) {
+    await expect(modified).toContainText(text);
+  }
+
+  await modified
+    .getByRole('button', { name: 'Reset debugBI to the lab default' })
+    .click();
+  await expect(modified).not.toContainText('debugBI');
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('debugBI')))
+    .toBeNull();
+  await expect(pending(page)).toHaveCount(0);
+
+  await modified
+    .getByRole('button', { name: 'Reset Destination to the lab default' })
+    .click();
+  const waiting = review.locator('.lab-card', { hasText: 'Not applied yet' });
+  await expect(waiting).toContainText('Delivery › Destination');
+  await expect(waiting).toContainText('noop → rum');
+  await waiting.getByRole('button', { name: 'Undo Destination' }).click();
+  await expect(pending(page)).toHaveCount(0);
+});
+
+test("the mock broker's answer, other than its default, is marked in its sections", async ({
+  page,
+  backend
+}) => {
+  await backend.setBrokerMode('null');
+  await backend.setTelemetries(['errors']);
+  await backend.setBrokerConfig({ sessionSampleRate: 0.5 });
+  await openLab(page, 'settings/rum-broker');
+  await expect(
+    page.locator('.lab-field', { hasText: 'Answer /rum/init with' })
+  ).toContainText('Lab default: ok');
+  await expect(
+    page.locator('.lab-field', { hasText: 'Telemetries' })
+  ).toContainText("Lab default: the library's default");
+  const sections = page.getByRole('navigation', { name: 'Settings sections' });
+  await expect(
+    sections.getByRole('link', { name: 'RUM broker (2 modified)' })
+  ).toBeVisible();
+  await expect(
+    sections.getByRole('link', { name: 'App monitor (1 modified)' })
+  ).toBeVisible();
+
+  await settingsSection(page, 'App monitor');
+  await expect(
+    page.locator('.lab-field', { hasText: 'Session sample rate' })
+  ).toContainText('Lab default: 1');
+});
+
+test("the header's chips lead to their settings", async ({ page }) => {
+  await openLab(page, 'bi', { bi: { dedupWindowMs: 0 } });
+  const header = page.locator('.lab-header');
+  const title = page.locator('lab-root main h1').first();
+  await header.getByRole('link', { name: 'destination: rum' }).click();
+  await expect(page).toHaveURL(/\/settings\/delivery\?config=/);
+  await expect(title).toHaveText('Delivery');
+  await header.getByRole('link', { name: 'broker: ok' }).click();
+  await expect(title).toHaveText('RUM broker');
+  await header.getByRole('link', { name: 'config: custom' }).click();
+  await expect(title).toHaveText('Settings');
+
+  // Folded behind Run settings, they lead there too, and fold away.
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await header.getByText('Run settings').click();
+  const panel = header.locator('.lab-run-settings__panel');
+  await panel.getByRole('link', { name: 'telemetry: on' }).click();
+  await expect(title).toHaveText('Delivery');
+  await expect(panel).toBeHidden();
 });
 
 test('Settings applies an overlay, shows it in effect, and goes back', async ({

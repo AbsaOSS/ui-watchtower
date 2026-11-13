@@ -3,7 +3,11 @@ import { RouterLink } from '@angular/router';
 import { CpsButtonComponent } from 'cps-ui-kit';
 import { LabSettingsDraft } from '../../lab/lab-settings-draft.service';
 
-/** Settings' first page: what is waiting to be applied, and a way back to the lab's own. */
+/**
+ * Settings' first page: what is waiting to be applied, what this load runs
+ * with otherwise than the lab's defaults — each to undo or reset — and a way
+ * back to the lab's own settings.
+ */
 @Component({
   selector: 'lab-settings-overview',
   imports: [CpsButtonComponent, RouterLink],
@@ -22,7 +26,7 @@ import { LabSettingsDraft } from '../../lab/lab-settings-draft.service';
         <h2>Not applied yet</h2>
         @if (draft.changes().length) {
           <ul class="lab-changes">
-            @for (change of draft.changes(); track $index) {
+            @for (change of draft.changes(); track change.id) {
               <li>
                 <a
                   [routerLink]="['/settings', change.section.path]"
@@ -34,6 +38,12 @@ import { LabSettingsDraft } from '../../lab/lab-settings-draft.service';
                     >{{ change.from }} → {{ change.to }}</span
                   >
                 }
+                <cps-button
+                  type="borderless"
+                  size="xsmall"
+                  label="Undo"
+                  [ariaLabel]="'Undo ' + change.label"
+                  (clicked)="change.revert()" />
               </li>
             }
           </ul>
@@ -43,10 +53,43 @@ import { LabSettingsDraft } from '../../lab/lab-settings-draft.service';
       </div>
 
       <div class="lab-card">
+        <h2>Different from the lab's defaults</h2>
+        @if (draft.modified().length) {
+          <p>
+            Reset puts one back, to apply with the rest; a debug flag goes back
+            at once.
+          </p>
+          <ul class="lab-changes">
+            @for (setting of draft.modified(); track setting.id) {
+              <li>
+                <a
+                  [routerLink]="['/settings', setting.section.path]"
+                  queryParamsHandling="preserve"
+                  >{{ setting.section.label }} › {{ setting.label }}</a
+                >
+                <span class="lab-changes__values"
+                  >{{ setting.from }} → {{ setting.to }}</span
+                >
+                <cps-button
+                  type="borderless"
+                  size="xsmall"
+                  label="Reset"
+                  [ariaLabel]="'Reset ' + setting.label + ' to the lab default'"
+                  (clicked)="setting.revert()" />
+              </li>
+            }
+          </ul>
+        } @else {
+          <p>Nothing: this load runs as the lab does by default.</p>
+        }
+      </div>
+
+      <div class="lab-card">
         <h2>The lab's settings</h2>
         <p>
           Back to the library's settings and the mock broker's answer as the lab
-          sets them. How the lab starts, and the debug flags, stay as they are.
+          sets them, at once. How the lab starts, and the debug flags, stay as
+          they are.
         </p>
         <div class="lab-actions">
           <cps-button
