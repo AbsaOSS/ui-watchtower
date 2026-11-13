@@ -1,9 +1,9 @@
 import { Injectable } from '@angular/core';
-import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
 import {
   UwtLogApiProvider,
-  UwtLogQuery
-} from '../uwt-log-api.provider/uwt-log-api.provider';
+  UwtLogQuery,
+  UwtLogRecord
+} from '@absaoss-cps/ui-watchtower';
 
 /**
  * Log API provider that discards every record and finds none.

@@ -12,10 +12,13 @@ import {
  * the dashboard reads. Declaring the vocabulary turns that into a compile
  * error.
  *
+ * An Angular application augments `@absaoss-cps/ngx-ui-watchtower` instead,
+ * which re-exports this registry: either module path reaches the same one.
+ *
  * @example
  * ```typescript
  * // src/app/telemetry.schema.ts
- * declare module '@absaoss-cps/ngx-ui-watchtower' {
+ * declare module '@absaoss-cps/ui-watchtower' {
  *   interface UwtBIEventNames {
  *     export_clicked: true;
  *     theme_changed: true;

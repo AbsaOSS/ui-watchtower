@@ -1,3 +1,6 @@
+/**
+ * @jest-environment jsdom
+ */
 import { uwtIsDebugEnabled } from './uwt-debug-flag.util';
 
 describe('uwtIsDebugEnabled', () => {

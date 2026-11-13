@@ -7,18 +7,20 @@
 
 // Configuration
 export {
-  UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_REDACT_CONFIG,
   UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_IDENTITY
 } from './lib/config/uwt-telemetry-common.config/uwt-telemetry-common.config';
-export type { UwtTelemetryIdentity } from './lib/config/uwt-telemetry-common.config/uwt-telemetry-common.config';
+export { UWT_DEFAULT_TELEMETRY_CONFIG } from '@absaoss-cps/ui-watchtower';
+export type {
+  UwtBITelemetryConfig,
+  UwtLogConfig,
+  UwtScenarioTelemetryConfig,
+  UwtTelemetryIdentity
+} from '@absaoss-cps/ui-watchtower';
 export { UWT_BI_TELEMETRY_CONFIG } from './lib/config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
-export type { UwtBITelemetryConfig } from './lib/config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
 export { UWT_LOG_CONFIG } from './lib/config/uwt-log.config/uwt-log.config';
-export type { UwtLogConfig } from './lib/config/uwt-log.config/uwt-log.config';
 export { UWT_SCENARIO_TELEMETRY_CONFIG } from './lib/config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
-export type { UwtScenarioTelemetryConfig } from './lib/config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
 
 // Providers
 export {
@@ -35,21 +37,23 @@ export {
   withScenarios,
   withTelemetryEnabled
 } from './lib/providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
-export {
-  UWT_LOG_API_PROVIDER,
+export { UWT_LOG_API_PROVIDER } from './lib/providers/uwt-log-api.provider/uwt-log-api.provider';
+export type {
   UwtLogApiProvider,
   UwtLogQuery
-} from './lib/providers/uwt-log-api.provider/uwt-log-api.provider';
+} from '@absaoss-cps/ui-watchtower';
 export { UwtNoopLogApiProvider } from './lib/providers/uwt-noop-log-api.provider/uwt-noop-log-api.provider';
 export { UwtBroadcastLogApiProvider } from './lib/providers/uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
 
-// Models
+// Models, and the name registries an application augments: declared in
+// the core and re-exported, so augmenting them on this package's module path
+// reaches the same registries the core's own APIs use.
 export type {
   UwtBIEvent,
   UwtBIEventDetail,
   UwtBIEventName,
   UwtBIEventNames
-} from './lib/models/uwt-bi.models/uwt-bi.models';
+} from '@absaoss-cps/ui-watchtower';
 export type {
   UwtLogger,
   UwtLoggerName,
@@ -57,8 +61,8 @@ export type {
   UwtLogDetail,
   UwtLogLevel,
   UwtLogRecord
-} from './lib/models/uwt-log.models/uwt-log.models';
-export { UWT_LOG_LEVEL_ORDER } from './lib/models/uwt-log.models/uwt-log.models';
+} from '@absaoss-cps/ui-watchtower';
+export { UWT_LOG_LEVEL_ORDER } from '@absaoss-cps/ui-watchtower';
 export type {
   UwtScenarioAggregate,
   UwtScenarioName,
@@ -73,23 +77,23 @@ export type {
   UwtScenarioStepStatus,
   UwtScenarioSteps,
   UwtStepName
-} from './lib/models/uwt-scenario.models/uwt-scenario.models';
+} from '@absaoss-cps/ui-watchtower';
 export {
   UWT_DEFAULT_EVENT_NAMESPACE,
   UWT_TELEMETRY_EVENT_TYPE,
   uwtEventTypes
-} from './lib/models/uwt-telemetry-common.models/uwt-telemetry-common.models';
+} from '@absaoss-cps/ui-watchtower';
 export type {
   UwtTelemetryAttribution,
   UwtTelemetryError,
   UwtTelemetryEventTypes,
   UwtTelemetryMetadata
-} from './lib/models/uwt-telemetry-common.models/uwt-telemetry-common.models';
+} from '@absaoss-cps/ui-watchtower';
 
 // Services
 export { UwtBITelemetryService } from './lib/services/uwt-bi-telemetry.service/uwt-bi-telemetry.service';
 export { UwtLoggerService } from './lib/services/uwt-logger.service/uwt-logger.service';
-export { UwtScenario } from './lib/scenario/uwt-scenario/uwt-scenario';
+export { UwtScenario } from '@absaoss-cps/ui-watchtower';
 export { UwtScenarioTelemetryService } from './lib/services/uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';
 
 // Sinks
@@ -99,25 +103,28 @@ export {
   UWT_BROADCAST_CHANNEL,
   UWT_DEFAULT_BROADCAST_CHANNEL
 } from './lib/sinks/uwt-broadcast/uwt-broadcast.messages';
-export { UwtTelemetrySink } from './lib/sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+export { UwtTelemetrySink } from '@absaoss-cps/ui-watchtower';
 export { UwtNoopTelemetrySink } from './lib/sinks/uwt-telemetry/uwt-noop-telemetry.sink/uwt-noop-telemetry.sink';
 
 // Utilities an application or a custom sink needs
 export { traceScenario } from './lib/scenario/uwt-scenario-operators/uwt-scenario-operators';
-export { uwtClassifyTelemetryEvent } from './lib/utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
-export type { UwtTelemetrySinkEvent } from './lib/utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
+export { uwtClassifyTelemetryEvent } from '@absaoss-cps/ui-watchtower';
+export type { UwtTelemetrySinkEvent } from '@absaoss-cps/ui-watchtower';
 export type { UwtTraceScenarioOptions } from './lib/scenario/uwt-scenario-operators/uwt-scenario-operators';
-export { uwtIsDebugEnabled } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
-export type { UwtDebugFlag } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
-export { uwtUuid } from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+export { uwtIsDebugEnabled, uwtUuid } from '@absaoss-cps/ui-watchtower';
+export type { UwtDebugFlag } from '@absaoss-cps/ui-watchtower';
 export { uwtMarkSessionStart } from '@absaoss-cps/ui-watchtower';
 export {
   UWT_DEFAULT_REDACT_CONFIG,
   UWT_REDACTED,
+  uwtRedactConfigFor
+} from '@absaoss-cps/ui-watchtower';
+export type {
   UwtPiiValuePattern,
-  UwtRedactConfig,
+  UwtRedactConfig
+} from '@absaoss-cps/ui-watchtower';
+export {
   uwtNormalizeError,
-  uwtRedactConfigFor,
   uwtRedactMetadata,
   uwtScrubString
 } from './lib/utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';

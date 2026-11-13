@@ -1,15 +1,19 @@
 import {
+  UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_TELEMETRY_EVENT_TYPE,
+  UwtLogApiProvider,
+  UwtLogQuery,
+  UwtLogRecord,
+  uwtMarkSessionStart,
   UwtTelemetryError,
-  UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
+  UwtTelemetryMetadata,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
 import { DOCUMENT } from '@angular/common';
 import { Injectable, Injector, PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { UwtLoggerService } from '../../services/uwt-logger.service/uwt-logger.service';
 import {
-  UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_REDACT_CONFIG,
   UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_IDENTITY
@@ -17,11 +21,7 @@ import {
 import { UWT_LOG_CONFIG } from '../../config/uwt-log.config/uwt-log.config';
 import { UWT_SCENARIO_TELEMETRY_CONFIG } from '../../config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
 import { UwtScenarioTelemetryService } from '../../services/uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';
-import {
-  UWT_LOG_API_PROVIDER,
-  UwtLogApiProvider,
-  UwtLogQuery
-} from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { UwtTelemetryBroadcastHost } from './uwt-broadcast-host.service';
 import { UwtBroadcastTelemetrySink } from './uwt-broadcast-telemetry.sink';
 import {
@@ -35,8 +35,6 @@ import {
   uwtElectBroadcastHostLeader,
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
-import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
-import { uwtMarkSessionStart } from '@absaoss-cps/ui-watchtower';
 
 /**
  * Each realm gets its own injector — the shell and every fragment run in a

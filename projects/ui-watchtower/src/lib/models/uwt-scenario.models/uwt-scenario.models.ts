@@ -11,10 +11,13 @@ import {
  * Empty in the library. Augment it from your application, and every
  * `start({ name })` call is checked against it from then on.
  *
+ * An Angular application augments `@absaoss-cps/ngx-ui-watchtower` instead,
+ * which re-exports this registry: either module path reaches the same one.
+ *
  * @example
  * ```typescript
  * // src/app/telemetry/scenarios.schema.ts
- * declare module '@absaoss-cps/ngx-ui-watchtower' {
+ * declare module '@absaoss-cps/ui-watchtower' {
  *   interface UwtScenarioNames {
  *     'route-navigation': true;
  *     'load-dashboard': true;
@@ -33,12 +36,12 @@ export interface UwtScenarioNames {}
  * Registry of this application's step and aggregate names.
  *
  * Steps and aggregates share one vocabulary — a name declared for a step is
- * also valid passed to `aggregateStart`.
+ * also valid passed to `aggregateStart`. Augmented like {@link UwtScenarioNames}.
  *
  * @example
  * ```typescript
  * // src/app/telemetry/scenarios.schema.ts
- * declare module '@absaoss-cps/ngx-ui-watchtower' {
+ * declare module '@absaoss-cps/ui-watchtower' {
  *   interface UwtScenarioSteps {
  *     'resolve-route': true;
  *     'activate': true;

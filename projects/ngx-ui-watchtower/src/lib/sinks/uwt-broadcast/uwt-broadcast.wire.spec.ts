@@ -4,27 +4,25 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
   UWT_DEFAULT_TELEMETRY_CONFIG,
+  UwtLogApiProvider,
+  UwtLogQuery,
+  UwtLogRecord,
+  UwtTelemetryError,
+  UwtTelemetryMetadata,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
+import {
   UWT_REDACT_CONFIG,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_BI_TELEMETRY_CONFIG } from '../../config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
 import { UWT_LOG_CONFIG } from '../../config/uwt-log.config/uwt-log.config';
 import { UWT_SCENARIO_TELEMETRY_CONFIG } from '../../config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
-import {
-  UwtTelemetryError,
-  UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
-import {
-  UWT_LOG_API_PROVIDER,
-  UwtLogApiProvider,
-  UwtLogQuery
-} from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { UwtBroadcastLogApiProvider } from '../../providers/uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
 import { UwtBITelemetryService } from '../../services/uwt-bi-telemetry.service/uwt-bi-telemetry.service';
 import { UwtLoggerService } from '../../services/uwt-logger.service/uwt-logger.service';
 import { UwtScenarioTelemetryService } from '../../services/uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';
-import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { UwtTelemetryBroadcastHost } from './uwt-broadcast-host.service';
 import { UwtBroadcastTelemetrySink } from './uwt-broadcast-telemetry.sink';
 

@@ -1,13 +1,11 @@
 import { inject, InjectionToken } from '@angular/core';
 import {
+  UWT_LOG_LEVEL_ORDER,
+  UwtLogQuery,
+  UwtLogRecord,
   UwtTelemetryError,
   UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import {
-  UWT_LOG_LEVEL_ORDER,
-  UwtLogRecord
-} from '../../models/uwt-log.models/uwt-log.models';
-import { UwtLogQuery } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+} from '@absaoss-cps/ui-watchtower';
 import { uwtTelemetryEnabled } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import {
   uwtIsBrowser,

@@ -1,9 +1,9 @@
 import { Injectable } from '@angular/core';
 import {
   UwtTelemetryError,
-  UwtTelemetryMetadata
-} from '../../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import { UwtTelemetrySink } from '../uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+  UwtTelemetryMetadata,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
 
 /**
  * Sink that discards everything.

@@ -29,6 +29,8 @@ module.exports = {
   collectCoverageFrom: [
     'projects/ngx-ui-watchtower/**/*.ts',
     '!projects/**/*.spec.ts',
-    '!projects/**/public-api.ts'
+    '!projects/**/public-api.ts',
+    // Compiled by the typecheck, never run.
+    '!projects/**/type-tests/**'
   ]
 };

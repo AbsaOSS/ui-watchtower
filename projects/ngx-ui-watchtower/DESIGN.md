@@ -199,6 +199,13 @@ providers: [
   Angular nor this package, which a lint rule enforces. The library build
   compiles against the core's built declarations, not its source, so it sees
   the core exactly as an application does.
+- **What the core owns, this package re-exports.** The models and name
+  registries, the configuration types and defaults, redaction, `UwtScenario`
+  and the `UwtTelemetrySink` and `UwtLogApiProvider` contracts are the
+  core's. This package keeps the injection tokens, the services and
+  providers, and the destinations that need Angular. `UwtTelemetrySink` is a
+  plain abstract class in the core, not `@Injectable()`: Angular uses it as
+  the destination's token as before, and a custom sink still extends it.
 - **Every export is explicit.** The barrels list their exports one by one —
   in a published package each exported name is a compatibility promise. Id
   generation, the clock, the fail-open wrappers, User Timings and the
@@ -270,6 +277,14 @@ checked from then on:
 scenario.step('fetch-data'); // ok
 scenario.step('fetch-dat'); // error TS2345
 ```
+
+The registries are declared once, in `@absaoss-cps/ui-watchtower`, and
+re-exported here. TypeScript merges an augmentation into a re-exported
+interface's declaration, so augmenting `@absaoss-cps/ngx-ui-watchtower`
+checks the core's own APIs too: one vocabulary per application. A
+framework-free application augments `@absaoss-cps/ui-watchtower` the same
+way. The type tests in both packages' `type-tests/` hold each module path to
+it.
 
 A typo here would not just produce a wrong number. It would silently start a
 **second, incomplete** metric series, and the alarm built on the first one
@@ -1576,10 +1591,12 @@ convention, for an application that wants the pre-fallback behavior back.
 ## 11. Error handling and performance
 
 - **Telemetry never breaks the application.** Every public entry point is
-  wrapped and never rethrows. In development, a suppressed error is still
-  reported to `console.error`, so bugs surface; in production it stays
-  silent. Even a broken `console.error` cannot turn a suppressed failure into
-  a throw.
+  wrapped and never rethrows. The core prints nothing by itself: it hands a
+  suppressed error, or data it had to drop, to the `UwtReporter` it is
+  given. This package gives it one that writes to the console, prefixed
+  `[ngx-ui-watchtower]`, in development mode only, so bugs surface in
+  development and production stays silent. Even a broken `console.error`
+  cannot turn a suppressed failure into a throw.
 - **Fail-open.** A broker outage, expired credentials or an SDK throw all
   leave the application behaving exactly as with healthy telemetry. A failed
   broker request at startup is retried with backoff for five minutes. A
@@ -1594,15 +1611,16 @@ convention, for an application that wants the pre-fallback behavior back.
   mark-cleanup fallback, a fragment's log-query timeout, the RUM client's
   dispatch interval and the sink's retry and refresh timers — are scheduled
   outside Angular's zone, so telemetry never keeps the application from
-  becoming stable.
+  becoming stable. The core takes that hook as `runOutside`; this package
+  passes `NgZone.runOutsideAngular`.
 - **Bounded.** A 100-item buffer keeps events, page views and errors recorded
   before the RUM client is ready, then replays them; it never grows past
   that if initialization never completes.
 
-The console report is itself wrapped in a try/catch — an application that has
-patched or otherwise broken `console.error` cannot turn a suppressed
-telemetry failure into a rethrow, in `uwtSafe`, or into a fresh unhandled
-rejection, in `uwtSafeVoidMaybeAsync`'s async path. Tests
+The report is itself wrapped in a try/catch — a reporter that throws, or an
+application that has patched or otherwise broken `console.error`, cannot
+turn a suppressed telemetry failure into a rethrow, in `uwtSafe`, or into a
+fresh unhandled rejection, in `uwtSafeVoidMaybeAsync`'s async path. Tests
 assert both halves, and assert that a sink or transport throwing on every
 call leaves application code unaffected.
 
