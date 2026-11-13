@@ -4,9 +4,9 @@ import { CpsButtonComponent } from 'cps-ui-kit';
 import { LabSettingsDraft } from '../../lab/lab-settings-draft.service';
 
 /**
- * Settings' first page: what is waiting to be applied, what this load runs
- * with otherwise than the lab's defaults — each to undo or reset — and a way
- * back to the lab's own settings.
+ * Settings' first page: what is waiting to be applied, and what this load
+ * runs with otherwise than the lab's defaults — each to undo or reset, or
+ * every one reset at once.
  */
 @Component({
   selector: 'lab-settings-overview',
@@ -56,8 +56,8 @@ import { LabSettingsDraft } from '../../lab/lab-settings-draft.service';
         <h2>Different from the lab's defaults</h2>
         @if (draft.modified().length) {
           <p>
-            Reset puts one back, to apply with the rest; a debug flag goes back
-            at once.
+            Reset puts one back, Reset all every one, to apply with the rest; a
+            debug flag goes back at once.
           </p>
           <ul class="lab-changes">
             @for (setting of draft.modified(); track setting.id) {
@@ -79,24 +79,15 @@ import { LabSettingsDraft } from '../../lab/lab-settings-draft.service';
               </li>
             }
           </ul>
+          <div class="lab-actions">
+            <cps-button
+              label="Reset all to the lab's defaults"
+              type="outlined"
+              (clicked)="draft.resetAll()" />
+          </div>
         } @else {
           <p>Nothing: this load runs as the lab does by default.</p>
         }
-      </div>
-
-      <div class="lab-card">
-        <h2>The lab's settings</h2>
-        <p>
-          Back to the library's settings and the mock broker's answer as the lab
-          sets them, at once. How the lab starts, and the debug flags, stay as
-          they are.
-        </p>
-        <div class="lab-actions">
-          <cps-button
-            label="Back to the lab's settings"
-            type="outlined"
-            (clicked)="draft.reset()" />
-        </div>
       </div>
     </section>
   `

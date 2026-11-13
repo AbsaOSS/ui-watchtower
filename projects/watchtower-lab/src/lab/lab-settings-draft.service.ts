@@ -402,12 +402,14 @@ export class LabSettingsDraft {
     this.editBroker(JSON.stringify(this.wire.brokerConfig()));
   }
 
-  /** The lab's own settings, and the broker's default answer. */
-  async reset(): Promise<void> {
-    await this.wire.setBrokerMode('ok');
-    await this.wire.setTelemetries(null);
-    await this.wire.setBrokerConfig({});
-    this.reload({});
+  /**
+   * Every setting back to the lab's default, as each one's Reset puts it:
+   * to apply with the rest, a debug flag at once.
+   */
+  resetAll(): void {
+    for (const setting of this.modified()) {
+      setting.revert();
+    }
   }
 
   setDebug(flag: LabDebugFlag, on: boolean): void {
@@ -703,11 +705,8 @@ export class LabSettingsDraft {
     return JSON.stringify(this.options.config, null, 2);
   }
 
-  /** Starts the lab again, with `config` and how it is to start: as now, by default. */
-  private reload(
-    config: Record<string, unknown>,
-    start: LabStart = startOf(this.options)
-  ): void {
+  /** Starts the lab again, with `config`, and as `start` says. */
+  private reload(config: Record<string, unknown>, start: LabStart): void {
     this.window.location.assign(
       `${this.window.location.pathname}${labSearch({ ...start, config })}`
     );

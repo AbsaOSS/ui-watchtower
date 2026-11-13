@@ -460,9 +460,45 @@ test('Settings applies an overlay, shows it in effect, and goes back', async ({
   await expect(await effective(page)).toContainText('"dedupWindowMs": 0');
 
   await settingsSection(page, 'Overview');
-  await press(page, "Back to the lab's settings");
+  await press(page, "Reset all to the lab's defaults");
+  await applyAndReload(page);
   await expect(header).not.toContainText('config:');
   await expect(await effective(page)).toContainText('"dedupWindowMs": 400');
+});
+
+test("Reset all puts every setting back to the lab's default, to apply with the rest, a debug flag at once", async ({
+  page,
+  backend
+}) => {
+  await backend.setBrokerMode('null');
+  await openLab(page, 'settings/debug-flags?destination=noop', {
+    logging: { minLevel: 'warn' }
+  });
+  await toggle(page, 'debugBI');
+  await settingsSection(page, 'Overview');
+
+  await press(page, "Reset all to the lab's defaults");
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('debugBI')))
+    .toBeNull();
+  for (const change of [
+    'Delivery › Destination',
+    'Logging › Minimum level',
+    'RUM broker › Answer /rum/init with'
+  ]) {
+    await expect(pending(page)).toContainText(change);
+  }
+
+  await applyAndReload(page);
+  expect(new URL(page.url()).search).toBe('');
+  expect((await backend.state()).brokerMode).toBe('ok');
+  await expect(
+    page
+      .locator('lab-settings-overview .lab-card', {
+        hasText: "Different from the lab's defaults"
+      })
+      .getByText('Nothing')
+  ).toBeVisible();
 });
 
 test('Settings checks the overlay against the library: no unknown setting, no wrong type', async ({
