@@ -5,8 +5,9 @@
     "ng": "ng",
     "build": "ng build --configuration=production --project=ui-watchtower && ng build --configuration=production --project=ngx-ui-watchtower",
     "watch": "ng build ui-watchtower --configuration development && ng build ngx-ui-watchtower --watch --configuration development",
-    "test": "npm run test:core && ng test --project=ngx-ui-watchtower",
+    "test": "npm run test:core && ng test --project=ngx-ui-watchtower && npm run test:release",
     "test:core": "jest --config projects/ui-watchtower/jest.config.js",
+    "test:release": "node --test scripts/*.test.mjs",
     "test:coverage": "jest --config projects/ui-watchtower/jest.config.js --coverage --coverageReporters=text-summary --coverageReporters=lcov --json --outputFile=./coverage/ui-watchtower/report.json && ng test --project=ngx-ui-watchtower --coverage --coverage-reporters text-summary --coverage-reporters lcov --json --output-file=./coverage/report.json",
     "lint": "eslint \"**/*.ts\" --max-warnings=0",
     "format": "prettier --write \"**/*.{ts,mjs,html}\"",
@@ -14,7 +15,8 @@
     "typecheck": "tsc -p projects/ui-watchtower/tsconfig.lib.json --noEmit && tsc -p projects/ui-watchtower/rxjs/tsconfig.lib.json --noEmit && tsc -p projects/ui-watchtower/rum/tsconfig.lib.json --noEmit && tsc -p projects/ui-watchtower/tsconfig.spec.json --noEmit && tsc -p projects/ui-watchtower/type-tests/tsconfig.json && tsc -p projects/ui-watchtower/type-tests/tsconfig.augmented.json && ng build --configuration=production --project=ui-watchtower && tsc -p projects/ngx-ui-watchtower/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/tsconfig.spec.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.spec.json --noEmit && ngc -p projects/ngx-ui-watchtower/type-tests/tsconfig.json && ngc -p projects/ngx-ui-watchtower/type-tests/tsconfig.augmented.json",
     "api:check": "npm run build && node scripts/api-snapshot.mjs",
     "api:update": "npm run build && node scripts/api-snapshot.mjs --update",
-    "smoke": "node scripts/smoke/smoke.mjs"
+    "smoke": "node scripts/smoke/smoke.mjs",
+    "release:check": "node scripts/release-check.mjs"
   },
   "private": true,
   "dependencies": {

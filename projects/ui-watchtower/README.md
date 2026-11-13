@@ -1,12 +1,29 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/logo-stacked-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/logo-stacked-light.svg">
+    <img src="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/logo-stacked-auto.svg" alt="UI Watchtower" width="280">
+  </picture>
+</p>
+
 # ui-watchtower
 
-The framework-independent engine behind
-[`@absaoss-cps/ngx-ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ngx-ui-watchtower):
-scenario health telemetry, business/UX events and application logs, for any
-JavaScript or TypeScript application.
+Telemetry for any frontend, in three parts:
 
-It imports no framework and touches no browser global when imported, so it
-loads in Node, on a server and in a worker as well as in a browser.
+- **Scenarios** — did a user journey or a workflow succeed, and how long did
+  it take?
+- **BI events** — which features are used?
+- **Logs** — what exactly happened?
+
+It needs no framework and no adapter: install it and call it directly, from
+plain JavaScript or TypeScript or from an application built with any
+framework. It imports nothing framework-specific and touches no browser
+global when imported, so it also loads in Node, on a server and in a worker.
+
+Adapters are optional. For Angular there is
+[`@absaoss-cps/ngx-ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ngx-ui-watchtower),
+which wraps this package in providers and injectable services. Adapters for
+other frameworks can be added the same way.
 
 ## Install
 
@@ -55,7 +72,7 @@ Configuration errors still throw, when the engine is created.
 
 | Option                                    | What it does                                                                                       |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `identity`                                | Application, environment and version, carried by every record                                      |
+| `identity`                                | Application, environment, version and optional `eventNamespace`, carried by every record           |
 | `destination`                             | A `UwtTelemetrySink`: where scenarios, BI events and mirrored errors go                            |
 | `logApi`                                  | A `UwtLogApiProvider`: where logs go, and are read back from                                       |
 | `scenarios`, `logging`, `bi`, `redaction` | Overrides of each concern's defaults                                                               |
@@ -65,9 +82,29 @@ Configuration errors still throw, when the engine is created.
 | `runOutside`                              | Schedules timers outside a framework's change detection                                            |
 
 `dispose()` stops watching the page, settles scenarios still in flight as
-abandoned and flushes; the engine does nothing after that, and leaves no
-listener or timer behind. The destination and log store you passed are
-yours to close.
+abandoned and flushes; no listener is left behind, and nothing the engine had
+scheduled. That is all it changes. Something may still run while your
+application shuts down, and the destination and log store you passed are
+yours, so scenarios, BI events and logs started afterwards work as before. You
+close the destination and the log store.
+
+### Turning telemetry off
+
+Keep the same calls and pass one switch:
+
+```ts
+const telemetry = uwtCreateTelemetry({ ...options, enabled: false });
+```
+
+When off, nothing is recorded, sent or logged, and nothing listens to the
+page. Your code doesn't change: `start()` still returns a scenario (inert:
+it records nothing and never settles), lookups find nothing, loggers do
+nothing and `query()` resolves `[]`. Pass the switch on to what you created
+for the engine, so that off it requests no credentials, downloads no SDK and
+opens no channel: `enabled` to the RUM sink and the broadcast classes, and
+`open` to `uwtConnectBroadcastChannel()`. Off, a sink or log provider sends
+nothing even over a shared connection, but only `open: false` keeps the
+channel itself from opening.
 
 ## AWS CloudWatch RUM
 
@@ -119,10 +156,21 @@ const telemetry = uwtCreateTelemetry({
 });
 ```
 
-Either side can be an Angular application using
-`@absaoss-cps/ngx-ui-watchtower`; they exchange the same messages. Dispose
-the host, the sink, the log provider and the connection when their realm goes
-away.
+Each side can use a different framework, or none: they exchange the same
+messages. Give each fragment its own `application` name, and the shell's
+`eventNamespace`.
+
+Who owns what:
+
+| Realm          | Destination                                     | RUM client and credentials          | Log store                                         |
+| -------------- | ----------------------------------------------- | ----------------------------------- | ------------------------------------------------- |
+| Standalone app | Its own: `UwtRumTelemetrySink`, or another sink | The app's                           | The app's                                         |
+| Shell          | Its own, plus a `UwtTelemetryBroadcastHost`     | The shell's: the only one on a page | The shell's, which also stores fragments' records |
+| Fragment       | `UwtBroadcastTelemetrySink`                     | None: the shell's records for it    | None: `UwtBroadcastLogApiProvider` forwards       |
+
+A fragment reports the shell's session and user. Whoever creates something
+disposes it: dispose the engine, then the host, the sink, the log provider
+and the connection, when their realm goes away.
 
 ## Declare your names
 
@@ -149,9 +197,7 @@ declare module '@absaoss-cps/ui-watchtower' {
 export {};
 ```
 
-Until you declare any, plain strings are accepted. An Angular application
-augments `@absaoss-cps/ngx-ui-watchtower` instead, which re-exports these
-registries: either module path reaches the same ones.
+Until you declare any, plain strings are accepted.
 
 ## Seeing what telemetry skips
 
@@ -183,7 +229,7 @@ customers$.pipe(traceScenario(scenario)).subscribe();
 | Group         | Exports                                                                                                                                                               |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Engine        | `uwtCreateTelemetry`, `UwtTelemetry`, `UwtTelemetryOptions`, `UwtTelemetryDocument`                                                                                   |
-| Concerns      | `UwtScenarioTelemetry`, `UwtBITelemetry`, `UwtLogTelemetry` and their options, for an adapter composing them itself                                                   |
+| Concerns      | `UwtScenarioTelemetry`, `UwtBITelemetry`, `UwtLogTelemetry` and their options, to compose them yourself                                                               |
 | Configuration | `UwtTelemetryIdentity`, the per-concern config types, `UWT_DEFAULT_TELEMETRY_CONFIG`, `uwtResolveTelemetryConfig`                                                     |
 | Models        | scenario, step, BI event and log record types; `UWT_LOG_LEVEL_ORDER`, `UWT_TELEMETRY_EVENT_TYPE`, `uwtEventTypes`                                                     |
 | Names         | `UwtScenarioNames`, `UwtScenarioSteps`, `UwtBIEventNames`, `UwtLoggerNames` and their `Uwt*Name` types                                                                |

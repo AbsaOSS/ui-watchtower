@@ -59,12 +59,12 @@ jobs:
       - name: Run unit tests with coverage
         run: npm run test:coverage
 
-      - name: Comment coverage on PR
+      - name: Comment ngx coverage on PR
         uses: ArtiomTr/jest-coverage-report-action@262a7bb0b20c4d1d6b6b026af0f008f78da72788 # v2.3.1
         if: github.event_name == 'pull_request'
         continue-on-error: true
         with:
-          custom-title: Coverage report
+          custom-title: Ngx coverage report
           coverage-file: ./coverage/report.json
           # Tests already ran above; the action only formats the report.
           skip-step: all
@@ -104,6 +104,30 @@ jobs:
       # core-only Node and TypeScript consumer and an unchanged Angular one.
       - name: Smoke-test the packed packages
         run: npm run smoke
+
+  release:
+    name: Release config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          # The release check compares bootstrap-sha with the tagged commit.
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+
+      # Plain Node: neither needs the workspace's dependencies.
+      - name: Test the publish script and the release workflow's wiring
+        run: npm run test:release
+
+      # Replays releases through the Release Please version the release
+      # workflow runs, on this repository's config.
+      - name: Check the release config
+        run: npm run release:check
 
   lint:
     name: Lint and format
