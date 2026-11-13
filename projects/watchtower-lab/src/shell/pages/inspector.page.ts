@@ -38,9 +38,9 @@ const DOCKS: { value: UwtInspectorDock; label: string }[] = [
         events to try it on below.
         {{
           options.inspector === 'off'
-            ? 'Disabled with ?inspector=off.'
+            ? 'Turned off in Settings (Event Inspector: off).'
             : options.inspector === 'noshortcut'
-              ? 'No keyboard shortcut (?inspector=noshortcut): open it from here.'
+              ? 'No keyboard shortcut (Event Inspector: no shortcut, in Settings): open it from here.'
               : 'Shortcut: Shift+E+I.'
         }}
       </p>

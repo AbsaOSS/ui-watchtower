@@ -51,7 +51,7 @@ import { LAB_OPTIONS } from '../shell.config';
 
 const DEBUG_FLAGS = ['debugScenario', 'debugBI', 'debugLogger'] as const;
 
-/** How the lab starts; each is a query-string option, read once at startup. */
+/** How the lab starts; each is read once, at startup, from the address. */
 const DESTINATIONS: { label: string; value: LabOptions['destination'] }[] = [
   { label: 'rum — the RUM sink, to the mock backend', value: 'rum' },
   { label: 'noop — nothing is sent', value: 'noop' },
@@ -63,7 +63,7 @@ const CHANNELS: { label: string; value: LabOptions['channel'] }[] = [
 ];
 const INSPECTOR_MODES: { label: string; value: LabOptions['inspector'] }[] = [
   { label: 'on — with its keyboard shortcut', value: 'on' },
-  { label: 'noshortcut — open it from the page', value: 'noshortcut' },
+  { label: 'no shortcut — open it from the page', value: 'noshortcut' },
   { label: 'off — disabled', value: 'off' }
 ];
 type DebugFlag = (typeof DEBUG_FLAGS)[number];
@@ -111,30 +111,29 @@ const DEFAULT_TELEMETRIES: LabTelemetry[] = ['errors', 'performance', 'http'];
       <h1>Settings</h1>
       <p>
         What the next load runs with: how the lab starts, the library's settings
-        — a <code>?config=</code> overlay on the lab's own — and the mock RUM
-        broker's answer. They apply together, with a reload.
+        and the mock RUM broker's answer. They apply together, with a reload.
       </p>
 
       <div class="lab-card">
         <h2>Run</h2>
-        <p>How the lab starts: query-string options, read once at startup.</p>
+        <p>How the lab starts. Read once, so applying reloads the lab.</p>
         <div class="lab-fields">
           <cps-select
-            label="Destination (?destination=)"
+            label="Destination"
             [options]="destinations"
             [returnObject]="false"
             [value]="destination()"
             width="26rem"
             (valueChanged)="destination.set($event)" />
           <cps-select
-            label="Broadcast channel (?channel=)"
+            label="Broadcast channel"
             [options]="channels"
             [returnObject]="false"
             [value]="channel()"
             width="26rem"
             (valueChanged)="channel.set($event)" />
           <cps-select
-            label="Event Inspector (?inspector=)"
+            label="Event Inspector"
             [options]="inspectorModes"
             [returnObject]="false"
             [value]="inspector()"
@@ -142,7 +141,7 @@ const DEFAULT_TELEMETRIES: LabTelemetry[] = ['errors', 'performance', 'http'];
             (valueChanged)="inspector.set($event)" />
           <div class="lab-switches">
             <cps-switch
-              label="Telemetry (?telemetry=)"
+              label="Telemetry"
               [value]="telemetry()"
               (valueChanged)="telemetry.set($event)" />
             <cps-switch
@@ -253,15 +252,15 @@ const DEFAULT_TELEMETRIES: LabTelemetry[] = ['errors', 'performance', 'http'];
       }
 
       <div class="lab-card">
-        <h2>The ?config= overlay</h2>
+        <h2>Settings as JSON</h2>
         <p>
-          What the controls above write, and what more the lab takes: edit it
-          here for anything they don't cover, such as patterns and loggers.
+          Every setting above, as JSON. Edit it to paste a whole configuration,
+          or to set what has no control.
         </p>
         <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
         <cps-textarea
           ngSkipHydration
-          label="?config= (JSON)"
+          label="Settings (JSON)"
           hint="Patterns are RegExp sources; the one value transform is mask-order-ids."
           [rows]="8"
           [value]="draft()"

@@ -49,7 +49,7 @@ test('the Settings page applies an overlay, shows it in effect, and goes back', 
   await expect(page.locator('.lab-header')).not.toContainText('config:');
 
   await page
-    .getByRole('textbox', { name: '?config= (JSON)' })
+    .getByRole('textbox', { name: 'Settings (JSON)' })
     .fill('{ "bi": { "dedupWindowMs": 0 } }');
   await press(page, 'Apply and reload');
   await expect(page.locator('.lab-header')).toContainText('config: custom');
@@ -68,7 +68,7 @@ test('Settings checks the overlay against the library: no unknown setting, no wr
   page
 }) => {
   await openLab(page, 'settings');
-  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  const overlay = page.getByRole('textbox', { name: 'Settings (JSON)' });
   const settings = page.locator('lab-settings-page');
 
   await overlay.fill('{ "bi": { "dedupWindow": 0 } }');
@@ -97,7 +97,7 @@ test('Settings checks types against the library, not a wrong value in effect', a
   page
 }) => {
   await openLab(page, 'settings', { bi: { dedupWindowMs: '500' } });
-  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  const overlay = page.getByRole('textbox', { name: 'Settings (JSON)' });
 
   await overlay.fill('{ "bi": { "dedupWindowMs": 600 } }');
   await press(page, 'Apply and reload');
@@ -111,7 +111,7 @@ test('Settings controls write the common options into the overlay', async ({
   page
 }) => {
   await openLab(page, 'settings');
-  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  const overlay = page.getByRole('textbox', { name: 'Settings (JSON)' });
   await expect(overlay).toHaveValue('{}');
 
   await page
@@ -304,7 +304,7 @@ test('Settings sets the startup options, and applying them reloads with them', a
   await openLab(page, 'settings');
   await choose(page, 'Destination', 'noop');
   await choose(page, 'Broadcast channel', 'shared');
-  await choose(page, 'Event Inspector', 'noshortcut');
+  await choose(page, 'Event Inspector', 'no shortcut');
   await toggle(page, 'Telemetry');
 
   // Nothing changes until applied.
@@ -328,7 +328,7 @@ test("every area's settings are controls on the page, and apply as set", async (
   page
 }) => {
   await openLab(page, 'settings');
-  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  const overlay = page.getByRole('textbox', { name: 'Settings (JSON)' });
 
   await fill(page, 'Event namespace', 'acme');
   await fill(page, 'Default timeout', '12345');
@@ -388,7 +388,7 @@ test('redaction lists are picked from, and written as lines of RegExp sources', 
   page
 }) => {
   await openLab(page, 'settings');
-  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  const overlay = page.getByRole('textbox', { name: 'Settings (JSON)' });
 
   // The five value patterns start picked; ipv4 is left out, a transform added.
   const patterns = page.getByRole('combobox', {
@@ -430,7 +430,7 @@ test('loggers each have a level, added and removed one at a time', async ({
   page
 }) => {
   await openLab(page, 'settings');
-  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  const overlay = page.getByRole('textbox', { name: 'Settings (JSON)' });
   // The lab starts with one: noisy, at warn.
   await expect(page.getByText('noisy', { exact: true })).toBeVisible();
 
@@ -454,7 +454,7 @@ test("the Event Inspector's shortcuts are listed, removed and added", async ({
   page
 }) => {
   await openLab(page, 'settings');
-  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  const overlay = page.getByRole('textbox', { name: 'Settings (JSON)' });
   await expect(
     page.getByRole('button', { name: 'Remove shortcut Shift+E+I' })
   ).toBeVisible();
@@ -624,7 +624,7 @@ test('in-app links keep the startup options, and so does applying an overlay', a
   await navigate(page, 'Settings');
   expect(new URL(page.url()).searchParams.get('destination')).toBe('noop');
   await page
-    .getByRole('textbox', { name: '?config= (JSON)' })
+    .getByRole('textbox', { name: 'Settings (JSON)' })
     .fill('{ "bi": { "dedupWindowMs": 0 } }');
   await press(page, 'Apply and reload');
 
