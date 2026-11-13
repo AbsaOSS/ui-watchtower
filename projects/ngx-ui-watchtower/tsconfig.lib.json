@@ -13,7 +13,11 @@
     "skipLibCheck": true,
     "isolatedModules": false,
     "types": [],
-    "paths": {}
+    // The core as published: its built declarations, not its source. Build
+    // it first (npm run build does).
+    "paths": {
+      "@absaoss-cps/ui-watchtower": ["../../dist/ui-watchtower"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["**/*.spec.ts"],

@@ -20,6 +20,10 @@ import ts from 'typescript';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PACKAGES = [
   {
+    dist: 'dist/ui-watchtower',
+    snapshot: 'projects/ui-watchtower/public-api.snapshot.json'
+  },
+  {
     dist: 'dist/ngx-ui-watchtower',
     snapshot: 'projects/ngx-ui-watchtower/public-api.snapshot.json'
   }

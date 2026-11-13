@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../out-tsc/spec-core",
+    "rootDir": "./src",
+    "types": ["jest", "node"],
+    "isolatedModules": false
+  },
+  "include": ["src/**/*.spec.ts", "src/**/*.d.ts"]
+}

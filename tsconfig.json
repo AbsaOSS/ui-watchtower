@@ -4,6 +4,9 @@
   "compilerOptions": {
     "resolveJsonModule": true,
     "paths": {
+      "@absaoss-cps/ui-watchtower": [
+        "./projects/ui-watchtower/src/public-api.ts"
+      ],
       "@absaoss-cps/ngx-ui-watchtower": [
         "./projects/ngx-ui-watchtower/src/public-api.ts"
       ],
@@ -39,6 +42,8 @@
   },
   "files": [],
   "references": [
+    { "path": "./projects/ui-watchtower/tsconfig.lib.json" },
+    { "path": "./projects/ui-watchtower/tsconfig.spec.json" },
     { "path": "./projects/ngx-ui-watchtower/tsconfig.lib.json" },
     { "path": "./projects/ngx-ui-watchtower/tsconfig.spec.json" },
     { "path": "./projects/ngx-ui-watchtower/rum/tsconfig.lib.json" },

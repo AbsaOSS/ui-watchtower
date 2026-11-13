@@ -36,7 +36,7 @@ import {
   uwtIsBroadcastMessage
 } from './uwt-broadcast.messages';
 import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
-import { uwtMarkSessionStart } from '../../utils/uwt-session-start.util/uwt-session-start.util';
+import { uwtMarkSessionStart } from '@absaoss-cps/ui-watchtower';
 
 /**
  * Each realm gets its own injector — the shell and every fragment run in a

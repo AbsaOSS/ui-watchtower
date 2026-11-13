@@ -60,13 +60,25 @@ jobs:
         run: npm run test:coverage
 
       - name: Comment coverage on PR
-        uses: ArtiomTr/jest-coverage-report-action@v2
+        uses: ArtiomTr/jest-coverage-report-action@262a7bb0b20c4d1d6b6b026af0f008f78da72788 # v2.3.1
         if: github.event_name == 'pull_request'
         continue-on-error: true
         with:
           custom-title: Coverage report
           coverage-file: ./coverage/report.json
           # Tests already ran above; the action only formats the report.
+          skip-step: all
+
+      - name: Comment core coverage on PR
+        uses: ArtiomTr/jest-coverage-report-action@262a7bb0b20c4d1d6b6b026af0f008f78da72788 # v2.3.1
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        with:
+          custom-title: Core coverage report
+          coverage-file: ./coverage/ui-watchtower/report.json
+          # The same file as the base: no comparison with a base branch,
+          # which would run the Angular package's tests.
+          base-coverage-file: ./coverage/ui-watchtower/report.json
           skip-step: all
 
   lint:

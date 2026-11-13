@@ -7,6 +7,29 @@
     "analytics": false
   },
   "projects": {
+    "ui-watchtower": {
+      "projectType": "library",
+      "root": "projects/ui-watchtower",
+      "sourceRoot": "projects/ui-watchtower/src",
+      "prefix": "uwt",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "options": {
+            "project": "projects/ui-watchtower/ng-package.json"
+          },
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/ui-watchtower/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/ui-watchtower/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        }
+      }
+    },
     "ngx-ui-watchtower": {
       "projectType": "library",
       "root": "projects/ngx-ui-watchtower",

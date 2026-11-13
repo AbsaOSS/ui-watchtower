@@ -1,0 +1,10 @@
+{
+  "@absaoss-cps/ui-watchtower": {
+    "uwtMarkSessionStart": [
+      "function(sessionId: string, now?: number | undefined): void"
+    ],
+    "uwtSessionElapsed": [
+      "function(sessionId: string | undefined, now?: number | undefined): number | undefined"
+    ]
+  }
+}
