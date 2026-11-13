@@ -30,7 +30,12 @@ import {
 import { labCheckConfig } from '../../lab/lab-config-check';
 import { parseJsonObject } from '../../lab/lab-json';
 import { labSearch, LabOptions } from '../../lab/lab-options';
+import { LabLoggerLevelsComponent } from '../../lab/lab-logger-levels.component';
 import { LAB_FIELD_GROUPS, LabField } from '../../lab/lab-settings-fields';
+import {
+  LabShortcut,
+  LabShortcutsComponent
+} from '../../lab/lab-shortcuts.component';
 import {
   LAB_TELEMETRIES,
   LabBrokerMode,
@@ -91,7 +96,9 @@ const DEFAULT_TELEMETRIES: LabTelemetry[] = ['errors', 'performance', 'http'];
     CpsInputComponent,
     CpsSelectComponent,
     CpsSwitchComponent,
-    CpsTextareaComponent
+    CpsTextareaComponent,
+    LabLoggerLevelsComponent,
+    LabShortcutsComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -183,6 +190,56 @@ const DEFAULT_TELEMETRIES: LabTelemetry[] = ['errors', 'performance', 'http'];
                     width="26rem"
                     [disabled]="!overlay()"
                     (valueChanged)="set(field.section, field.key, $event)" />
+                }
+                @case ('multi') {
+                  <cps-select
+                    [label]="field.label"
+                    [options]="selectOptions(field)"
+                    [returnObject]="false"
+                    [multiple]="true"
+                    [chips]="true"
+                    [value]="list(setting(field.section, field.key))"
+                    width="26rem"
+                    [disabled]="!overlay()"
+                    (valueChanged)="set(field.section, field.key, $event)" />
+                }
+                @case ('lines') {
+                  <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
+                  <cps-textarea
+                    ngSkipHydration
+                    [label]="field.label"
+                    [rows]="3"
+                    width="26rem"
+                    [value]="
+                      list(setting(field.section, field.key)).join(
+                        '
+'
+                      )
+                    "
+                    [disabled]="!overlay()"
+                    (valueChanged)="
+                      setLines(field.section, field.key, $event)
+                    " />
+                }
+                @case ('levels') {
+                  <div class="lab-field-wide">
+                    <p class="lab-field-wide__label">{{ field.label }}</p>
+                    <lab-logger-levels
+                      [levels]="levelsOf(setting(field.section, field.key))"
+                      [disabled]="!overlay()"
+                      (changed)="set(field.section, field.key, $event)" />
+                  </div>
+                }
+                @case ('shortcuts') {
+                  <div class="lab-field-wide">
+                    <p class="lab-field-wide__label">{{ field.label }}</p>
+                    <lab-shortcuts
+                      [shortcuts]="
+                        shortcutsOf(setting(field.section, field.key))
+                      "
+                      [disabled]="!overlay()"
+                      (changed)="set(field.section, field.key, $event)" />
+                  </div>
                 }
               }
             }
@@ -395,7 +452,45 @@ export class SettingsPage {
   );
 
   protected selectOptions(field: LabField): { label: string; value: string }[] {
-    return field.kind === 'select' ? field.options : [];
+    return field.kind === 'select' || field.kind === 'multi'
+      ? field.options
+      : [];
+  }
+
+  /**
+   * A list setting as text, for a control: what the draft has, or what is in
+   * effect, where a pattern is a `RegExp` and a transform a function.
+   */
+  protected list(value: unknown): string[] {
+    return (Array.isArray(value) ? value : []).map((item) =>
+      item instanceof RegExp
+        ? item.source
+        : typeof item === 'function'
+          ? item.name
+          : String(item)
+    );
+  }
+
+  protected levelsOf(value: unknown): Record<string, string> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, string>)
+      : {};
+  }
+
+  protected shortcutsOf(value: unknown): LabShortcut[] {
+    return Array.isArray(value) ? (value as LabShortcut[]) : [];
+  }
+
+  /** A text of lines into the list it stands for: blank lines are none. */
+  protected setLines(section: string, key: string, text: string): void {
+    this.set(
+      section,
+      key,
+      text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+    );
   }
 
   /** A setting as the draft has it, or as it is in effect. */

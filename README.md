@@ -114,8 +114,10 @@ and the one value transform is `mask-order-ids`. One more, `lab`, is the
 lab's own: `{ "logBatching": true }` makes its log provider batch, and send
 when the library flushes it. For example
 `?config={"scenarios":{"emitLifecycleEvents":true}}`. **Settings** edits it,
-with a control for each setting and a JSON field for the rest, and refuses a
-section, setting or type the library doesn't have.
+with a control for each setting — switches, numbers, lists to pick from, lists
+of patterns, and editors for logger levels and the inspector's shortcuts — and
+the JSON itself, and refuses a section, setting or type the library doesn't
+have.
 
 The mock RUM broker's answer is set on the **Settings** page too:
 

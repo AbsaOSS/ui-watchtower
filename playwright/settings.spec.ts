@@ -384,6 +384,99 @@ test("every area's settings are controls on the page, and apply as set", async (
   await expect(overlay).toHaveValue(/"bi": \{[^}]*"redact": false/);
 });
 
+test('redaction lists are picked from, and written as lines of RegExp sources', async ({
+  page
+}) => {
+  await openLab(page, 'settings');
+  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+
+  // The five value patterns start picked; ipv4 is left out, a transform added.
+  const patterns = page.getByRole('combobox', {
+    name: 'Value patterns scanned'
+  });
+  await patterns.press('ArrowDown');
+  await page.getByRole('option', { name: /^ipv4/ }).click();
+  await page.keyboard.press('Escape');
+  await expect(overlay).toHaveValue(/"scanValuePatterns": \[[^\]]*"email"/);
+  await expect(overlay).not.toHaveValue(/"ipv4"/);
+  await choose(page, 'Value transforms', 'mask-order-ids');
+  await expect(overlay).toHaveValue(
+    /"extraValueTransforms": \[\s*"mask-order-ids"/
+  );
+
+  await page
+    .getByRole('textbox', { name: /^Extra key patterns/ })
+    .fill('^acct_\nsecret');
+  await page
+    .getByRole('textbox', { name: /^Extra value patterns/ })
+    .fill('ORD-\\d+');
+  await expect(overlay).toHaveValue(
+    /"extraKeyPatterns": \[\s*"\^acct_",\s*"secret"/
+  );
+  await expect(overlay).toHaveValue(/"extraValuePatterns": \[\s*"ORD-\\\\d\+"/);
+
+  await press(page, 'Apply and reload');
+
+  const effective = page.locator('.lab-readout');
+  await expect(effective).toContainText('"email"');
+  await expect(effective).not.toContainText('"ipv4"');
+  await expect(effective).toContainText('ƒ mask-order-ids');
+  await expect(effective).toContainText('/^acct_/i');
+  // The readout is JSON: the backslash of `\d` shows doubled.
+  await expect(effective).toContainText('/ORD-\\\\d+/');
+});
+
+test('loggers each have a level, added and removed one at a time', async ({
+  page
+}) => {
+  await openLab(page, 'settings');
+  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  // The lab starts with one: noisy, at warn.
+  await expect(page.getByText('noisy', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Remove logger noisy' }).click();
+  await fill(page, 'Logger name', 'orders');
+  await choose(page, 'Level for a new logger', 'error');
+  await press(page, 'Add logger');
+
+  await expect(overlay).toHaveValue(/"levels": \{\s*"orders": "error"\s*\}/);
+  await expect(
+    page.getByRole('button', { name: 'Remove logger orders' })
+  ).toBeVisible();
+
+  await press(page, 'Apply and reload');
+  const effective = page.locator('.lab-readout');
+  await expect(effective).toContainText('"orders": "error"');
+  await expect(effective).not.toContainText('"noisy"');
+});
+
+test("the Event Inspector's shortcuts are listed, removed and added", async ({
+  page
+}) => {
+  await openLab(page, 'settings');
+  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+  await expect(
+    page.getByRole('button', { name: 'Remove shortcut Shift+E+I' })
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: 'Remove shortcut Shift+E+I' }).click();
+  await fill(page, 'Key (KeyboardEvent.code)', 'F9');
+  await press(page, 'Add shortcut');
+  await expect(overlay).toHaveValue(
+    /"shortcuts": \[\s*\{\s*"code": "F9"\s*\}\s*\]/
+  );
+
+  await press(page, 'Apply and reload');
+  const inspector = page.locator('uwt-inspector');
+  await page.keyboard.down('Shift');
+  await page.keyboard.press('KeyE');
+  await page.keyboard.press('KeyI');
+  await page.keyboard.up('Shift');
+  await expect(inspector).toHaveCount(0);
+  await page.keyboard.press('F9');
+  await expect(inspector).toBeVisible();
+});
+
 test('inspector settings: a custom shortcut, a smaller section, a smaller view', async ({
   page
 }) => {

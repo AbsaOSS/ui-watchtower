@@ -1,11 +1,19 @@
-/** A setting the Settings page offers as a control, in a `?config=` section. */
+import { LAB_VALUE_TRANSFORMS } from './lab-options';
+
+type Option = { label: string; value: string };
+
+/**
+ * A setting the Settings page offers as a control, in a `?config=` section.
+ * `multi` picks several of its options; `lines` is a list of strings, one
+ * to a line; `levels` and `shortcuts` have editors of their own.
+ */
 export type LabField = {
   section: string;
   key: string;
   label: string;
 } & (
-  | { kind: 'switch' | 'number' | 'text' }
-  | { kind: 'select'; options: { label: string; value: string }[] }
+  | { kind: 'switch' | 'number' | 'text' | 'lines' | 'levels' | 'shortcuts' }
+  | { kind: 'select' | 'multi'; options: Option[] }
 );
 
 export interface LabFieldGroup {
@@ -13,7 +21,7 @@ export interface LabFieldGroup {
   fields: LabField[];
 }
 
-const LOG_LEVELS = [
+export const LAB_LOG_LEVELS = [
   { label: 'log — everything', value: 'log' },
   { label: 'warn — warnings and errors', value: 'warn' },
   { label: 'error — errors only', value: 'error' }
@@ -85,13 +93,19 @@ export const LAB_FIELD_GROUPS: LabFieldGroup[] = [
         section: 'logging',
         key: 'minLevel',
         label: 'Minimum level (logging.minLevel)',
-        options: LOG_LEVELS
+        options: LAB_LOG_LEVELS
       },
       {
         kind: 'switch',
         section: 'logging',
         key: 'mirrorErrorsToRum',
         label: 'Mirror errors to RUM (logging.mirrorErrorsToRum)'
+      },
+      {
+        kind: 'levels',
+        section: 'logging',
+        key: 'levels',
+        label: 'Logger levels (logging.levels)'
       },
       {
         kind: 'switch',
@@ -156,6 +170,42 @@ export const LAB_FIELD_GROUPS: LabFieldGroup[] = [
         section: 'redaction',
         key: 'stripUrlQuery',
         label: 'Strip URL queries (redaction.stripUrlQuery)'
+      },
+      {
+        kind: 'multi',
+        section: 'redaction',
+        key: 'scanValuePatterns',
+        label: 'Value patterns scanned (redaction.scanValuePatterns)',
+        options: ['email', 'creditCard', 'ssn', 'ipv4', 'phone'].map(
+          (name) => ({
+            label: name,
+            value: name
+          })
+        )
+      },
+      {
+        kind: 'multi',
+        section: 'redaction',
+        key: 'extraValueTransforms',
+        label: 'Value transforms (redaction.extraValueTransforms)',
+        options: Object.keys(LAB_VALUE_TRANSFORMS).map((name) => ({
+          label: name,
+          value: name
+        }))
+      },
+      {
+        kind: 'lines',
+        section: 'redaction',
+        key: 'extraKeyPatterns',
+        label:
+          'Extra key patterns, one RegExp per line (redaction.extraKeyPatterns)'
+      },
+      {
+        kind: 'lines',
+        section: 'redaction',
+        key: 'extraValuePatterns',
+        label:
+          'Extra value patterns, one RegExp per line (redaction.extraValuePatterns)'
       }
     ]
   },
@@ -179,6 +229,12 @@ export const LAB_FIELD_GROUPS: LabFieldGroup[] = [
         section: 'inspector',
         key: 'captureBeforeOpen',
         label: 'Keep events from before opening (inspector.captureBeforeOpen)'
+      },
+      {
+        kind: 'shortcuts',
+        section: 'inspector',
+        key: 'shortcuts',
+        label: 'Shortcuts (inspector.shortcuts)'
       }
     ]
   }
