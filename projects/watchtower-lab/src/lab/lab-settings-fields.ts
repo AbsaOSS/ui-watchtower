@@ -5,36 +5,68 @@ type Option = { label: string; value: string };
 
 /**
  * A setting Settings offers as a control. `section` is where it is kept:
- * `start` for how the lab starts, `broker` for the mock broker's app monitor
- * config, and otherwise its section of the `?config=` overlay. `multi` picks
- * several of its options; `lines` is a list of strings, one to a line;
- * `levels` and `shortcuts` have editors of their own.
+ * `start` for how the lab starts, `rum` for the mock broker's answer,
+ * `broker` for its app monitor config, `debug` for the debug flags, and
+ * otherwise its section of the `?config=` overlay. `multi` picks several of
+ * its options; `lines` is a list of strings, one to a line; `levels`,
+ * `shortcuts` and `telemetries` have editors of their own.
  */
 export type LabField = {
   section: string;
   key: string;
   /** What it is, as people read it; its control adds the setting's name. */
   label: string;
+  /** What it does, from the documentation of what it sets. */
+  help: string;
   /** What the app monitor does with none given: broker settings only. */
   default?: unknown;
 } & (
-  | { kind: 'switch' | 'number' | 'text' | 'lines' | 'levels' | 'shortcuts' }
+  | {
+      kind:
+        | 'switch'
+        | 'number'
+        | 'text'
+        | 'lines'
+        | 'levels'
+        | 'shortcuts'
+        | 'telemetries';
+    }
   | { kind: 'select' | 'multi'; options: Option[] }
 );
+
+/** Kept elsewhere than in the `?config=` overlay. */
+const OUTSIDE_OVERLAY = new Set(['start', 'rum', 'broker', 'debug']);
+
+/** Whether a field writes into the `?config=` overlay, and so waits for its JSON. */
+export function labInOverlay(field: LabField): boolean {
+  return !OUTSIDE_OVERLAY.has(field.section);
+}
+
+/**
+ * The setting's name as the JSON has it: `logging.minLevel` in the overlay,
+ * `sessionSampleRate` in the app monitor config. Empty for the others,
+ * which have no JSON.
+ */
+export function labSettingName(field: LabField): string {
+  switch (field.section) {
+    case 'start':
+    case 'rum':
+    case 'debug':
+      return '';
+    case 'broker':
+      return field.key;
+    default:
+      return `${field.section}.${field.key}`;
+  }
+}
 
 /**
  * A field's control label: what it is, then the setting's name as the JSON
  * has it, so the control and the JSON can be read together.
  */
 export function labFieldLabel(field: LabField): string {
-  switch (field.section) {
-    case 'start':
-      return field.label;
-    case 'broker':
-      return `${field.label} (${field.key})`;
-    default:
-      return `${field.label} (${field.section}.${field.key})`;
-  }
+  const name = labSettingName(field);
+  return name ? `${field.label} (${name})` : field.label;
 }
 
 /** The groups of sections in the Settings list, in order. */
@@ -64,6 +96,13 @@ export interface LabSettingsSection {
   lead: string;
   fields: LabField[];
 }
+
+export const LAB_DEBUG_FLAGS = [
+  'debugScenario',
+  'debugBI',
+  'debugLogger'
+] as const;
+export type LabDebugFlag = (typeof LAB_DEBUG_FLAGS)[number];
 
 export const LAB_LOG_LEVELS = [
   { label: 'log — everything', value: 'log' },
@@ -110,12 +149,16 @@ export const LAB_BROKER_MODES: { label: string; value: LabBrokerMode }[] = [
   }
 ];
 
+/** What redaction being off for a concern leaves, as the library documents it. */
+const REDACT_HELP =
+  'Turned off, only the configurable scrubbing stops: key and value patterns, and URL queries. The built-in key denylist, size caps and value transforms still apply.';
+
 /**
  * The sections of Settings, by what their settings change, each with the
- * controls it offers. The library's settings are the ones the lab takes in
- * its `?config=` overlay; the app monitor's are the ones most worth trying,
- * with the values the broker answers with, or the app monitor takes, when
- * none is given. Any others are the JSON's.
+ * controls it offers and what they do. The library's settings are the ones
+ * the lab takes in its `?config=` overlay; the app monitor's are the ones
+ * most worth trying, with the values the broker answers with, or the app
+ * monitor takes, when none is given. Any others are the JSON's.
  */
 export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
   {
@@ -129,20 +172,29 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         kind: 'text',
         section: 'identity',
         key: 'application',
-        label: 'Application name'
+        label: 'Application name',
+        help: 'The application, as each session records it.'
       },
       {
         kind: 'text',
         section: 'identity',
         key: 'environment',
-        label: 'Environment'
+        label: 'Environment',
+        help: 'Where it is deployed: dev, qa, prod.'
       },
-      { kind: 'text', section: 'identity', key: 'version', label: 'Version' },
+      {
+        kind: 'text',
+        section: 'identity',
+        key: 'version',
+        label: 'Version',
+        help: "The application's version, such as 22.0.0."
+      },
       {
         kind: 'text',
         section: 'identity',
         key: 'eventNamespace',
-        label: 'Event namespace'
+        label: 'Event namespace',
+        help: 'The prefix of the event types the library sends: {namespace}.scenario, {namespace}.scenario.step and {namespace}.bi. com.uwt when empty.'
       }
     ]
   },
@@ -158,6 +210,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'start',
         key: 'destination',
         label: 'Destination',
+        help: "Where the library's telemetry goes: to the mock backend through the RUM sink, nowhere, or to the lab's own sink, given with provideUwtTelemetryDestination.",
         options: DESTINATIONS
       },
       {
@@ -165,19 +218,22 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'start',
         key: 'channel',
         label: 'Broadcast channel',
+        help: "The channel the shell hosts its fragments' telemetry on: its own, or the default one, shared by every tab, whose hosts elect one leader.",
         options: CHANNELS
       },
       {
         kind: 'switch',
         section: 'start',
         key: 'telemetry',
-        label: 'Telemetry'
+        label: 'Telemetry',
+        help: 'Off, every service and destination is inert, through withTelemetryEnabled: nothing is recorded or sent.'
       },
       {
         kind: 'switch',
         section: 'lab',
         key: 'logBatching',
-        label: 'Batch logs, sent on flush()'
+        label: 'Batch logs, sent on flush()',
+        help: "The lab's log provider keeps the records, and sends them when the library flushes it."
       }
     ]
   },
@@ -192,37 +248,43 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         kind: 'number',
         section: 'scenarios',
         key: 'defaultTimeoutMs',
-        label: 'Default timeout, ms'
+        label: 'Default timeout, ms',
+        help: 'After this long, a scenario still unsettled settles as timeout. 0 turns the default off; a scenario can still set its own.'
       },
       {
         kind: 'switch',
         section: 'scenarios',
         key: 'emitLifecycleEvents',
-        label: 'Lifecycle step events'
+        label: 'Lifecycle step events',
+        help: "An event for each step, rather than one packed event when the scenario settles. They count against RUM's session event limit: for debugging, not production."
       },
       {
         kind: 'number',
         section: 'scenarios',
         key: 'maxSteps',
-        label: 'Step limit'
+        label: 'Step limit',
+        help: 'Steps kept per scenario. Later ones are counted in stepCount but not stored, bounding a runaway loop.'
       },
       {
         kind: 'switch',
         section: 'scenarios',
         key: 'userTimings',
-        label: 'User timings'
+        label: 'User timings',
+        help: "Scenarios and their steps as performance marks and measures, on DevTools' Performance track. The debugScenario flag turns them on too."
       },
       {
         kind: 'number',
         section: 'scenarios',
         key: 'markCleanupFallbackMs',
-        label: 'Mark cleanup fallback, ms'
+        label: 'Mark cleanup fallback, ms',
+        help: "How long the marks of a scenario that never settles stay, with user timings on and no timeout. 0 keeps them for the page's life."
       },
       {
         kind: 'switch',
         section: 'scenarios',
         key: 'redact',
-        label: 'Redact scenario payloads'
+        label: 'Redact scenario payloads',
+        help: `Whether scenario records are redacted. ${REDACT_HELP}`
       }
     ]
   },
@@ -237,19 +299,22 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         kind: 'number',
         section: 'bi',
         key: 'dedupWindowMs',
-        label: 'BI dedup window, ms'
+        label: 'BI dedup window, ms',
+        help: 'An identical event within this long of another is a double fire, and is dropped. 0 keeps every one.'
       },
       {
         kind: 'number',
         section: 'bi',
         key: 'dedupMaxKeys',
-        label: 'BI dedup keys kept'
+        label: 'BI dedup keys kept',
+        help: 'Distinct events remembered before expired ones are swept, so a long session stays bounded.'
       },
       {
         kind: 'switch',
         section: 'bi',
         key: 'redact',
-        label: 'Redact BI payloads'
+        label: 'Redact BI payloads',
+        help: `Whether BI events are redacted. ${REDACT_HELP}`
       }
     ]
   },
@@ -265,25 +330,29 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'logging',
         key: 'minLevel',
         label: 'Minimum level',
+        help: 'Records below this severity are discarded.',
         options: LAB_LOG_LEVELS
       },
       {
         kind: 'switch',
         section: 'logging',
         key: 'mirrorErrorsToRum',
-        label: 'Mirror errors to RUM'
+        label: 'Mirror errors to RUM',
+        help: "logger.error calls go to RUM as errors too, counting against the session's event budget with scenarios and BI events."
       },
       {
         kind: 'levels',
         section: 'logging',
         key: 'levels',
-        label: 'Logger levels'
+        label: 'Logger levels',
+        help: 'A level of its own for a named logger, over the minimum level; the others keep the minimum.'
       },
       {
         kind: 'switch',
         section: 'logging',
         key: 'redact',
-        label: 'Redact log values'
+        label: 'Redact log values',
+        help: `Whether log records are redacted. ${REDACT_HELP}`
       }
     ]
   },
@@ -298,37 +367,43 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         kind: 'number',
         section: 'redaction',
         key: 'maxStringLength',
-        label: 'Longest string'
+        label: 'Longest string',
+        help: 'A string value longer than this is truncated.'
       },
       {
         kind: 'number',
         section: 'redaction',
         key: 'maxKeys',
-        label: 'Most keys'
+        label: 'Most keys',
+        help: 'Attributes kept on one payload; the rest are dropped.'
       },
       {
         kind: 'number',
         section: 'redaction',
         key: 'maxStackLength',
-        label: 'Longest stack'
+        label: 'Longest stack',
+        help: 'A stack trace longer than this is truncated.'
       },
       {
         kind: 'switch',
         section: 'redaction',
         key: 'includeStack',
-        label: 'Include stacks'
+        label: 'Include stacks',
+        help: 'Whether stack traces are captured at all.'
       },
       {
         kind: 'switch',
         section: 'redaction',
         key: 'stripUrlQuery',
-        label: 'Strip URL queries'
+        label: 'Strip URL queries',
+        help: 'Query strings and fragments are stripped from URLs in string values.'
       },
       {
         kind: 'multi',
         section: 'redaction',
         key: 'scanValuePatterns',
         label: 'Value patterns scanned',
+        help: 'Shapes of personal data looked for in values, besides the key denylist. Heuristics: phone is the noisiest; creditCard also needs a Luhn match.',
         options: ['email', 'creditCard', 'ssn', 'ipv4', 'phone'].map(
           (name) => ({
             label: name,
@@ -341,6 +416,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'redaction',
         key: 'extraValueTransforms',
         label: 'Value transforms',
+        help: 'Functions run on every string value after the patterns, for what no pattern can express. A failing one is skipped.',
         options: Object.keys(LAB_VALUE_TRANSFORMS).map((name) => ({
           label: name,
           value: name
@@ -350,13 +426,15 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         kind: 'lines',
         section: 'redaction',
         key: 'extraKeyPatterns',
-        label: 'Extra key patterns, one RegExp per line'
+        label: 'Extra key patterns, one RegExp per line',
+        help: 'Keys redacted besides the built-in denylist, matched against attribute names, ignoring case.'
       },
       {
         kind: 'lines',
         section: 'redaction',
         key: 'extraValuePatterns',
-        label: 'Extra value patterns, one RegExp per line'
+        label: 'Extra value patterns, one RegExp per line',
+        help: 'Values redacted besides the scanned shapes: the content counterpart to the key patterns.'
       }
     ]
   },
@@ -372,31 +450,36 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'start',
         key: 'inspector',
         label: 'Availability',
+        help: "Whether the inspector can be opened: with its keyboard shortcut as well as from the page, from the page's button only, or not at all.",
         options: INSPECTOR_MODES
       },
       {
         kind: 'number',
         section: 'inspector',
         key: 'maxEventsPerSection',
-        label: 'Events kept per kind'
+        label: 'Events kept per kind',
+        help: 'Events kept of each kind: BI, scenarios, logs. The oldest of a kind go first, so a burst of one never pushes out another.'
       },
       {
         kind: 'number',
         section: 'inspector',
         key: 'maxPayloadCharsInView',
-        label: 'Payload characters shown'
+        label: 'Payload characters shown',
+        help: 'A payload longer than this, in characters, shows truncated, at most 65,536; the download has it in full.'
       },
       {
         kind: 'number',
         section: 'inspector',
         key: 'captureBeforeOpen',
-        label: 'Keep events from before opening'
+        label: 'Keep events from before opening',
+        help: "Events of each kind kept from the app's start, to show what happened before it opened. 0 keeps none, and spares copying every event."
       },
       {
         kind: 'shortcuts',
         section: 'inspector',
         key: 'shortcuts',
-        label: 'Shortcuts'
+        label: 'Shortcuts',
+        help: "The keys that open the inspector. With none, the page's button is the only way in."
       }
     ]
   },
@@ -406,7 +489,23 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
     area: 'Mock backend',
     applies: 'server',
     lead: "How the mock RUM broker answers /rum/init, and the RUM telemetries it names. The lab's server keeps them, for every tab.",
-    fields: []
+    fields: [
+      {
+        kind: 'select',
+        section: 'rum',
+        key: 'mode',
+        label: 'Answer /rum/init with',
+        help: 'How the broker answers the start of RUM: normally, turning RUM off, failing, or in one of the ways the RUM sink has to survive.',
+        options: LAB_BROKER_MODES
+      },
+      {
+        kind: 'telemetries',
+        section: 'rum',
+        key: 'telemetries',
+        label: 'Telemetries',
+        help: "RUM's own telemetry: the library's default is errors, performance and same-origin HTTP. With none, RUM records only page views, the session start and the library's events."
+      }
+    ]
   },
   {
     path: 'app-monitor',
@@ -420,6 +519,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'broker',
         key: 'sessionSampleRate',
         label: 'Session sample rate, 0 to 1',
+        help: 'The share of sessions RUM records: 0 none, 1 every one.',
         default: 1
       },
       {
@@ -427,6 +527,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'broker',
         key: 'sessionEventLimit',
         label: 'Session event limit, 0 for none',
+        help: 'The most events RUM records in one session.',
         default: 0
       },
       {
@@ -434,6 +535,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'broker',
         key: 'dispatchInterval',
         label: 'Dispatch interval, ms',
+        help: 'How often RUM sends the events it has gathered.',
         default: 2000
       },
       {
@@ -441,6 +543,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'broker',
         key: 'allowCookies',
         label: 'Allow cookies',
+        help: 'RUM keeps its session and user ids in cookies, cwr_s and cwr_u, so it can count sessions and returning users.',
         default: true
       },
       {
@@ -448,6 +551,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'broker',
         key: 'enableXRay',
         label: 'X-Ray tracing',
+        help: 'An X-Ray trace for the page load and each HTTP request RUM records, with the trace header added to the requests.',
         default: false
       },
       {
@@ -455,6 +559,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'broker',
         key: 'disableAutoPageView',
         label: 'Automatic page view off',
+        help: 'RUM records no page views of its own: the app records them.',
         default: false
       },
       {
@@ -462,6 +567,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'broker',
         key: 'recordResourceUrl',
         label: 'Record resource URLs',
+        help: 'Whether RUM records the URLs of the resources the page downloads, which may hold personal data.',
         default: true
       },
       {
@@ -469,6 +575,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'broker',
         key: 'pagesToExclude',
         label: 'Pages to exclude, one RegExp per line',
+        help: 'Pages RUM records nothing on; they win over the pages to include.',
         default: []
       },
       {
@@ -476,6 +583,7 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
         section: 'broker',
         key: 'pagesToInclude',
         label: 'Pages to include, one RegExp per line',
+        help: 'The pages RUM records; every page when there are none.',
         default: []
       }
     ]
@@ -486,7 +594,29 @@ export const LAB_SETTINGS_SECTIONS: LabSettingsSection[] = [
     area: 'Diagnostics',
     applies: 'now',
     lead: 'Console lines for what is sent. The library reads them on every event, so they apply at once, without a reload, and are never waiting to be applied.',
-    fields: []
+    fields: [
+      {
+        kind: 'switch',
+        section: 'debug',
+        key: 'debugScenario',
+        label: 'debugScenario',
+        help: 'A line for each scenario event sent. Turns user timings on too.'
+      },
+      {
+        kind: 'switch',
+        section: 'debug',
+        key: 'debugBI',
+        label: 'debugBI',
+        help: 'A line for each BI event sent.'
+      },
+      {
+        kind: 'switch',
+        section: 'debug',
+        key: 'debugLogger',
+        label: 'debugLogger',
+        help: 'A line for each log record sent. Set from DevTools to logger names, such as checkout,cart, it prints only theirs; the switch then shows off.'
+      }
+    ]
   },
   {
     path: 'json',

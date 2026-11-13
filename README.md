@@ -90,11 +90,14 @@ redaction and Event Inspector. **Mock backend**: RUM broker and App monitor.
 **Diagnostics**: Debug flags, which apply at once. **Advanced**: Configuration
 as JSON, and the Effective configuration. A change waits, from whichever
 section, in a bar listing them all, until they are applied together with one
-reload, or discarded. A setting says where it stands: **Not applied**, with
-Undo, or **Modified** from the lab's default, with the default and a Reset
-that waits to be applied too (a debug flag resets at once); the list counts
-each section's modified settings. The **Overview** lists both, to undo or
-reset each. On a narrow screen the sections fold into a picker.
+reload, or discarded. A setting says what it does, from the library's
+documentation (and aws-rum-web's, for the app monitor), and where it stands:
+**Not applied**, with Undo, or **Modified** from the lab's default, with the
+default and a Reset that waits to be applied too (a debug flag resets at
+once); the list counts each section's modified settings. The **Overview**
+lists both, to undo or reset each. **Find a setting**, or `/`, finds one by
+its name, its name in the JSON or what it does, and shows it in its
+section. On a narrow screen the sections fold into a picker.
 
 The header's chips show how this load runs, each a link to its setting;
 where the broker is set differently for the next one, its chip says so:

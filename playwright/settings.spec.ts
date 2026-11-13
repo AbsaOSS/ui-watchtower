@@ -209,6 +209,10 @@ test('on a narrow screen, the sections of Settings fold into a picker', async ({
     page.getByRole('navigation', { name: 'Settings sections' })
   ).toBeHidden();
   await expect(shown(page, 'Section')).toHaveText('Library › Logging');
+  // The search stays, above the picker.
+  await expect(
+    page.getByRole('combobox', { name: 'Find a setting' })
+  ).toBeVisible();
 
   await choose(page, 'Section', 'Library › Scenarios');
   await expect(page).toHaveURL(/\/settings\/scenarios$/);
@@ -344,6 +348,101 @@ test("the header's chips lead to their settings", async ({ page }) => {
   await panel.getByRole('link', { name: 'telemetry: on' }).click();
   await expect(title).toHaveText('Delivery');
   await expect(panel).toBeHidden();
+});
+
+test('each setting says what it does, as the documentation of what it sets has it', async ({
+  page
+}) => {
+  await openLab(page, 'settings/logging');
+  // Read out with its control, where the kit's control takes a description.
+  await expect(
+    page.getByRole('combobox', { name: 'Minimum level' })
+  ).toHaveAccessibleDescription(/Records below this severity are discarded/);
+  await expect(
+    page.locator('.lab-field', { hasText: 'Mirror errors to RUM' })
+  ).toContainText('logger.error calls go to RUM as errors too');
+
+  await settingsSection(page, 'App monitor');
+  await expect(
+    page.getByRole('spinbutton', { name: /Session sample rate/ })
+  ).toHaveAccessibleDescription(/share of sessions RUM records/);
+});
+
+test('a setting is found by its name, its name in the JSON or what it does, and shown in its section', async ({
+  page
+}) => {
+  await openLab(page, 'settings/scenarios');
+  const search = page.getByRole('combobox', { name: 'Find a setting' });
+  const results = page.getByRole('option');
+  const found = page.locator('.lab-field--found');
+  // Once shown, the setting's control has the focus, and the page has
+  // scrolled to it: searching on before then, the focus or the scroll would
+  // arrive with the list open, and close it, as the kit closes its lists.
+  const shownFocused = async () => {
+    await expect(
+      found.locator('input, [role="combobox"]').first()
+    ).toBeFocused();
+    // A scroll's event comes with the next frame.
+    await page.evaluate(
+      () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve))
+        )
+    );
+  };
+
+  // "redact" finds every place that redacts, and the section that does most.
+  await search.fill('redact');
+  for (const name of [
+    'Redact scenario payloads',
+    'Redact log values',
+    'Redact BI payloads',
+    'Privacy & redaction'
+  ]) {
+    await expect(results.filter({ hasText: name }).first()).toBeVisible();
+  }
+  await results.filter({ hasText: 'Redact log values' }).click();
+  await expect(page).toHaveURL(/\/settings\/logging#logging\.redact$/);
+  await expect(found).toContainText('Redact log values');
+  await expect(found.getByRole('switch')).toBeFocused();
+  await shownFocused();
+  // Emptied, for the next search.
+  await expect(search).toHaveValue('');
+
+  await search.fill('dedupWindowMs');
+  await results.filter({ hasText: 'BI dedup window' }).click();
+  await expect(page).toHaveURL(/\/settings\/bi-events#bi\.dedupWindowMs$/);
+  await shownFocused();
+
+  await search.fill('Luhn');
+  await results.filter({ hasText: 'Value patterns scanned' }).click();
+  await expect(page).toHaveURL(
+    /\/settings\/privacy#redaction\.scanValuePatterns$/
+  );
+  await shownFocused();
+
+  // The mock broker's answer and the debug flags are settings like the rest.
+  await search.fill('debugBI');
+  await results.filter({ hasText: 'debugBI' }).click();
+  await expect(page).toHaveURL(/\/settings\/debug-flags#debug\.debugBI$/);
+  await expect(found).toContainText('debugBI');
+  await shownFocused();
+});
+
+test('"/" goes to the search, but in a field it is typed', async ({ page }) => {
+  await openLab(page, 'settings/app-identity');
+  await page.locator('lab-settings-section h1').click();
+  await page.keyboard.press('/');
+  await expect(
+    page.getByRole('combobox', { name: 'Find a setting' })
+  ).toBeFocused();
+
+  const version = page
+    .locator('cps-input', { hasText: 'Version' })
+    .locator('input');
+  await version.fill('2');
+  await version.press('/');
+  await expect(version).toHaveValue('2/');
 });
 
 test('Settings applies an overlay, shows it in effect, and goes back', async ({

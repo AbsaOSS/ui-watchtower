@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  inject,
+  Injector,
+  signal
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   CpsInputComponent,
@@ -9,15 +18,14 @@ import {
 import { LabLoggerLevelsComponent } from '../../lab/lab-logger-levels.component';
 import { LabSettingStateComponent } from '../../lab/lab-setting-state.component';
 import {
-  LAB_DEBUG_FLAGS,
   LabSettingsDraft,
   labSettingId
 } from '../../lab/lab-settings-draft.service';
 import {
-  LAB_BROKER_MODES,
   LAB_SETTINGS_APPLIES,
   LabField,
   labFieldLabel,
+  labInOverlay,
   LabSettingsSection
 } from '../../lab/lab-settings-fields';
 import {
@@ -28,7 +36,9 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
 
 /**
  * One section of Settings: its controls, which write into the shared draft,
- * each with where it stands — not applied yet, or other than the lab's default.
+ * each with what it does and where it stands — not applied yet, or other
+ * than the lab's default. The setting a search led to, named in the
+ * address's fragment, is shown and focused.
  */
 @Component({
   selector: 'lab-settings-section',
@@ -63,61 +73,17 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
         </p>
       }
 
-      @if (section.path === 'rum-broker') {
-        <div class="lab-card">
-          <div class="lab-field">
-            <cps-select
-              label="Answer /rum/init with"
-              [options]="modes"
-              [returnObject]="false"
-              [value]="draft.mode()"
-              width="26rem"
-              (valueChanged)="draft.mode.set($event)" />
-            <lab-setting-state
-              [change]="draft.changeById().get('rum.mode')"
-              [modified]="draft.modifiedById().get('rum.mode')" />
-          </div>
-          <p>
-            RUM's own telemetry: the library's default is errors, performance
-            and same-origin HTTP. With none, RUM records only page views, the
-            session start and the library's events.
-          </p>
-          <div class="lab-field">
-            <div class="lab-switches">
-              <cps-switch
-                label="The library's default"
-                [value]="draft.telemetries() === null"
-                (valueChanged)="draft.useDefaultTelemetries($event)" />
-            </div>
-            @if (draft.telemetries(); as chosen) {
-              <cps-select
-                label="Telemetries"
-                placeholder="None"
-                [options]="telemetryOptions"
-                [returnObject]="false"
-                [multiple]="true"
-                [selectAll]="true"
-                [chips]="true"
-                [value]="chosen"
-                width="26rem"
-                (valueChanged)="draft.telemetries.set($event)" />
-            }
-            <lab-setting-state
-              [change]="draft.changeById().get('rum.telemetries')"
-              [modified]="draft.modifiedById().get('rum.telemetries')" />
-          </div>
-        </div>
-      }
-
       @if (section.fields.length) {
         <div class="lab-card">
           <div class="lab-fields">
             @for (field of section.fields; track id(field)) {
               <div
                 class="lab-field"
+                [id]="'setting-' + id(field)"
                 [class.lab-field-wide]="
                   field.kind === 'levels' || field.kind === 'shortcuts'
-                ">
+                "
+                [class.lab-field--found]="found() === id(field)">
                 @switch (field.kind) {
                   @case ('switch') {
                     <cps-switch
@@ -125,11 +91,13 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
                       [value]="!!draft.value(field)"
                       [disabled]="draft.disabled(field)"
                       (valueChanged)="draft.set(field, $event)" />
+                    <p class="lab-field__help">{{ field.help }}</p>
                   }
                   @case ('number') {
                     <cps-input
                       type="number"
                       [label]="label(field)"
+                      [hint]="field.help"
                       width="26rem"
                       [value]="'' + draft.value(field)"
                       [disabled]="draft.disabled(field)"
@@ -138,6 +106,7 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
                   @case ('text') {
                     <cps-input
                       [label]="label(field)"
+                      [hint]="field.help"
                       width="26rem"
                       [value]="'' + (draft.value(field) ?? '')"
                       [disabled]="draft.disabled(field)"
@@ -146,6 +115,7 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
                   @case ('select') {
                     <cps-select
                       [label]="label(field)"
+                      [hint]="field.help"
                       [options]="selectOptions(field)"
                       [returnObject]="false"
                       [value]="'' + draft.value(field)"
@@ -156,6 +126,7 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
                   @case ('multi') {
                     <cps-select
                       [label]="label(field)"
+                      [hint]="field.help"
                       [options]="selectOptions(field)"
                       [returnObject]="false"
                       [multiple]="true"
@@ -170,6 +141,7 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
                     <cps-textarea
                       ngSkipHydration
                       [label]="label(field)"
+                      [hint]="field.help"
                       [rows]="3"
                       width="26rem"
                       [value]="
@@ -183,6 +155,7 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
                   }
                   @case ('levels') {
                     <p class="lab-field-wide__label">{{ label(field) }}</p>
+                    <p class="lab-field__help">{{ field.help }}</p>
                     <lab-logger-levels
                       [levels]="levelsOf(draft.value(field))"
                       [disabled]="draft.disabled(field)"
@@ -190,10 +163,31 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
                   }
                   @case ('shortcuts') {
                     <p class="lab-field-wide__label">{{ label(field) }}</p>
+                    <p class="lab-field__help">{{ field.help }}</p>
                     <lab-shortcuts
                       [shortcuts]="shortcutsOf(draft.value(field))"
                       [disabled]="draft.disabled(field)"
                       (changed)="draft.set(field, $event)" />
+                  }
+                  @case ('telemetries') {
+                    <cps-switch
+                      label="The library's default"
+                      [value]="draft.telemetries() === null"
+                      (valueChanged)="draft.useDefaultTelemetries($event)" />
+                    <p class="lab-field__help">{{ field.help }}</p>
+                    @if (draft.telemetries(); as chosen) {
+                      <cps-select
+                        label="Telemetries"
+                        placeholder="None"
+                        [options]="telemetryOptions"
+                        [returnObject]="false"
+                        [multiple]="true"
+                        [selectAll]="true"
+                        [chips]="true"
+                        [value]="chosen"
+                        width="26rem"
+                        (valueChanged)="draft.set(field, $event)" />
+                    }
                   }
                 }
                 <lab-setting-state
@@ -217,22 +211,6 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
       }
 
       @switch (section.path) {
-        @case ('debug-flags') {
-          <div class="lab-card">
-            <div class="lab-switches">
-              @for (flag of flags; track flag) {
-                <div class="lab-field">
-                  <cps-switch
-                    [label]="flag"
-                    [value]="draft.debug()[flag]"
-                    (valueChanged)="draft.setDebug(flag, $event)" />
-                  <lab-setting-state
-                    [modified]="draft.modifiedById().get('debug.' + flag)" />
-                </div>
-              }
-            </div>
-          </div>
-        }
         @case ('json') {
           <div class="lab-card">
             <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
@@ -262,25 +240,37 @@ import { LAB_TELEMETRIES } from '../../lab/lab-wire.service';
 })
 export class SettingsSectionPage {
   protected readonly draft = inject(LabSettingsDraft);
+  private readonly route = inject(ActivatedRoute);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
   protected readonly section: LabSettingsSection =
-    inject(ActivatedRoute).snapshot.data.section;
+    this.route.snapshot.data.section;
 
   protected readonly applies =
     this.section.applies && LAB_SETTINGS_APPLIES[this.section.applies];
 
   /** Whether its controls write into the overlay, and so wait for its JSON. */
-  protected readonly writesOverlay = this.section.fields.some(
-    (field) => field.section !== 'start' && field.section !== 'broker'
-  );
+  protected readonly writesOverlay = this.section.fields.some(labInOverlay);
+
+  /** The setting a search led to, by its id. */
+  protected readonly found = signal<string | null>(null);
 
   protected readonly id = labSettingId;
   protected readonly label = labFieldLabel;
-  protected readonly flags = LAB_DEBUG_FLAGS;
-  protected readonly modes = LAB_BROKER_MODES;
   protected readonly telemetryOptions = LAB_TELEMETRIES.map((t) => ({
     label: t,
     value: t
   }));
+
+  constructor() {
+    this.route.fragment.pipe(takeUntilDestroyed()).subscribe((id) => {
+      this.found.set(id);
+      if (id) {
+        afterNextRender(() => this.reveal(id), { injector: this.injector });
+      }
+    });
+  }
 
   protected selectOptions(field: LabField): { label: string; value: string }[] {
     return field.kind === 'select' || field.kind === 'multi'
@@ -310,5 +300,16 @@ export class SettingsSectionPage {
 
   protected shortcutsOf(value: unknown): LabShortcut[] {
     return Array.isArray(value) ? (value as LabShortcut[]) : [];
+  }
+
+  /** Brings a setting into view, and its control into focus. */
+  private reveal(id: string): void {
+    const field = this.host.nativeElement.ownerDocument.getElementById(
+      `setting-${id}`
+    );
+    field?.scrollIntoView({ block: 'center' });
+    field
+      ?.querySelector<HTMLElement>('input, textarea, [role="combobox"], button')
+      ?.focus({ preventScroll: true });
   }
 }

@@ -79,6 +79,17 @@ for (const path of PAGES) {
   });
 }
 
+test("Settings' search, with its results open: no violations", async ({
+  page
+}) => {
+  await openLab(page, 'settings/logging');
+  await page.getByRole('combobox', { name: 'Find a setting' }).fill('redact');
+  await expect(page.getByRole('option').first()).toBeVisible();
+  // Once it has faded in: mid-fade, its text is too faint to measure.
+  await expect(page.locator('.cps-menu-container')).toHaveCSS('opacity', '1');
+  expect(await violations(page)).toEqual([]);
+});
+
 test('Settings with settings modified and changes not applied, marked in its list, its fields and its bar: no violations', async ({
   page
 }) => {

@@ -2,8 +2,10 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  ElementRef,
   inject,
-  signal
+  signal,
+  viewChild
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -13,16 +15,58 @@ import {
   RouterLinkActive,
   RouterOutlet
 } from '@angular/router';
-import { CpsButtonComponent, CpsSelectComponent } from 'cps-ui-kit';
+import {
+  CpsAutocompleteComponent,
+  CpsButtonComponent,
+  CpsSelectComponent
+} from 'cps-ui-kit';
 import { filter } from 'rxjs';
-import { LabSettingsDraft } from '../../lab/lab-settings-draft.service';
+import {
+  LabSettingsDraft,
+  labSettingId
+} from '../../lab/lab-settings-draft.service';
 import {
   LAB_SETTINGS_AREAS,
-  LAB_SETTINGS_SECTIONS
+  LAB_SETTINGS_SECTIONS,
+  labSettingName
 } from '../../lab/lab-settings-fields';
 
 /** The picker's value for the overview, which has no path of its own. */
 const OVERVIEW = 'overview';
+
+/** A section, or a setting in one, as the search finds it. */
+interface LabSearchResult {
+  label: string;
+  /** Where it is, under its label. */
+  info: string;
+  /** What else it is found by: its name in the JSON, section and help. */
+  alias: string;
+  path: string;
+  /** The setting's id, to show it; none for a section. */
+  id?: string;
+}
+
+/** Each section, then its settings, as the search lists them. */
+const SEARCHABLE: LabSearchResult[] = LAB_SETTINGS_SECTIONS.flatMap(
+  (section) => [
+    {
+      label: section.label,
+      info: `Section · ${section.area}`,
+      alias: `${section.area} ${section.lead}`,
+      path: section.path
+    },
+    ...section.fields.map((field) => {
+      const name = labSettingName(field);
+      return {
+        label: field.label,
+        info: name ? `${section.label} · ${name}` : section.label,
+        alias: `${name} ${section.label} ${field.help}`,
+        path: section.path,
+        id: labSettingId(field)
+      };
+    })
+  ]
+);
 
 /** The section an address is in: `logging` for `/settings/logging?…`. */
 function sectionOf(url: string): string {
@@ -37,6 +81,7 @@ function sectionOf(url: string): string {
 @Component({
   selector: 'lab-settings-page',
   imports: [
+    CpsAutocompleteComponent,
     CpsButtonComponent,
     CpsSelectComponent,
     RouterLink,
@@ -45,6 +90,7 @@ function sectionOf(url: string): string {
   ],
   providers: [LabSettingsDraft],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:keydown)': 'focusSearch($event)' },
   template: `
     <div class="lab-settings">
       <nav class="lab-settings__nav" aria-label="Settings sections">
@@ -101,6 +147,25 @@ function sectionOf(url: string): string {
       </div>
 
       <div class="lab-settings__content">
+        <!-- Over the section, wide enough for its results: the kit sizes
+             them to the box. -->
+        <cps-autocomplete
+          class="lab-settings__search"
+          ariaLabel="Find a setting"
+          placeholder="Find a setting  /"
+          prefixIcon="search"
+          [options]="searchable"
+          [returnObject]="true"
+          optionLabel="label"
+          optionInfo="info"
+          [withOptionsAliases]="true"
+          optionAlias="alias"
+          [showChevron]="false"
+          [hideDetails]="true"
+          emptyMessage="No setting matches"
+          width="100%"
+          (valueChanged)="find($event)" />
+
         <router-outlet />
 
         @if (draft.changes(); as changes) {
@@ -154,8 +219,11 @@ function sectionOf(url: string): string {
 export class SettingsPage {
   protected readonly draft = inject(LabSettingsDraft);
   private readonly router = inject(Router);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly search = viewChild.required(CpsAutocompleteComponent);
 
   protected readonly overview = OVERVIEW;
+  protected readonly searchable = SEARCHABLE;
   protected readonly areas = LAB_SETTINGS_AREAS.map((name) => ({
     name,
     id: `lab-settings-${name.toLowerCase().replace(/\W+/g, '-')}`,
@@ -221,5 +289,36 @@ export class SettingsPage {
       ['/settings', ...(section === OVERVIEW ? [] : [section])],
       { queryParamsHandling: 'preserve' }
     );
+  }
+
+  /** Goes to what the search found: its section, and the setting, shown there. */
+  protected async find(result: LabSearchResult | undefined): Promise<void> {
+    if (!result) {
+      return;
+    }
+    // Empty again for the next search, which may find the same one.
+    this.search().writeValue(undefined);
+    await this.router.navigate(['/settings', result.path], {
+      fragment: result.id,
+      queryParamsHandling: 'preserve'
+    });
+  }
+
+  /** `/`, outside a field: to the search, as on many sites. */
+  protected focusSearch(event: KeyboardEvent): void {
+    const target = event.target instanceof Element ? event.target : null;
+    if (
+      event.key !== '/' ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      target?.closest('input, textarea, select, [contenteditable]')
+    ) {
+      return;
+    }
+    event.preventDefault();
+    this.host.nativeElement
+      .querySelector<HTMLInputElement>('.lab-settings__search input')
+      ?.focus();
   }
 }

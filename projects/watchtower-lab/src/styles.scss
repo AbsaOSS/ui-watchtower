@@ -46,12 +46,48 @@
   align-items: start;
 }
 
-// A control, and under it where it stands: not applied, or modified.
+// A control, what it does, and where it stands: not applied, or modified.
 .lab-field {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0;
+  border-radius: 0.25rem;
+}
+
+// What a switch or an editor does: as the kit shows a field's hint. Past a
+// card's paragraphs, which are larger.
+.lab-field .lab-field__help {
+  max-width: 40rem;
+  margin: 0;
+  color: var(--cps-text-secondary);
+  font-size: 0.75rem;
+}
+
+// The setting a search led to, picked out for a moment.
+.lab-field--found {
+  animation: lab-found 2.5s ease-out;
+}
+
+@keyframes lab-found {
+  from {
+    background-color: rgb(135 10 60 / 10%);
+    box-shadow: 0 0 0 0.5rem rgb(135 10 60 / 10%);
+  }
+
+  to {
+    background-color: transparent;
+    box-shadow: 0 0 0 0.5rem transparent;
+  }
+}
+
+// Without the motion, it stays outlined.
+@media (prefers-reduced-motion: reduce) {
+  .lab-field--found {
+    animation: none;
+    outline: 0.125rem solid var(--cps-color-calm);
+    outline-offset: 0.375rem;
+  }
 }
 
 // A control that is a list, or has several parts, takes the card's whole width.
@@ -143,6 +179,12 @@
   align-items: start;
 }
 
+// Its results are as wide as it is, each name with where it is beside it.
+.lab-settings__search {
+  display: block;
+  max-width: 40rem;
+}
+
 // In view as the section scrolls, below the header, scrolled on its own if
 // the window is short.
 .lab-settings__nav {
@@ -213,6 +255,11 @@
   flex-direction: column;
   gap: 1.5rem;
   min-height: calc(100vh - 8.75rem - var(--uwt-inspector-inset-bottom, 0px));
+
+  // Only where the section goes, after it: no gap of its own.
+  > router-outlet {
+    display: none;
+  }
 }
 
 @container lab-main (max-width: 50rem) {

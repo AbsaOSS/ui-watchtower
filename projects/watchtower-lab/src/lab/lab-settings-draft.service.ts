@@ -30,7 +30,9 @@ import {
   LabOptions
 } from './lab-options';
 import {
+  LAB_DEBUG_FLAGS,
   LAB_SETTINGS_SECTIONS,
+  LabDebugFlag,
   LabField,
   labSettingsSection,
   LabSettingsSection
@@ -42,13 +44,6 @@ import {
   LabTelemetry,
   LabWire
 } from './lab-wire.service';
-
-export const LAB_DEBUG_FLAGS = [
-  'debugScenario',
-  'debugBI',
-  'debugLogger'
-] as const;
-export type LabDebugFlag = (typeof LAB_DEBUG_FLAGS)[number];
 
 /** How the lab starts: its options, but the overlay. */
 type LabStart = Omit<LabOptions, 'config'>;
@@ -285,8 +280,12 @@ export class LabSettingsDraft {
     switch (field.section) {
       case 'start':
         return this.start()[field.key as keyof LabStart];
+      case 'rum':
+        return field.key === 'mode' ? this.mode() : this.telemetries();
       case 'broker':
         return this.brokerObject()?.[field.key] ?? field.default;
+      case 'debug':
+        return this.debug()[field.key as LabDebugFlag];
       default: {
         const { section, key } = field;
         const drafted = settingIn(this.overlay(), section, key);
@@ -303,23 +302,38 @@ export class LabSettingsDraft {
   /** Whether a field's control is off: while the JSON it writes into isn't an object. */
   disabled(field: LabField): boolean {
     switch (field.section) {
-      case 'start':
-        return false;
       case 'broker':
         return !this.brokerObject();
+      case 'start':
+      case 'rum':
+      case 'debug':
+        return false;
       default:
         return !this.overlay();
     }
   }
 
-  /** Writes a control's value into the draft, which shows it. */
+  /**
+   * Writes a control's value into the draft, which shows it — but a debug
+   * flag's, which applies at once.
+   */
   set(field: LabField, value: unknown): void {
     switch (field.section) {
       case 'start':
         this.setStart(field.key as keyof LabStart, value);
         return;
+      case 'rum':
+        if (field.key === 'mode') {
+          this.mode.set(value as LabBrokerMode);
+        } else {
+          this.telemetries.set(value as LabTelemetry[] | null);
+        }
+        return;
       case 'broker':
         this.putBroker(field.key, value);
+        return;
+      case 'debug':
+        this.setDebug(field.key as LabDebugFlag, !!value);
         return;
       default:
         this.putOverlay(field.section, field.key, value);
