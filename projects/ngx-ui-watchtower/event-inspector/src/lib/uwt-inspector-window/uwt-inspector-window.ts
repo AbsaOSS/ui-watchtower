@@ -14,7 +14,10 @@ import {
 import { UwtInspectorComponent } from '../uwt-inspector/uwt-inspector.component';
 import { UwtInspectorHost } from '../uwt-inspector-session/uwt-inspector-session';
 import { UwtInspectorWindowGeometry } from '../uwt-inspector-preferences/uwt-inspector-preferences';
-import { uwtSafeVoid } from '../uwt-inspector-internal.util/uwt-inspector-internal.util';
+import {
+  uwtSafe,
+  uwtSafeVoid
+} from '../uwt-inspector-internal.util/uwt-inspector-internal.util';
 
 /** The window's name, so a second open reuses it rather than adding one. */
 export const UWT_INSPECTOR_WINDOW_NAME = 'ngx-ui-watchtower-event-inspector';
@@ -30,6 +33,15 @@ export function uwtInspectorWindowName(application?: string): string {
 }
 
 const STYLES = 'style, link[rel~="stylesheet"], base';
+
+/**
+ * A window's page hides when the window closes, and when it reloads. Which it
+ * was is seen a moment later: a window that is still there, with a new
+ * document, was reloaded. The wait is bounded; a window that has neither
+ * closed nor come back in that time is treated as closed.
+ */
+const SETTLE_EVERY_MS = 50;
+const SETTLE_TRIES = 20;
 
 export interface UwtInspectorWindowOptions {
   /** The app's document. */
@@ -73,43 +85,72 @@ export function uwtOpenInspectorWindow(
     return undefined;
   }
 
-  const doc = popup.document;
-  // A window left over from before the app reloaded holds stale content.
-  doc.head.replaceChildren();
-  doc.body.replaceChildren();
-  doc.title = options.title;
-  doc.body.style.margin = '0';
-  const stopMirroring = mirrorStyles(options.document, doc);
+  /** The inspector, drawn into one document of the window: a reload gives it another. */
+  interface Mounted {
+    doc: Document;
+    ref: ComponentRef<UwtInspectorComponent>;
+    environment: EnvironmentInjector;
+    stopMirroring: () => void;
+  }
 
-  const element = doc.body.appendChild(doc.createElement('div'));
-  element.style.height = '100vh';
-  const environment = createEnvironmentInjector(
-    [
-      { provide: DOCUMENT, useValue: doc },
-      CpsNotificationService,
-      { provide: CPS_LIVE_ANNOUNCER_SERVICE, useClass: CpsLiveAnnouncerService }
-    ],
-    options.environment
-  );
-  let created: ComponentRef<UwtInspectorComponent> | undefined;
+  const mount = (doc: Document): Mounted => {
+    // A window left over from before the app reloaded holds stale content.
+    doc.head.replaceChildren();
+    doc.body.replaceChildren();
+    doc.title = options.title;
+    doc.body.style.margin = '0';
+    const stopMirroring = mirrorStyles(options.document, doc);
+
+    const element = doc.body.appendChild(doc.createElement('div'));
+    element.style.height = '100vh';
+    const environment = createEnvironmentInjector(
+      [
+        { provide: DOCUMENT, useValue: doc },
+        CpsNotificationService,
+        {
+          provide: CPS_LIVE_ANNOUNCER_SERVICE,
+          useClass: CpsLiveAnnouncerService
+        }
+      ],
+      options.environment
+    );
+    let created: ComponentRef<UwtInspectorComponent> | undefined;
+    try {
+      created = createComponent(UwtInspectorComponent, {
+        environmentInjector: environment,
+        hostElement: element
+      });
+      created.setInput('dock', 'window');
+      options.appRef.attachView(created.hostView);
+      created.changeDetectorRef.detectChanges();
+      setIcon(doc);
+    } catch (error) {
+      created?.destroy();
+      environment.destroy();
+      stopMirroring();
+      throw error;
+    }
+    doc.addEventListener('keydown', options.onKeydown, true);
+    return { doc, ref: created, environment, stopMirroring };
+  };
+
+  const unmount = (mounted: Mounted) => {
+    mounted.doc.removeEventListener('keydown', options.onKeydown, true);
+    mounted.stopMirroring();
+    // Destroying the view detaches it from the app, unless the app, being
+    // destroyed, already has: detaching it here would warn (NG0406).
+    mounted.ref.destroy();
+    mounted.environment.destroy();
+  };
+
+  let current: Mounted | undefined;
   try {
-    created = createComponent(UwtInspectorComponent, {
-      environmentInjector: environment,
-      hostElement: element
-    });
-    created.setInput('dock', 'window');
-    options.appRef.attachView(created.hostView);
-    created.changeDetectorRef.detectChanges();
-    setIcon(doc);
+    current = mount(popup.document);
   } catch (error) {
     // Half open: close it again, for the caller to open a dialog instead.
-    created?.destroy();
-    environment.destroy();
-    stopMirroring();
     popup.close();
     throw error;
   }
-  const ref = created;
 
   let saved = false;
   const saveGeometry = () => {
@@ -123,32 +164,61 @@ export function uwtOpenInspectorWindow(
       });
     }
   };
+
+  let settling: ReturnType<typeof setTimeout> | undefined;
+  /** Closed, or reloaded: a reload gets the inspector drawn again in its new document. */
+  const settle = (triesLeft: number) => {
+    settling = undefined;
+    if (popup.closed) {
+      options.onClosed();
+      return;
+    }
+    const next = uwtSafe('window.document', () => popup.document, undefined);
+    if (next?.body && next !== current?.doc) {
+      if (current) {
+        unmount(current);
+        current = undefined;
+      }
+      try {
+        current = mount(next);
+        // Its size is saved again when it next closes.
+        saved = false;
+        popup.addEventListener('pagehide', onPageHide);
+      } catch {
+        options.onClosed();
+      }
+    } else if (triesLeft > 0) {
+      settling = setTimeout(() => settle(triesLeft - 1), SETTLE_EVERY_MS);
+    } else {
+      options.onClosed();
+    }
+  };
   const onPageHide = () => {
+    // The size is gone once the window is, so it is taken now.
     saveGeometry();
-    options.onClosed();
+    settling ??= setTimeout(() => settle(SETTLE_TRIES), SETTLE_EVERY_MS);
   };
   const closeWithApp = () => popup.close();
   popup.addEventListener('pagehide', onPageHide);
   view.addEventListener('pagehide', closeWithApp);
-  doc.addEventListener('keydown', options.onKeydown, true);
 
   return {
     dock: 'window',
     focus: () => {
       popup.focus();
-      ref.instance.focusInspector();
+      current?.ref.instance.focusInspector();
     },
-    containsFocus: () => doc.hasFocus(),
+    containsFocus: () => current?.doc.hasFocus() ?? false,
     destroy: () => {
+      clearTimeout(settling);
+      settling = undefined;
       popup.removeEventListener('pagehide', onPageHide);
       view.removeEventListener('pagehide', closeWithApp);
-      doc.removeEventListener('keydown', options.onKeydown, true);
       uwtSafeVoid('window.geometry', saveGeometry);
-      stopMirroring();
-      // Destroying the view detaches it from the app, unless the app, being
-      // destroyed, already has: detaching it here would warn (NG0406).
-      ref.destroy();
-      environment.destroy();
+      if (current) {
+        unmount(current);
+        current = undefined;
+      }
       popup.close();
     }
   };

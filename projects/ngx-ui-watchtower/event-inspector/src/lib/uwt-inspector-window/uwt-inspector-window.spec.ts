@@ -26,15 +26,55 @@ function fakePopup() {
   }
   jest.spyOn(popup, 'focus').mockImplementation(() => undefined);
   jest.spyOn(popup, 'close').mockImplementation(() => undefined);
-  jest.spyOn(popup, 'removeEventListener');
+  // A spy that still removes, through the real window: the popup the code
+  // sees is a proxy, which a window's own methods would not accept as `this`.
+  const remove = popup.removeEventListener.bind(popup);
+  jest
+    .spyOn(popup, 'removeEventListener')
+    .mockImplementation((type, listener, options) =>
+      remove(type, listener, options)
+    );
+  // What a browser does to a window: a reload gives it a new document, and
+  // closing it makes it `closed`. Everything else is the iframe's window.
+  let current: Document = doc;
+  let closed = false;
+  const shown = new Proxy(popup, {
+    get(target, name) {
+      if (name === 'document') {
+        return current;
+      }
+      if (name === 'closed') {
+        return closed;
+      }
+      const value = Reflect.get(target, name, target);
+      // The spies are the test's to see; any other method is the window's.
+      return typeof value === 'function' && !jest.isMockFunction(value)
+        ? value.bind(target)
+        : value;
+    }
+  });
   return {
-    popup,
+    popup: shown,
     doc,
     fire: (type: string) => popup.dispatchEvent(new popup.Event(type)),
     key: () =>
-      doc.body.dispatchEvent(
+      current.body.dispatchEvent(
         new popup.KeyboardEvent('keydown', { bubbles: true })
-      )
+      ),
+    /** The page hides, and a new, empty document takes its place. */
+    reload: () => {
+      popup.dispatchEvent(new popup.Event('pagehide'));
+      // A document with a window of its own, as a browser's is.
+      current = document.body.appendChild(
+        document.createElement('iframe')
+      ).contentDocument!;
+      return current;
+    },
+    /** The page hides, and the window goes. */
+    close: () => {
+      popup.dispatchEvent(new popup.Event('pagehide'));
+      closed = true;
+    }
   };
 }
 
@@ -130,24 +170,80 @@ describe('uwtOpenInspectorWindow', () => {
   });
 
   it('should pass on key presses, and report its closing with its geometry', () => {
-    const { popup, fire, key } = fakePopup();
+    jest.useFakeTimers();
+    const { popup, close, key } = fakePopup();
     jest.spyOn(window, 'open').mockReturnValue(popup);
     const host = uwtOpenInspectorWindow(options);
 
     key();
     expect(options.onKeydown).toHaveBeenCalledTimes(1);
 
-    fire('pagehide');
+    close();
     expect(options.onGeometry).toHaveBeenCalledWith({
       width: 900,
       height: 700,
       left: 5,
       top: 6
     });
+    // A reload hides the page too, so the window is looked at once it settles.
+    jest.advanceTimersByTime(100);
     expect(options.onClosed).toHaveBeenCalledTimes(1);
 
     host?.destroy();
     expect(options.onGeometry).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
+  });
+
+  it('should stay open, showing the inspector again, when the window is reloaded', () => {
+    jest.useFakeTimers();
+    const { popup, reload, key } = fakePopup();
+    jest.spyOn(window, 'open').mockReturnValue(popup);
+    const host = uwtOpenInspectorWindow(options);
+
+    const doc = reload();
+    jest.advanceTimersByTime(100);
+
+    expect(options.onClosed).not.toHaveBeenCalled();
+    expect(doc.title).toBe('Event Inspector · shop');
+    expect(doc.head.textContent).toContain('.app {}');
+    expect(doc.querySelector('.uwt-inspector__title')?.textContent).toBe(
+      'Event Inspector'
+    );
+    expect(doc.querySelector('link[rel="icon"]')).not.toBeNull();
+    key();
+    expect(options.onKeydown).toHaveBeenCalledTimes(1);
+    host?.destroy();
+    jest.useRealTimers();
+  });
+
+  it('should keep the geometry of the window it shows again, for when it closes', () => {
+    jest.useFakeTimers();
+    const { popup, reload } = fakePopup();
+    jest.spyOn(window, 'open').mockReturnValue(popup);
+    const host = uwtOpenInspectorWindow(options);
+
+    reload();
+    jest.advanceTimersByTime(100);
+    expect(options.onGeometry).toHaveBeenCalledTimes(1);
+
+    host?.destroy();
+    expect(options.onGeometry).toHaveBeenCalledTimes(2);
+    jest.useRealTimers();
+  });
+
+  it('should report its closing when the window never comes back', () => {
+    jest.useFakeTimers();
+    const { popup, fire } = fakePopup();
+    jest.spyOn(window, 'open').mockReturnValue(popup);
+    const host = uwtOpenInspectorWindow(options);
+
+    fire('pagehide');
+    // The inspector has timers of its own: the wait is advanced, not run out.
+    jest.advanceTimersByTime(5000);
+
+    expect(options.onClosed).toHaveBeenCalledTimes(1);
+    host?.destroy();
+    jest.useRealTimers();
   });
 
   it('should close the window again when it fails to show the inspector', () => {

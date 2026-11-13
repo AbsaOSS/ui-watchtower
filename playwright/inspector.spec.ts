@@ -406,6 +406,34 @@ test('an Esc that closes the inspector is marked handled, so notifications stay;
   ).toEqual([false, true]);
 });
 
+test('a separate window survives a reload, and shows what it had captured', async ({
+  page
+}) => {
+  const popup = page.waitForEvent('popup');
+  await press(page, 'Separate window');
+  const window = await popup;
+  await press(page, 'One of each kind');
+
+  const status = window.locator('.uwt-inspector__status');
+  await expect(status).toContainText(/[1-9]\d* events?/);
+  const captured = (await status.innerText()).match(/(\d+) events?/)![1];
+  // The reload gives it a new, empty document; this mark does not survive it.
+  await window.evaluate(() => (document.body.dataset.before = 'reload'));
+  let closed = false;
+  window.on('close', () => (closed = true));
+
+  await window.evaluate(() => location.reload()).catch(() => undefined);
+
+  await expect(window.locator('.uwt-inspector__header')).toBeVisible();
+  await expect(window.locator('body')).not.toHaveAttribute('data-before', /./);
+  await expect(status).toContainText(`${captured} event`);
+  expect(closed).toBe(false);
+
+  // Still the inspector's own window: closing it closes the inspector.
+  await window.close();
+  await expect(page.locator('uwt-inspector')).toHaveCount(0);
+});
+
 test('reopens where it was last, after a reload', async ({ page }) => {
   await press(page, 'Right pane');
   await expect(page.locator('uwt-inspector-pane')).toBeVisible();

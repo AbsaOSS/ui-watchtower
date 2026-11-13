@@ -251,9 +251,12 @@ across realms).
   The app's stylesheets are copied in and kept in step, since Angular adds
   a component's styles when it first renders. Its icon is the inspector's
   own mark, an SVG taken from the logo it drew, as a library can't count on
-  serving a file. One session holds the
-  captured history from opening to closing, so moving between docks — each
-  a fresh view — loses nothing.
+  serving a file. The window stays at `about:blank`, as the app draws it.
+  Reloading it gives it a new, empty document, which the app draws into again
+  (its page hiding counts as a close only if the window is gone a moment
+  later). One session holds the captured history from opening to closing, so
+  moving between docks — each a fresh view — or reloading the window loses
+  nothing.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
@@ -2123,7 +2126,7 @@ side, and the choice is remembered in this browser:
 | Dock                | What you get                                                                                                                                                                                                                                       |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dialog (default)    | A non-modal dialog on the right, half the screen wide, between 40rem (or nearly all of a small screen) and 64rem. Draggable, resizable and maximizable, with a Transparency slider. Escape inside it, its header included, closes it and marks the key handled, so cps-ui-kit's notifications stay open; elsewhere, Escape stays the app's. |
-| Separate window     | Its own browser window, which it fills: 1200×800 the first time, then wherever it was last. Closing the window closes the inspector, and so does reloading the app.                                                                                |
+| Separate window     | Its own browser window, which it fills: 1200×800 the first time, then wherever it was last. Closing the window closes the inspector, and so does reloading the app; reloading the window draws it again, with what it had captured.                                                                                |
 | Left, right, bottom | A pane beside or below the app, which moves aside to make room. Drag its inner edge, or focus it and use the arrow keys, to resize it between 30rem (12rem at the bottom) and 80% of the screen; each side remembers its size.                     |
 
 Moving it keeps everything captured, the filters and the pause; pages and
