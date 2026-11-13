@@ -1,45 +1,13 @@
-import { isPlatformBrowser } from '@angular/common';
-import { inject, isDevMode, PLATFORM_ID } from '@angular/core';
+import { DOCUMENT, isPlatformBrowser } from '@angular/common';
+import { inject, isDevMode, NgZone, PLATFORM_ID } from '@angular/core';
+import type { UwtReporter } from '@absaoss-cps/ui-watchtower';
 
-/**
- * A local copy of `@absaoss-cps/ngx-ui-watchtower`'s own `uwt-telemetry-safe.util.ts` —
- * `uwtSafe`/`uwtSafeVoid`/`uwtIsBrowser`/`uwtIsDevMode`/`uwtUuid`, verbatim.
- *
- * Not imported from the main entry point: ng-packagr fixes every entry
- * point's `rootDir` to its own `src` directory (unconditionally — see
- * `initializeTsConfig` in ng-packagr's own `tsconfig.js`), so a secondary
- * entry point cannot reach a file physically outside `rum/src` by relative
- * path. The main entry deliberately doesn't export these either,
- * "Maintaining this package", the fail-open wrappers and id generation stay
- * internal so they can change freely without a breaking release, and widening
- * the public API just to satisfy this entry point's own plumbing would trade
- * away that freedom for every consumer, not just this one. A small,
- * verbatim, unexported copy is the cheaper trade.
+/*
+ * Small copies of the main entry point's own Angular helpers. Not imported
+ * from it: ng-packagr fixes every entry point's `rootDir` to its own `src`,
+ * so this one can't reach the main entry's internals by relative path, and
+ * the main entry keeps them out of its public API so they can change freely.
  */
-
-/**
- * Runs a telemetry operation without letting it affect the application.
- *
- * Every public entry point in this library routes through this wrapper —
- * it never rethrows. In development the caught error is reported to the
- * console; in production nothing is printed.
- */
-export function uwtSafe<T>(operation: string, fn: () => T, fallback: T): T {
-  try {
-    return fn();
-  } catch (error) {
-    reportSuppressed(operation, error);
-    return fallback;
-  }
-}
-
-/**
- * Void-returning form of {@link uwtSafe}, for the common case of an emit call
- * whose result nobody reads.
- */
-export function uwtSafeVoid(operation: string, fn: () => void): void {
-  uwtSafe(operation, fn, undefined);
-}
 
 /** `isDevMode()` throws outside an Angular context, so this guards that once for every caller. */
 export function uwtIsDevMode(): boolean {
@@ -59,60 +27,34 @@ export function uwtIsBrowser(): boolean {
   return isPlatformBrowser(inject(PLATFORM_ID));
 }
 
-function reportSuppressed(operation: string, error: unknown): void {
-  if (!uwtIsDevMode()) {
-    return;
-  }
-  try {
-    console.error(`[ngx-ui-watchtower] ${operation} failed`, error);
-  } catch {
-    // A patched/throwing console must never escape telemetry suppression.
-  }
+/**
+ * The page the RUM sink reads: the document in a browser, nothing in a
+ * server-side render, where the client never starts. Must be called from an
+ * injection context.
+ */
+export function uwtBrowserDocument(): Document | null {
+  const document = inject(DOCUMENT);
+  return uwtIsBrowser() ? document : null;
 }
 
 /**
- * Fills a byte array from the best available source. `crypto.getRandomValues`
- * works on plain http:// too, where `crypto.randomUUID` doesn't. `Math.random`
- * is the last-resort fallback for an environment with no Web Crypto at all.
+ * Runs a callback outside Angular's zone when there is one. Must be called
+ * from an injection context.
  */
-function randomBytes(count: number): Uint8Array {
-  const bytes = new Uint8Array(count);
-  const cryptoRef = globalThis.crypto;
-
-  if (typeof cryptoRef?.getRandomValues === 'function') {
-    return cryptoRef.getRandomValues(bytes);
-  }
-
-  for (let i = 0; i < count; i++) {
-    bytes[i] = (Math.random() * 256) | 0;
-  }
-  return bytes;
-}
-
-/** Lowercase hex encoding, two characters per byte. */
-function toHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+export function uwtRunOutsideZone(): <T>(callback: () => T) => T {
+  const zone = inject(NgZone, { optional: true });
+  return (callback) => (zone ? zone.runOutsideAngular(callback) : callback());
 }
 
 /**
- * Generates a correlation identifier. Prefers `crypto.randomUUID`, falling
- * back to formatting random bytes as a v4 UUID.
+ * How this package reports what telemetry handles silently: to the console,
+ * prefixed. Failures and dropped data only in development mode; something
+ * that cannot work as configured (`'config'`) in production too.
  */
-export function uwtUuid(): string {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
+export const uwtDevModeReporter: UwtReporter = (level, message, ...details) => {
+  if (level === 'config') {
+    console.warn(`[ngx-ui-watchtower] ${message}`, ...details);
+  } else if (uwtIsDevMode()) {
+    console[level](`[ngx-ui-watchtower] ${message}`, ...details);
   }
-
-  const bytes = randomBytes(16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
-  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 1
-
-  const hex = toHex(bytes);
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20)
-  ].join('-');
-}
+};

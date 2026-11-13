@@ -7,6 +7,8 @@ module.exports = {
       '<rootDir>/projects/ui-watchtower/src/public-api.ts',
     '^@absaoss-cps/ui-watchtower/rxjs$':
       '<rootDir>/projects/ui-watchtower/rxjs/src/public-api.ts',
+    '^@absaoss-cps/ui-watchtower/rum$':
+      '<rootDir>/projects/ui-watchtower/rum/src/public-api.ts',
     '^@absaoss-cps/ngx-ui-watchtower$':
       '<rootDir>/projects/ngx-ui-watchtower/src/public-api.ts',
     '^@absaoss-cps/ngx-ui-watchtower/rum$':
@@ -34,5 +36,8 @@ module.exports = {
     '!projects/**/public-api.ts',
     // Compiled by the typecheck, never run.
     '!projects/**/type-tests/**'
-  ]
+  ],
+  coverageThreshold: {
+    global: { statements: 90, branches: 90, functions: 90, lines: 90 }
+  }
 };
