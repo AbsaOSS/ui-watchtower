@@ -31,7 +31,12 @@ import { labCheckConfig } from '../../lab/lab-config-check';
 import { parseJsonObject } from '../../lab/lab-json';
 import { labSearch, LabOptions } from '../../lab/lab-options';
 import { LabLoggerLevelsComponent } from '../../lab/lab-logger-levels.component';
-import { LAB_FIELD_GROUPS, LabField } from '../../lab/lab-settings-fields';
+import {
+  LAB_BROKER_FIELDS,
+  LAB_FIELD_GROUPS,
+  LabBrokerField,
+  LabField
+} from '../../lab/lab-settings-fields';
 import {
   LabShortcut,
   LabShortcutsComponent
@@ -297,6 +302,48 @@ const DEFAULT_TELEMETRIES: LabTelemetry[] = ['errors', 'performance', 'http'];
             width="26rem"
             (valueChanged)="telemetries.set($event)" />
         }
+        <p>
+          The app monitor settings most worth trying; the JSON below has the
+          rest, and is what is sent.
+        </p>
+        <div class="lab-fields">
+          @for (field of brokerFields; track field.key) {
+            @switch (field.kind) {
+              @case ('switch') {
+                <cps-switch
+                  [label]="field.label"
+                  [value]="!!brokerSetting(field)"
+                  [disabled]="!brokerObject()"
+                  (valueChanged)="setBroker(field.key, $event)" />
+              }
+              @case ('number') {
+                <cps-input
+                  type="number"
+                  [label]="field.label"
+                  width="26rem"
+                  [value]="'' + brokerSetting(field)"
+                  [disabled]="!brokerObject()"
+                  (valueChanged)="setBrokerNumber(field.key, $event)" />
+              }
+              @case ('lines') {
+                <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
+                <cps-textarea
+                  ngSkipHydration
+                  [label]="field.label"
+                  [rows]="2"
+                  width="26rem"
+                  [value]="
+                    list(brokerSetting(field)).join(
+                      '
+'
+                    )
+                  "
+                  [disabled]="!brokerObject()"
+                  (valueChanged)="setBrokerLines(field.key, $event)" />
+              }
+            }
+          }
+        </div>
         <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
         <cps-textarea
           ngSkipHydration
@@ -347,6 +394,7 @@ const DEFAULT_TELEMETRIES: LabTelemetry[] = ['errors', 'performance', 'http'];
 export class SettingsPage {
   protected readonly flags = DEBUG_FLAGS;
   protected readonly groups = LAB_FIELD_GROUPS;
+  protected readonly brokerFields = LAB_BROKER_FIELDS;
   protected readonly destinations = DESTINATIONS;
   protected readonly channels = CHANNELS;
   protected readonly inspectorModes = INSPECTOR_MODES;
@@ -371,6 +419,7 @@ export class SettingsPage {
     const inspector = inject(UWT_EVENT_INSPECTOR_CONFIG);
     return {
       identity: {
+        ...inject(UWT_TELEMETRY_IDENTITY),
         eventNamespace: inject(UWT_TELEMETRY_IDENTITY).eventNamespace ?? ''
       },
       scenarios: { ...inject(UWT_SCENARIO_TELEMETRY_CONFIG) },
@@ -435,6 +484,11 @@ export class SettingsPage {
 
   protected readonly brokerConfigError = signal('');
 
+  /** The broker's config as the draft has it, or `undefined` while it isn't an object. */
+  protected readonly brokerObject = computed(() =>
+    parseJsonObject(this.brokerConfig().trim() || '{}')
+  );
+
   protected readonly debug = signal(this.readDebug());
 
   /** What the library was given, read back from its tokens. */
@@ -479,6 +533,37 @@ export class SettingsPage {
 
   protected shortcutsOf(value: unknown): LabShortcut[] {
     return Array.isArray(value) ? (value as LabShortcut[]) : [];
+  }
+
+  /** A broker setting as the draft has it, or what the app monitor does without one. */
+  protected brokerSetting(field: LabBrokerField): unknown {
+    return this.brokerObject()?.[field.key] ?? field.default;
+  }
+
+  /** Writes a control's setting into the broker's config, which shows it. */
+  protected setBroker(key: string, value: unknown): void {
+    const config = this.brokerObject();
+    if (config) {
+      this.brokerConfig.set(JSON.stringify({ ...config, [key]: value }));
+      this.brokerConfigError.set('');
+    }
+  }
+
+  protected setBrokerNumber(key: string, value: unknown): void {
+    const number = Number(value);
+    if (value !== '' && Number.isFinite(number)) {
+      this.setBroker(key, number);
+    }
+  }
+
+  protected setBrokerLines(key: string, text: string): void {
+    this.setBroker(
+      key,
+      text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+    );
   }
 
   /** A text of lines into the list it stands for: blank lines are none. */

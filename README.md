@@ -134,8 +134,11 @@ The mock RUM broker's answer is set on the **Settings** page too:
 
 It also sets RUM's own `telemetries` (the library's default, or any of
 `errors`, `performance`, `interaction`, `http` and `replay`, down to none),
-and a JSON object laid over the broker's app monitor config, such as
-`{ "sessionSampleRate": 0 }`.
+and the broker's app monitor config: controls for the settings most worth
+trying (`sessionSampleRate`, `sessionEventLimit`, `dispatchInterval`,
+`allowCookies`, `enableXRay`, `disableAutoPageView`, `recordResourceUrl` and
+the pages to include or exclude), and a JSON object laid over it for the rest,
+such as `{ "sessionSampleRate": 0 }`.
 
 ### Automated tests
 

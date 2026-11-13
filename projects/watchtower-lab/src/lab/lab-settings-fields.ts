@@ -39,6 +39,24 @@ export const LAB_FIELD_GROUPS: LabFieldGroup[] = [
       {
         kind: 'text',
         section: 'identity',
+        key: 'application',
+        label: 'Application name (identity.application)'
+      },
+      {
+        kind: 'text',
+        section: 'identity',
+        key: 'environment',
+        label: 'Environment (identity.environment)'
+      },
+      {
+        kind: 'text',
+        section: 'identity',
+        key: 'version',
+        label: 'Version (identity.version)'
+      },
+      {
+        kind: 'text',
+        section: 'identity',
         key: 'eventNamespace',
         label: 'Event namespace (identity.eventNamespace)'
       }
@@ -237,5 +255,76 @@ export const LAB_FIELD_GROUPS: LabFieldGroup[] = [
         label: 'Shortcuts (inspector.shortcuts)'
       }
     ]
+  }
+];
+
+/** A setting of the mock broker's app monitor config, which it lays over its own answer. */
+export interface LabBrokerField {
+  kind: 'number' | 'switch' | 'lines';
+  key: string;
+  label: string;
+  /** What the app monitor does with none given, shown until one is. */
+  default: number | boolean | string[];
+}
+
+/**
+ * The app monitor settings most worth trying, with the values the broker
+ * answers with, or the app monitor takes, when none is given. Any others
+ * are the JSON's.
+ */
+export const LAB_BROKER_FIELDS: LabBrokerField[] = [
+  {
+    kind: 'number',
+    key: 'sessionSampleRate',
+    label: 'Session sample rate, 0 to 1 (sessionSampleRate)',
+    default: 1
+  },
+  {
+    kind: 'number',
+    key: 'sessionEventLimit',
+    label: 'Session event limit, 0 for none (sessionEventLimit)',
+    default: 0
+  },
+  {
+    kind: 'number',
+    key: 'dispatchInterval',
+    label: 'Dispatch interval, ms (dispatchInterval)',
+    default: 2000
+  },
+  {
+    kind: 'switch',
+    key: 'allowCookies',
+    label: 'Allow cookies (allowCookies)',
+    default: true
+  },
+  {
+    kind: 'switch',
+    key: 'enableXRay',
+    label: 'X-Ray tracing (enableXRay)',
+    default: false
+  },
+  {
+    kind: 'switch',
+    key: 'disableAutoPageView',
+    label: 'Automatic page view off (disableAutoPageView)',
+    default: false
+  },
+  {
+    kind: 'switch',
+    key: 'recordResourceUrl',
+    label: 'Record resource URLs (recordResourceUrl)',
+    default: true
+  },
+  {
+    kind: 'lines',
+    key: 'pagesToExclude',
+    label: 'Pages to exclude, one RegExp per line (pagesToExclude)',
+    default: []
+  },
+  {
+    kind: 'lines',
+    key: 'pagesToInclude',
+    label: 'Pages to include, one RegExp per line (pagesToInclude)',
+    default: []
   }
 ];

@@ -477,6 +477,90 @@ test("the Event Inspector's shortcuts are listed, removed and added", async ({
   await expect(inspector).toBeVisible();
 });
 
+test("the application's identity is set from the page", async ({ page }) => {
+  await openLab(page, 'settings');
+
+  await fill(page, 'Application name', 'acme-shop');
+  await fill(page, 'Environment', 'qa');
+  await fill(page, 'Version', '2.3.4');
+  await press(page, 'Apply and reload');
+
+  const effective = page.locator('.lab-readout');
+  await expect(effective).toContainText('"application": "acme-shop"');
+  await expect(effective).toContainText('"environment": "qa"');
+  await expect(effective).toContainText('"version": "2.3.4"');
+});
+
+test("the mock broker's app monitor settings are controls, and apply with the rest", async ({
+  page,
+  backend
+}) => {
+  await openLab(page, 'settings');
+  const config = page.getByRole('textbox', {
+    name: 'Laid over the app monitor config (JSON)'
+  });
+
+  await fill(page, 'Session sample rate', '0.5');
+  await fill(page, 'Session event limit', '25');
+  await fill(page, 'Dispatch interval', '500');
+  await toggle(page, 'Allow cookies');
+  await toggle(page, 'X-Ray tracing');
+  await toggle(page, 'Automatic page view');
+  await toggle(page, 'Record resource URLs');
+  await page
+    .getByRole('textbox', { name: /^Pages to exclude/ })
+    .fill('^/admin');
+  await page
+    .getByRole('textbox', { name: /^Pages to include/ })
+    .fill('^/shop\n^/cart');
+
+  // Each control writes into the overlay, which shows it.
+  await expect(config).toHaveValue(/"sessionSampleRate":0.5/);
+  await expect(config).toHaveValue(
+    /"pagesToInclude":\["\^\/shop","\^\/cart"\]/
+  );
+  // Nothing is set until applied.
+  expect((await backend.state()).brokerConfig).toEqual({});
+
+  await press(page, 'Apply and reload');
+  await expect
+    .poll(async () => (await backend.state()).brokerConfig)
+    .toEqual({
+      sessionSampleRate: 0.5,
+      sessionEventLimit: 25,
+      dispatchInterval: 500,
+      allowCookies: false,
+      enableXRay: true,
+      disableAutoPageView: true,
+      recordResourceUrl: false,
+      pagesToExclude: ['^/admin'],
+      pagesToInclude: ['^/shop', '^/cart']
+    });
+});
+
+test('the broker controls start at what the broker answers with', async ({
+  page
+}) => {
+  await openLab(page, 'settings');
+  const { config } = await (await page.request.get('/rum/init')).json();
+
+  const shown = async (label: string) =>
+    page.locator('cps-input', { hasText: label }).locator('input').inputValue();
+  expect(await shown('Session sample rate')).toBe(
+    String(config.sessionSampleRate)
+  );
+  expect(await shown('Session event limit')).toBe(
+    String(config.sessionEventLimit)
+  );
+  expect(await shown('Dispatch interval')).toBe(
+    String(config.dispatchInterval)
+  );
+  // On, as the broker's answer has it.
+  await expect(
+    page.locator('cps-switch', { hasText: 'Allow cookies' }).locator('input')
+  ).toBeChecked({ checked: config.allowCookies });
+});
+
 test('inspector settings: a custom shortcut, a smaller section, a smaller view', async ({
   page
 }) => {

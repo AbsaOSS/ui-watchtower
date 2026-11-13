@@ -3,7 +3,8 @@ import {
   UwtBITelemetryConfig,
   UwtLogConfig,
   UwtRedactConfig,
-  UwtScenarioTelemetryConfig
+  UwtScenarioTelemetryConfig,
+  UwtTelemetryIdentity
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { UwtEventInspectorConfig } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
 import { parseJsonObject } from './lab-json';
@@ -20,7 +21,7 @@ export const LAB_VALUE_TRANSFORMS = {
  * {@link LAB_VALUE_TRANSFORMS}.
  */
 export interface LabConfig {
-  identity?: { eventNamespace?: string };
+  identity?: Partial<UwtTelemetryIdentity>;
   scenarios?: Partial<UwtScenarioTelemetryConfig>;
   logging?: Partial<UwtLogConfig>;
   bi?: Partial<UwtBITelemetryConfig>;
