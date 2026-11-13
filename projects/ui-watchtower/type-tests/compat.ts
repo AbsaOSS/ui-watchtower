@@ -5,6 +5,11 @@
  * here, so every name is a plain string; see `augmented.ts` for registered
  * names.
  */
+import { firstValueFrom, Observable, of } from 'rxjs';
+import {
+  traceScenario,
+  UwtTraceScenarioOptions
+} from '@absaoss-cps/ui-watchtower/rxjs';
 import {
   UWT_DEFAULT_EVENT_NAMESPACE,
   UWT_DEFAULT_REDACT_CONFIG,
@@ -12,8 +17,11 @@ import {
   UWT_LOG_LEVEL_ORDER,
   UWT_REDACTED,
   UWT_TELEMETRY_EVENT_TYPE,
+  UwtBITelemetry,
   UwtBITelemetryConfig,
+  UwtBITelemetryOptions,
   uwtClassifyTelemetryEvent,
+  uwtCreateTelemetry,
   UwtDebugFlag,
   uwtEventTypes,
   uwtIsDebugEnabled,
@@ -22,20 +30,35 @@ import {
   UwtLogLevel,
   UwtLogQuery,
   UwtLogRecord,
+  UwtLogTelemetry,
+  UwtLogTelemetryOptions,
   uwtMarkSessionStart,
   uwtNormalizeError,
+  UwtNoopLogApiProvider,
+  UwtNoopTelemetrySink,
   UwtPiiValuePattern,
   UwtRedactConfig,
   uwtRedactConfigFor,
   uwtRedactMetadata,
   UwtReporter,
+  uwtResolveTelemetryConfig,
+  uwtSafe,
+  uwtSafeVoid,
+  uwtSafeVoidMaybeAsync,
   UwtScenario,
   UwtScenarioRecord,
+  UwtScenarioTelemetry,
   UwtScenarioTelemetryConfig,
+  UwtScenarioTelemetryOptions,
   uwtScrubString,
+  UwtTelemetry,
+  UwtTelemetryConfig,
+  UwtTelemetryConfigOverrides,
+  UwtTelemetryDocument,
   UwtTelemetryError,
   UwtTelemetryIdentity,
   UwtTelemetryMetadata,
+  UwtTelemetryOptions,
   UwtTelemetrySink,
   UwtTelemetrySinkEvent,
   uwtUuid
@@ -129,5 +152,89 @@ export function utilities(): unknown[] {
     uwtNormalizeError(new Error('x'), redact, report),
     patterns,
     UWT_REDACTED
+  ];
+}
+
+/** The engine, as a framework-free application creates and uses it. */
+export async function engine(
+  page: UwtTelemetryDocument | null
+): Promise<number> {
+  const overrides: UwtTelemetryConfigOverrides = {
+    logging: { minLevel: 'warn' },
+    redaction: { scanValuePatterns: ['email'] }
+  };
+  const options: UwtTelemetryOptions = {
+    identity,
+    destination: new UwtNoopTelemetrySink(),
+    logApi: new UwtNoopLogApiProvider(),
+    document: page,
+    runOutside: (callback) => callback(),
+    report,
+    ...overrides
+  };
+  const telemetry: UwtTelemetry = uwtCreateTelemetry(options);
+  const config: UwtTelemetryConfig = uwtResolveTelemetryConfig(overrides);
+
+  const scenario: UwtScenario = telemetry.scenarios.start({ name: 'checkout' });
+  const stop = telemetry.scenarios.onSettled((record: UwtScenarioRecord) =>
+    report('warn', record.scenarioName)
+  );
+  const traced: UwtTraceScenarioOptions<number> = {
+    outcome: (count) => ({ metadata: { count } })
+  };
+  const piped: Observable<number> = of(1).pipe(
+    traceScenario(scenario, traced, report)
+  );
+  await firstValueFrom(piped);
+  telemetry.bi.track(
+    'export_clicked',
+    { format: 'csv' },
+    { scenarioId: scenario.id }
+  );
+  telemetry.logging.getLogger('checkout').warn('careful');
+  const lines: UwtLogRecord[] = await telemetry.logging.query({ limit: 1 });
+  telemetry.setUserId('user-1');
+  telemetry.flush(true);
+  stop();
+  telemetry.dispose();
+  uwtSafeVoid('app.cleanup', () => undefined, report);
+  uwtSafeVoidMaybeAsync('app.async', async () => undefined, report);
+  return uwtSafe(
+    'app.count',
+    () => lines.length + config.bi.dedupWindowMs,
+    0,
+    report
+  );
+}
+
+/** Each concern on its own, as an adapter composes them. */
+export function concerns(
+  sink: UwtTelemetrySink,
+  logApi: UwtLogApiProvider
+): unknown[] {
+  const config = uwtResolveTelemetryConfig();
+  const shared = { identity, redact: config.redaction, report };
+  const scenarioOptions: UwtScenarioTelemetryOptions = {
+    ...shared,
+    config: config.scenarios,
+    sink,
+    document: null
+  };
+  const biOptions: UwtBITelemetryOptions = {
+    ...shared,
+    config: config.bi,
+    sink
+  };
+  const logOptions: UwtLogTelemetryOptions = {
+    ...shared,
+    config: config.logging,
+    logApi,
+    sink,
+    document: null
+  };
+  return [
+    new UwtScenarioTelemetry(scenarioOptions),
+    new UwtBITelemetry(biOptions),
+    new UwtLogTelemetry(logOptions)
   ];
 }

@@ -1,9 +1,5 @@
 import { Injectable } from '@angular/core';
-import {
-  UwtLogApiProvider,
-  UwtLogQuery,
-  UwtLogRecord
-} from '@absaoss-cps/ui-watchtower';
+import { UwtNoopLogApiProvider as CoreNoopLogApiProvider } from '@absaoss-cps/ui-watchtower';
 
 /**
  * Log API provider that discards every record and finds none.
@@ -27,12 +23,4 @@ import {
  * @group Services
  */
 @Injectable()
-export class UwtNoopLogApiProvider implements UwtLogApiProvider {
-  /** @inheritdoc */
-  send(_record: UwtLogRecord): void {}
-
-  /** @inheritdoc */
-  query(_filter: UwtLogQuery): Promise<UwtLogRecord[]> {
-    return Promise.resolve([]);
-  }
-}
+export class UwtNoopLogApiProvider extends CoreNoopLogApiProvider {}

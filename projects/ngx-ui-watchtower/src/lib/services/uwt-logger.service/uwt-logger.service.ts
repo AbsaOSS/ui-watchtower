@@ -1,14 +1,10 @@
-import { DOCUMENT } from '@angular/common';
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import {
-  UWT_LOG_LEVEL_ORDER,
-  UwtLogDetail,
   UwtLogger,
   UwtLoggerName,
-  UwtLogLevel,
   UwtLogQuery,
   UwtLogRecord,
-  uwtRedactConfigFor,
+  UwtLogTelemetry,
   UwtTelemetrySink
 } from '@absaoss-cps/ui-watchtower';
 import {
@@ -18,25 +14,10 @@ import {
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_LOG_CONFIG } from '../../config/uwt-log.config/uwt-log.config';
 import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
-import { uwtDebugWrite } from '../../utils/uwt-debug-flag.util/uwt-debug-flag.util';
 import {
-  uwtNormalizeError,
-  uwtRedactMetadata,
-  uwtScrubString
-} from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-import {
-  uwtIsBrowser,
-  uwtSafe,
-  uwtSafeVoid,
-  uwtSafeVoidMaybeAsync
+  uwtBrowserDocument,
+  uwtDevModeReporter
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
-
-/** Handed out while telemetry is off: every call does nothing. */
-const INERT_LOGGER: UwtLogger = Object.freeze({
-  log: () => undefined,
-  warn: () => undefined,
-  error: () => undefined
-});
 
 /**
  * Structured application logging.
@@ -77,64 +58,22 @@ const INERT_LOGGER: UwtLogger = Object.freeze({
  */
 @Injectable({ providedIn: 'root' })
 export class UwtLoggerService implements OnDestroy {
-  private readonly identity = inject(UWT_TELEMETRY_IDENTITY);
-  private readonly logsConfig = inject(UWT_LOG_CONFIG);
-  private readonly redact = uwtRedactConfigFor(
-    inject(UWT_REDACT_CONFIG),
-    this.logsConfig.redact
-  );
-
-  /** Enrichment only (`sessionId`/`userId`, optional RUM mirroring). */
-  private readonly sink = inject(UwtTelemetrySink, { optional: true });
-  private readonly apiProvider = inject(UWT_LOG_API_PROVIDER);
-  private readonly document = inject(DOCUMENT);
-  private readonly enabled = uwtTelemetryEnabled();
-
-  /** Page listeners: only in a browser, and only while telemetry is on. */
-  private readonly listensToPage = uwtIsBrowser() && this.enabled;
-
-  private readonly onPageHide = () => this.flushProvider();
-  private readonly onVisibilityChange = () => {
-    if (this.document.visibilityState === 'hidden') {
-      this.flushProvider();
-    }
-  };
-
-  /**
-   * One logger per name, so {@link getLogger} is idempotent.
-   *
-   * Unbounded growth is not a concern the way it is for active scenarios:
-   * names come from the closed {@link UwtLoggerNames} vocabulary, so this
-   * map is bounded by what the application declared at build time.
-   */
-  private readonly loggers = new Map<UwtLoggerName, UwtLogger>();
-
-  constructor() {
-    if (this.listensToPage) {
-      this.document.defaultView?.addEventListener('pagehide', this.onPageHide);
-
-      this.document.addEventListener(
-        'visibilitychange',
-        this.onVisibilityChange
-      );
-    }
-  }
+  /** The core's logging, configured from this injector. */
+  private readonly logging = new UwtLogTelemetry({
+    identity: inject(UWT_TELEMETRY_IDENTITY),
+    config: inject(UWT_LOG_CONFIG),
+    redact: inject(UWT_REDACT_CONFIG),
+    // Enrichment only (`sessionId`/`userId`, optional RUM mirroring).
+    sink: inject(UwtTelemetrySink, { optional: true }),
+    logApi: inject(UWT_LOG_API_PROVIDER),
+    document: uwtBrowserDocument(),
+    enabled: uwtTelemetryEnabled(),
+    report: uwtDevModeReporter
+  });
 
   /** @inheritdoc */
   ngOnDestroy(): void {
-    if (this.listensToPage) {
-      this.document.defaultView?.removeEventListener(
-        'pagehide',
-        this.onPageHide
-      );
-      this.document.removeEventListener(
-        'visibilitychange',
-        this.onVisibilityChange
-      );
-    }
-    if (this.enabled) {
-      this.flushProvider();
-    }
+    this.logging.dispose();
   }
 
   /**
@@ -158,17 +97,8 @@ export class UwtLoggerService implements OnDestroy {
    * @param filter narrows what is returned
    * @returns the matching records, or `[]` when none can be read
    */
-  async query(filter: UwtLogQuery = {}): Promise<UwtLogRecord[]> {
-    if (!this.enabled) {
-      return [];
-    }
-    const pending = uwtSafe(
-      'logger.query',
-      () => this.apiProvider.query(filter),
-      undefined
-    );
-
-    return (await pending?.catch(() => undefined)) ?? [];
+  query(filter: UwtLogQuery = {}): Promise<UwtLogRecord[]> {
+    return this.logging.query(filter);
   }
 
   /**
@@ -203,143 +133,6 @@ export class UwtLoggerService implements OnDestroy {
    * @returns the logger for that name, created once and reused
    */
   getLogger(name: UwtLoggerName): UwtLogger {
-    if (!this.enabled) {
-      return INERT_LOGGER;
-    }
-    const cached = uwtSafe(
-      'logger.getLogger',
-      () => this.loggers.get(name),
-      undefined
-    );
-    if (cached) {
-      return cached;
-    }
-
-    const logger = this.createLogger(name);
-    uwtSafeVoid('logger.register', () => this.loggers.set(name, logger));
-    return logger;
+    return this.logging.getLogger(name);
   }
-
-  /**
-   * Builds the logger for one name.
-   *
-   * Private, and reached only through {@link getLogger}, so every logger
-   * handed out is registered and named. The name is captured here rather
-   * than read from each call's detail, which is why a record's `logger`
-   * cannot disagree with the logger that wrote it.
-   *
-   * @param name the logger name stamped onto every record it writes
-   * @returns a logger bound to that name
-   */
-  private createLogger(name: UwtLoggerName): UwtLogger {
-    return {
-      log: (message, detail) => this.emit('log', name, message, detail),
-      warn: (message, detail) => this.emit('warn', name, message, detail),
-      error: (message, detail) => this.emit('error', name, message, detail)
-    };
-  }
-
-  /** Severity floor for one logger — its own override, or the global one. */
-  private minLevelFor(logger: UwtLoggerName): UwtLogLevel {
-    const { levels, minLevel } = this.logsConfig;
-    return levels?.[logger] ?? minLevel;
-  }
-
-  private emit(
-    level: UwtLogLevel,
-    logger: UwtLoggerName,
-    message: string,
-    detail?: UwtLogDetail
-  ): void {
-    uwtSafeVoid(`logger.${level}`, () => {
-      if (
-        UWT_LOG_LEVEL_ORDER[level] <
-        UWT_LOG_LEVEL_ORDER[this.minLevelFor(logger)]
-      ) {
-        return;
-      }
-
-      const record = this.buildRecord(level, logger, message, detail);
-
-      uwtDebugWrite('debugLogger', () => writeToConsole(record), record.logger);
-
-      this.deliver(record);
-
-      if (level === 'error' && this.logsConfig.mirrorErrorsToRum && this.sink) {
-        const mirrored =
-          record.error ??
-          uwtNormalizeError(new Error(record.message), this.redact);
-        if (mirrored) {
-          this.sink.recordError(mirrored);
-        }
-      }
-    });
-  }
-
-  /** Guards against a throwing or secretly-async, rejecting provider. */
-  private deliver(record: UwtLogRecord): void {
-    uwtSafeVoidMaybeAsync('logger.deliver', () =>
-      this.apiProvider.send(record)
-    );
-  }
-
-  /** Gives the provider its chance to ship whatever it has queued itself. */
-  private flushProvider(): void {
-    uwtSafeVoidMaybeAsync('logger.providerFlush', () =>
-      this.apiProvider.flush?.()
-    );
-  }
-
-  private buildRecord(
-    level: UwtLogLevel,
-    logger: UwtLoggerName,
-    message: string,
-    detail?: UwtLogDetail
-  ): UwtLogRecord {
-    const redact = this.redact;
-    const sink = this.sink;
-    const identity = this.identity;
-
-    return {
-      timestamp: new Date().toISOString(),
-      level,
-      message: uwtScrubString(String(message ?? ''), redact),
-      logger,
-      context: detail?.context
-        ? uwtScrubString(detail.context, redact)
-        : undefined,
-      metadata: uwtRedactMetadata(detail?.metadata, redact),
-      error: uwtNormalizeError(detail?.error, redact),
-      correlationId: detail?.correlationId
-        ? uwtScrubString(detail.correlationId, redact)
-        : undefined,
-      application: identity.application,
-      environment: identity.environment,
-      version: identity.version,
-      ...(sink && {
-        userId: uwtSafe('getUserId', () => sink.getUserId(), undefined),
-        sessionId: uwtSafe('getSessionId', () => sink.getSessionId(), undefined)
-      })
-    };
-  }
-}
-
-/**
- * Prints the record exactly as the transport receives it.
- *
- * Prefixed with the application - in a composed
- * page every realm writes to the one console - then the logger name and
- * the context, each when present.
- */
-function writeToConsole(record: UwtLogRecord): void {
-  const scope = [record.logger, record.context]
-    .filter(Boolean)
-    .map((part) => `[${part}]`)
-    .join('');
-  const suffix = record.correlationId ? ` (${record.correlationId})` : '';
-
-  console[record.level](
-    `[${record.application}]${scope} ${record.message}${suffix}`,
-    record
-  );
 }

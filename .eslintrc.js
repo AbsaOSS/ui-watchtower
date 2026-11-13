@@ -67,6 +67,30 @@ module.exports = {
           }
         ]
       }
+    },
+    {
+      // The core's RxJS entry point: RxJS, and still no framework.
+      files: ['projects/ui-watchtower/rxjs/**/*.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            patterns: [
+              {
+                group: [
+                  '@angular/*',
+                  'zone.js',
+                  '@absaoss-cps/ngx-ui-watchtower',
+                  '@absaoss-cps/ngx-ui-watchtower/*',
+                  'aws-rum-web',
+                  'aws-rum-web/*'
+                ],
+                message: 'The core is framework-independent.'
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 };

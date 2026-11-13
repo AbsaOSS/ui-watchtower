@@ -1,0 +1,16 @@
+/* Type-checks the ./rxjs entry point; ng-packagr builds it with the main tsconfig. */
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../../out-tsc/lib-core-rxjs",
+    // Includes the main entry point: it is read from source here.
+    "rootDir": "..",
+    "lib": ["ES2022", "DOM"],
+    "declaration": true,
+    "skipLibCheck": true,
+    "isolatedModules": false,
+    "types": []
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["**/*.spec.ts"]
+}

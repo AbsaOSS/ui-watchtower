@@ -7,18 +7,19 @@
 module.exports = {
   displayName: 'ui-watchtower',
   rootDir: __dirname,
-  roots: ['<rootDir>/src'],
+  roots: ['<rootDir>/src', '<rootDir>/rxjs'],
   testEnvironment: 'node',
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }]
   },
   moduleNameMapper: {
-    '^@absaoss-cps/ui-watchtower$': '<rootDir>/src/public-api.ts'
+    '^@absaoss-cps/ui-watchtower$': '<rootDir>/src/public-api.ts',
+    '^@absaoss-cps/ui-watchtower/rxjs$': '<rootDir>/rxjs/src/public-api.ts'
   },
   coverageDirectory: '<rootDir>/../../coverage/ui-watchtower',
   collectCoverageFrom: [
-    'src/**/*.ts',
-    '!src/**/*.spec.ts',
-    '!src/**/public-api.ts'
+    '{src,rxjs}/**/*.ts',
+    '!**/*.spec.ts',
+    '!**/public-api.ts'
   ]
 };

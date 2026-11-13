@@ -1,6 +1,6 @@
 {
   "name": "@absaoss-cps/ui-watchtower",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Framework-independent telemetry engine: application logs, scenario health telemetry and business/UX events, for any JavaScript or TypeScript application.",
   "repository": {
     "type": "git",
@@ -9,13 +9,9 @@
   "homepage": "https://github.com/AbsaOSS/ui-watchtower",
   "license": "Apache-2.0",
   "peerDependencies": {
-    "aws-rum-web": "^3.2.1",
     "rxjs": "^7.8.2"
   },
   "peerDependenciesMeta": {
-    "aws-rum-web": {
-      "optional": true
-    },
     "rxjs": {
       "optional": true
     }

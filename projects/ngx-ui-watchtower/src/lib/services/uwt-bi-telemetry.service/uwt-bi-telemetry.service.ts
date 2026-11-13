@@ -1,11 +1,8 @@
 import { inject, Injectable } from '@angular/core';
 import {
-  UwtBIEvent,
   UwtBIEventDetail,
   UwtBIEventName,
-  uwtEventTypes,
-  uwtNow,
-  uwtRedactConfigFor,
+  UwtBITelemetry,
   UwtTelemetryMetadata,
   UwtTelemetrySink
 } from '@absaoss-cps/ui-watchtower';
@@ -15,15 +12,7 @@ import {
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_BI_TELEMETRY_CONFIG } from '../../config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
-import { uwtDebugWrite } from '../../utils/uwt-debug-flag.util/uwt-debug-flag.util';
-import {
-  uwtRedactMetadata,
-  uwtScrubString
-} from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-import {
-  uwtSafe,
-  uwtSafeVoid
-} from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+import { uwtDevModeReporter } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 
 /**
  * Business and UX event tracking — feature adoption, interaction analysis,
@@ -60,18 +49,15 @@ import {
  */
 @Injectable({ providedIn: 'root' })
 export class UwtBITelemetryService {
-  private readonly identity = inject(UWT_TELEMETRY_IDENTITY);
-  private readonly biConfig = inject(UWT_BI_TELEMETRY_CONFIG);
-  private readonly redact = uwtRedactConfigFor(
-    inject(UWT_REDACT_CONFIG),
-    this.biConfig.redact
-  );
-
-  private readonly sink = inject(UwtTelemetrySink);
-  private readonly enabled = uwtTelemetryEnabled();
-
-  private readonly eventTypes = uwtEventTypes(this.identity.eventNamespace);
-  private readonly lastEmittedAt = new Map<string, number>();
+  /** The core's BI telemetry, configured from this injector. */
+  private readonly bi = new UwtBITelemetry({
+    identity: inject(UWT_TELEMETRY_IDENTITY),
+    config: inject(UWT_BI_TELEMETRY_CONFIG),
+    redact: inject(UWT_REDACT_CONFIG),
+    sink: inject(UwtTelemetrySink),
+    enabled: uwtTelemetryEnabled(),
+    report: uwtDevModeReporter
+  });
 
   /**
    * Records a business or UX event.
@@ -87,123 +73,6 @@ export class UwtBITelemetryService {
     metadata?: UwtTelemetryMetadata,
     detail?: UwtBIEventDetail
   ): void {
-    if (!this.enabled) {
-      return;
-    }
-    uwtSafeVoid('biTelemetry.track', () => {
-      if (!eventName) {
-        return;
-      }
-
-      const redactedFeature = detail?.feature
-        ? uwtScrubString(detail.feature, this.redact)
-        : undefined;
-      const redactedMetadata = uwtRedactMetadata(metadata, this.redact);
-
-      if (
-        this.isDuplicate(eventName, redactedMetadata, {
-          ...detail,
-          feature: redactedFeature
-        })
-      ) {
-        return;
-      }
-
-      const event: UwtBIEvent = {
-        eventName,
-        eventTime: new Date().toISOString(),
-        scenarioId: detail?.scenarioId,
-        feature: redactedFeature,
-        metadata: redactedMetadata,
-        application: this.identity.application,
-        sessionId: uwtSafe(
-          'biTelemetry.getSessionId',
-          () => this.sink.getSessionId(),
-          undefined
-        ),
-        userId: uwtSafe(
-          'biTelemetry.getUserId',
-          () => this.sink.getUserId(),
-          undefined
-        )
-      };
-
-      uwtDebugWrite('debugBI', () =>
-        writeToConsole(eventName, this.eventTypes.bi, event)
-      );
-
-      this.sink.record(this.eventTypes.bi, event);
-    });
+    this.bi.track(eventName, metadata, detail);
   }
-
-  private isDuplicate(
-    eventName: string,
-    metadata: UwtTelemetryMetadata | undefined,
-    detail?: UwtBIEventDetail
-  ): boolean {
-    const key = JSON.stringify([
-      eventName,
-      detail?.scenarioId ?? '',
-      detail?.feature ?? '',
-      this.metadataKey(metadata)
-    ]);
-    const now = uwtNow();
-    const last = this.lastEmittedAt.get(key);
-
-    if (last !== undefined && now - last < this.biConfig.dedupWindowMs) {
-      this.lastEmittedAt.delete(key);
-      this.lastEmittedAt.set(key, last);
-      return true;
-    }
-
-    if (this.lastEmittedAt.size >= this.biConfig.dedupMaxKeys) {
-      for (const [staleKey, at] of this.lastEmittedAt) {
-        if (now - at >= this.biConfig.dedupWindowMs) {
-          this.lastEmittedAt.delete(staleKey);
-        }
-      }
-
-      if (this.lastEmittedAt.size >= this.biConfig.dedupMaxKeys) {
-        const oldestKey = this.lastEmittedAt.keys().next().value;
-        if (oldestKey !== undefined) {
-          this.lastEmittedAt.delete(oldestKey);
-        }
-      }
-    }
-
-    this.lastEmittedAt.delete(key);
-    this.lastEmittedAt.set(key, now);
-    return false;
-  }
-
-  /**
-   * A stable string encoding a flat metadata object's content, for use in
-   * the dedup key — otherwise two same-named events with different metadata
-   * would collide and the second would be silently dropped. Keys are sorted
-   * so property order doesn't affect the result. Callers pass already-
-   * redacted metadata — a caller's raw values must never end up as a `Map`
-   * key living in this root service's memory for the page lifetime.
-   */
-  private metadataKey(metadata: UwtTelemetryMetadata | undefined): string {
-    if (!metadata) {
-      return '';
-    }
-    return JSON.stringify(
-      Object.keys(metadata)
-        .sort()
-        .map((k) => [k, metadata[k]])
-    );
-  }
-}
-
-/**
- * Prefixed with the application - in a composed
- * page every realm writes to the one console.
- */
-function writeToConsole(
-  eventName: string,
-  eventType: string,
-  event: UwtBIEvent
-): void {
-  console.log(`[${event.application}][bi] ${eventName} -> ${eventType}`, event);
 }

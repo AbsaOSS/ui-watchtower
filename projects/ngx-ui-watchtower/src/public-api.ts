@@ -110,7 +110,7 @@ export { UwtNoopTelemetrySink } from './lib/sinks/uwt-telemetry/uwt-noop-telemet
 export { traceScenario } from './lib/scenario/uwt-scenario-operators/uwt-scenario-operators';
 export { uwtClassifyTelemetryEvent } from '@absaoss-cps/ui-watchtower';
 export type { UwtTelemetrySinkEvent } from '@absaoss-cps/ui-watchtower';
-export type { UwtTraceScenarioOptions } from './lib/scenario/uwt-scenario-operators/uwt-scenario-operators';
+export type { UwtTraceScenarioOptions } from '@absaoss-cps/ui-watchtower/rxjs';
 export { uwtIsDebugEnabled, uwtUuid } from '@absaoss-cps/ui-watchtower';
 export type { UwtDebugFlag } from '@absaoss-cps/ui-watchtower';
 export { uwtMarkSessionStart } from '@absaoss-cps/ui-watchtower';

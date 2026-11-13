@@ -5,9 +5,30 @@
  * nothing touches a browser global when imported.
  */
 
+// The engine
+export { uwtCreateTelemetry } from './lib/engine/uwt-telemetry/uwt-telemetry';
+export type {
+  UwtTelemetry,
+  UwtTelemetryOptions
+} from './lib/engine/uwt-telemetry/uwt-telemetry';
+export { UwtScenarioTelemetry } from './lib/engine/uwt-scenario-telemetry/uwt-scenario-telemetry';
+export type { UwtScenarioTelemetryOptions } from './lib/engine/uwt-scenario-telemetry/uwt-scenario-telemetry';
+export { UwtBITelemetry } from './lib/engine/uwt-bi-telemetry/uwt-bi-telemetry';
+export type { UwtBITelemetryOptions } from './lib/engine/uwt-bi-telemetry/uwt-bi-telemetry';
+export { UwtLogTelemetry } from './lib/engine/uwt-log-telemetry/uwt-log-telemetry';
+export type { UwtLogTelemetryOptions } from './lib/engine/uwt-log-telemetry/uwt-log-telemetry';
+export type { UwtTelemetryDocument } from './lib/engine/uwt-telemetry-page/uwt-telemetry-page';
+
 // Configuration
-export { UWT_DEFAULT_TELEMETRY_CONFIG } from './lib/config/uwt-telemetry-common.config/uwt-telemetry-common.config';
-export type { UwtTelemetryIdentity } from './lib/config/uwt-telemetry-common.config/uwt-telemetry-common.config';
+export {
+  UWT_DEFAULT_TELEMETRY_CONFIG,
+  uwtResolveTelemetryConfig
+} from './lib/config/uwt-telemetry-common.config/uwt-telemetry-common.config';
+export type {
+  UwtTelemetryConfig,
+  UwtTelemetryConfigOverrides,
+  UwtTelemetryIdentity
+} from './lib/config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 export type { UwtBITelemetryConfig } from './lib/config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
 export type { UwtLogConfig } from './lib/config/uwt-log.config/uwt-log.config';
 export type { UwtScenarioTelemetryConfig } from './lib/config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
@@ -58,19 +79,27 @@ export type {
 // Scenarios
 export { UwtScenario } from './lib/scenario/uwt-scenario/uwt-scenario';
 
-// Contracts a destination or a log backend implements
+// Contracts a destination or a log backend implements, and the explicit
+// "nowhere" of each
 export { UwtTelemetrySink } from './lib/sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+export { UwtNoopTelemetrySink } from './lib/sinks/uwt-telemetry/uwt-noop-telemetry.sink/uwt-noop-telemetry.sink';
 export type {
   UwtLogApiProvider,
   UwtLogQuery
 } from './lib/providers/uwt-log-api.provider/uwt-log-api.provider';
+export { UwtNoopLogApiProvider } from './lib/providers/uwt-noop-log-api.provider/uwt-noop-log-api.provider';
 
 // Utilities an application or a destination needs
 export { uwtClassifyTelemetryEvent } from './lib/utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
 export type { UwtTelemetrySinkEvent } from './lib/utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
 export { uwtIsDebugEnabled } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
 export type { UwtDebugFlag } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
-export { uwtUuid } from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+export {
+  uwtSafe,
+  uwtSafeVoid,
+  uwtSafeVoidMaybeAsync,
+  uwtUuid
+} from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 export type { UwtReporter } from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 export { uwtMarkSessionStart } from './lib/utils/uwt-session-start.util/uwt-session-start.util';
 export {
@@ -89,11 +118,3 @@ export type {
 // Used by @absaoss-cps/ngx-ui-watchtower while the engine moves into this
 // package; removed from the public API once that code lives here too.
 export { uwtSessionElapsed } from './lib/utils/uwt-session-start.util/uwt-session-start.util';
-export {
-  uwtDeepClone,
-  uwtNow,
-  uwtSafe,
-  uwtSafeVoid,
-  uwtSafeVoidMaybeAsync
-} from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
-export { uwtDebugWrite } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
