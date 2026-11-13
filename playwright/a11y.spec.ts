@@ -11,7 +11,7 @@ const PAGES = [
   'identity',
   'privacy',
   'lifecycle',
-  'fragment',
+  'iframe',
   'web-fragment',
   'inspector',
   'wire',

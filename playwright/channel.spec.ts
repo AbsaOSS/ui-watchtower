@@ -16,7 +16,9 @@ test("on a shared channel, one tab's host leads for every tab, and another takes
   tabs.forEach((tab) => watchErrors(tab, errors));
   for (const tab of tabs) {
     await openLab(tab, 'web-fragment?channel=shared');
-    await expect(tab.locator('web-fragment h1')).toHaveText('lab-fragment');
+    await expect(tab.locator('web-fragment h1')).toHaveText(
+      'Embedded application'
+    );
     await tab.locator('.lab-header-button').click();
     await expect(tab.locator('uwt-inspector')).toBeVisible();
   }

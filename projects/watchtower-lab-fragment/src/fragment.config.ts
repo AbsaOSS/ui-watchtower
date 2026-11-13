@@ -39,7 +39,11 @@ export const fragmentConfig: ApplicationConfig = {
     provideZonelessChangeDetection(),
     provideAnimations(),
     provideUwtTelemetry(
-      { application: 'lab-fragment', environment: 'lab', version: '1.0.0' },
+      {
+        application: 'Embedded application',
+        environment: 'lab',
+        version: '1.0.0'
+      },
       withLogging({ minLevel: 'log', mirrorErrorsToRum: true })
     ),
     provideUwtTelemetrySink('broadcast'),

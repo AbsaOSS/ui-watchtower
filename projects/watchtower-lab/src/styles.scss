@@ -26,6 +26,18 @@
   }
 }
 
+// The embedded application's box, the same whether it is embedded in an
+// iframe or as a Web Fragment: a fixed size, scrolling inside, on white.
+.lab-embed {
+  display: block;
+  width: 100%;
+  height: 24rem;
+  overflow: auto;
+  border: 0.0625rem dashed var(--cps-color-line-mid);
+  border-radius: 0.5rem;
+  background-color: #fff;
+}
+
 .lab-main:focus {
   outline: none;
 }
@@ -245,15 +257,36 @@ html.lab-insets {
 
   a {
     display: block;
-    padding: 0.5rem 1.25rem;
+    // The bar is reserved on every row, as the selected one gets it: its
+    // text then stays where it is, in line with the group headers.
+    padding: 0.625rem 1.25rem 0.625rem 1rem;
+    border-left: 0.25rem solid transparent;
     color: var(--cps-color-text-dark);
     text-decoration: none;
+    transition:
+      background-color 0.12s,
+      color 0.12s;
+
+    // The tint is faint against the page, so the text changes colour too.
+    &:hover {
+      background-color: rgb(135 10 60 / 7%);
+      color: var(--cps-color-calm);
+    }
+
+    &:active {
+      background-color: rgb(135 10 60 / 15%);
+      color: var(--cps-color-calm);
+    }
 
     &.active {
-      border-left: 0.25rem solid #8a0b3c;
-      background-color: #f3e6eb;
-      color: #8a0b3c;
+      border-left-color: var(--cps-color-calm);
+      background-color: var(--cps-color-highlight-selected);
+      color: var(--cps-color-calm);
       font-weight: 700;
+
+      &:hover {
+        background-color: var(--cps-color-highlight-selected-dark);
+      }
     }
 
     // Inside the link, as cps-ui-kit does for full-width items: outside, the
@@ -264,13 +297,39 @@ html.lab-insets {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .lab-nav a {
+    transition: none;
+  }
+}
+
+// Forced colours drop the tints: the selected row keeps its bar, in the
+// system's selection colour, and the bold text.
+@media (forced-colors: active) {
+  .lab-nav a {
+    border-left-color: Canvas;
+
+    &.active {
+      border-left-color: Highlight;
+    }
+  }
+}
+
 .lab-nav__group {
-  margin: 0.75rem 1.25rem 0.25rem;
-  color: var(--cps-text-secondary);
-  font-size: 0.75rem;
+  margin: 0.25rem 1.25rem 0.375rem;
+  padding-top: 1rem;
+  border-top: 0.0625rem solid var(--cps-color-line-mid);
+  color: var(--cps-color-text-darkest);
+  font-size: 0.9375rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+
+  // A divider only between groups.
+  &:first-child {
+    padding-top: 0.25rem;
+    border-top: 0;
+  }
 }
 
 .lab-nav__toggle {

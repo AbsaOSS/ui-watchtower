@@ -1,2 +1,8 @@
 // The same base as the shell's.
 @use '../../watchtower-lab/src/lab-base';
+
+// Embedded, it sits in a white box: an iframe shows its own page, which
+// would otherwise be the lab's grey.
+body {
+  background-color: #fff;
+}

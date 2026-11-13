@@ -20,7 +20,7 @@ const COMPOSITIONS: {
 }[] = [
   {
     name: 'in a plain iframe',
-    path: 'fragment',
+    path: 'iframe',
     fragment: (page) => page.frameLocator('iframe.lab-fragment')
   },
   {
@@ -46,7 +46,7 @@ for (const { name, path, fragment: locate } of COMPOSITIONS) {
     await openLab(page, path);
     await sessionStarted(page);
     const fragment = locate(page);
-    await expect(fragment.locator('h1')).toHaveText('lab-fragment');
+    await expect(fragment.locator('h1')).toHaveText('Embedded application');
     // Open first: the Event Inspector shows what arrives from then on.
     await page.locator('.lab-header-button').click();
 
@@ -61,7 +61,7 @@ for (const { name, path, fragment: locate } of COMPOSITIONS) {
     );
     const clicked = named(events, 'fragment_button_clicked');
     expect(clicked).toHaveLength(1);
-    expect(clicked[0].details.application).toBe('lab-fragment');
+    expect(clicked[0].details.application).toBe('Embedded application');
     expect(named(events, 'fragment-journey')[0].details.status).toBe('success');
     await expect(fragment.locator('p').first()).toContainText(
       clicked[0].user.sessionId!.slice(0, 8)
@@ -69,13 +69,15 @@ for (const { name, path, fragment: locate } of COMPOSITIONS) {
 
     await expect
       .poll(async () => (await backend.logs()).map((r) => r.application))
-      .toContain('lab-fragment');
+      .toContain('Embedded application');
     await press(fragment, 'Query its logs');
     await expect(fragment.locator('.lab-readout')).toContainText(
       /[1-9]\d* record\(s\), answered by the shell/
     );
 
-    await expect(page.locator('uwt-inspector')).toContainText('↪ lab-fragment');
+    await expect(page.locator('uwt-inspector')).toContainText(
+      '↪ Embedded application'
+    );
 
     // Its errors are mirrored to RUM by the shell, named for the fragment.
     await press(fragment, 'Log an error');
@@ -83,7 +85,7 @@ for (const { name, path, fragment: locate } of COMPOSITIONS) {
       e.some(
         (event) =>
           event.type === 'com.amazon.rum.js_error_event' &&
-          JSON.stringify(event.details).includes('[lab-fragment] Error')
+          JSON.stringify(event.details).includes('[Embedded application] Error')
       )
     );
 
@@ -99,6 +101,50 @@ for (const { name, path, fragment: locate } of COMPOSITIONS) {
   });
 }
 
+/** What a person sees of the embedded application's box: its size, edge and background. */
+async function embeddedLook(page: Page, path: string) {
+  await openLab(page, path);
+  const viaIframe = path === 'iframe';
+  const host = page.locator(viaIframe ? 'iframe.lab-fragment' : 'web-fragment');
+  await expect(host).toBeVisible();
+  await expect(
+    (viaIframe ? page.frameLocator('iframe.lab-fragment') : host).locator('h1')
+  ).toHaveText('Embedded application');
+
+  const box = (await host.boundingBox())!;
+  const edge = await host.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return {
+      border: `${style.borderTopWidth} ${style.borderTopStyle} ${style.borderTopColor}`,
+      radius: style.borderRadius,
+      background: style.backgroundColor
+    };
+  });
+  // In an iframe the app paints its own page over the frame's background.
+  const own = viaIframe
+    ? await page
+        .frameLocator('iframe.lab-fragment')
+        .locator('body')
+        .evaluate((body) => getComputedStyle(body).backgroundColor)
+    : 'rgba(0, 0, 0, 0)';
+  return {
+    width: Math.round(box.width),
+    height: Math.round(box.height),
+    border: edge.border,
+    radius: edge.radius,
+    background: own === 'rgba(0, 0, 0, 0)' ? edge.background : own
+  };
+}
+
+test('the embedded application looks the same in a plain iframe and as a Web Fragment', async ({
+  page
+}) => {
+  const iframe = await embeddedLook(page, 'iframe');
+  const webFragment = await embeddedLook(page, 'web-fragment');
+
+  expect(webFragment).toEqual(iframe);
+});
+
 test('the fragment on its own, with no shell, carries on and sends nothing', async ({
   page
 }) => {
@@ -111,7 +157,7 @@ test('the fragment on its own, with no shell, carries on and sends nothing', asy
     }
   });
   await page.goto('/fragment-frame/');
-  await expect(page.locator('h1')).toHaveText('lab-fragment');
+  await expect(page.locator('h1')).toHaveText('Embedded application');
   await press(page, 'Track a BI event');
   await press(page, 'Log a warning');
 

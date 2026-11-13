@@ -16,7 +16,9 @@ test("two tabs: each fragment reaches its own tab's shell, over that tab's chann
   tabs.forEach((tab) => watchErrors(tab, errors));
   for (const tab of tabs) {
     await openLab(tab, 'web-fragment');
-    await expect(tab.locator('web-fragment h1')).toHaveText('lab-fragment');
+    await expect(tab.locator('web-fragment h1')).toHaveText(
+      'Embedded application'
+    );
     await tab.locator('.lab-header-button').click();
     await expect(tab.locator('uwt-inspector')).toBeVisible();
   }

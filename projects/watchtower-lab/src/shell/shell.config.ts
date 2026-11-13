@@ -36,7 +36,7 @@ import { LabRumCredentialsProvider } from '../lab/lab-rum-credentials.provider';
 export { LAB_OPTIONS };
 
 /** The side nav's groups, in order. */
-export const SHELL_GROUPS = ['Library', 'Composition', 'Tools'] as const;
+export const SHELL_GROUPS = ['Library', 'Embedded apps', 'Tools'] as const;
 
 export const SHELL_PAGES: {
   path: string;
@@ -81,14 +81,14 @@ export const SHELL_PAGES: {
     load: () => import('./pages/lifecycle.page').then((m) => m.LifecyclePage)
   },
   {
-    path: 'fragment',
-    group: 'Composition',
-    label: 'Fragment (iframe)',
+    path: 'iframe',
+    group: 'Embedded apps',
+    label: 'Iframe',
     load: () => import('./pages/fragment.page').then((m) => m.FragmentPage)
   },
   {
     path: 'web-fragment',
-    group: 'Composition',
+    group: 'Embedded apps',
     label: 'Web Fragment',
     load: () =>
       import('./pages/web-fragment.page').then((m) => m.WebFragmentPage)

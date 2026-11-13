@@ -28,7 +28,7 @@ projects/ngx-ui-watchtower/
   package.json      the published package's manifest
 projects/watchtower-lab/             the Watchtower Lab: a testing app, never published
   server/                            its server: mock backend, fragment gateway, SSR
-projects/watchtower-lab-fragment/    the lab's fragment: a second app it composes
+projects/watchtower-lab-fragment/    the lab's embedded application: a second app it embeds
 projects/watchtower-consumer-smoke/  a minimal app that installs the packed library
 playwright/                          the lab's end-to-end suite (Playwright)
 ```
@@ -75,8 +75,8 @@ and dataplane, fully offline, and logs go to a mock log backend.
 One page per concern, in three groups. **Library**: **Scenarios**, **BI
 events**, **Logging**, **Identity**, **Privacy** and **Lifecycle**, each with
 a **Results** column beside its buttons — the page's own readout, and what
-it sent, ticked once the mock backend has it. **Composition**: **Fragment
-(iframe)** and **Web Fragment** (the same second app in a plain iframe, and
+it sent, ticked once the mock backend has it. **Embedded apps**: **Iframe**
+and **Web Fragment** (the same second app in a plain iframe, and
 as a [Web Fragment](https://web-fragments.dev) through the server's gateway,
 each forwarding through the shell over the tab's own channel). **Tools**:
 **Event Inspector** (every dock, showing the one it is in, event generators,

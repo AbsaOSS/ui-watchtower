@@ -21,7 +21,7 @@ const CARLA = '5c8e2f14-1b7d-4a96-9e3c-8d2b7f4a6c10';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="lab-page lab-fragment">
-      <h1>lab-fragment</h1>
+      <h1>Embedded application</h1>
       <p>
         Session {{ identity().sessionId ?? '—' }} · user
         {{ identity().userId ?? '—' }}, as the shell announced them.
