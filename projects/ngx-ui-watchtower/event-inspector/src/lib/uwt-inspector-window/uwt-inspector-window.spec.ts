@@ -100,6 +100,7 @@ describe('uwtOpenInspectorWindow', () => {
       appRef: TestBed.inject(ApplicationRef),
       title: 'Event Inspector · shop',
       onClosed: jest.fn(),
+      onReloaded: jest.fn(),
       onKeydown: jest.fn(),
       onGeometry: jest.fn()
     };
@@ -188,6 +189,7 @@ describe('uwtOpenInspectorWindow', () => {
     // A reload hides the page too, so the window is looked at once it settles.
     jest.advanceTimersByTime(100);
     expect(options.onClosed).toHaveBeenCalledTimes(1);
+    expect(options.onReloaded).not.toHaveBeenCalled();
 
     host?.destroy();
     expect(options.onGeometry).toHaveBeenCalledTimes(1);
@@ -201,9 +203,16 @@ describe('uwtOpenInspectorWindow', () => {
     const host = uwtOpenInspectorWindow(options);
 
     const doc = reload();
+    // Reported before the inspector is drawn again, for a fresh one.
+    let drawnWhenReported: boolean | undefined;
+    jest.mocked(options.onReloaded).mockImplementation(() => {
+      drawnWhenReported = !!doc.querySelector('.uwt-inspector__title');
+    });
     jest.advanceTimersByTime(100);
 
     expect(options.onClosed).not.toHaveBeenCalled();
+    expect(options.onReloaded).toHaveBeenCalledTimes(1);
+    expect(drawnWhenReported).toBe(false);
     expect(doc.title).toBe('Event Inspector · shop');
     expect(doc.head.textContent).toContain('.app {}');
     expect(doc.querySelector('.uwt-inspector__title')?.textContent).toBe(

@@ -255,8 +255,10 @@ across realms).
   Reloading it gives it a new, empty document, which the app draws into again
   (its page hiding counts as a close only if the window is gone a moment
   later). One session holds the captured history from opening to closing, so
-  moving between docks — each a fresh view — or reloading the window loses
-  nothing.
+  moving between docks — each a fresh view — loses nothing. A reload starts
+  over, as it does on any page: it is closing the inspector and opening it
+  again, in the same window. The captured history, filters and pause are
+  gone; the window's size and place, and the preferences, stay.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.

@@ -381,6 +381,21 @@ describe('UwtEventInspectorService', () => {
     });
   });
 
+  it('should start afresh when the window is reloaded, as closing and opening it again', () => {
+    const { host, open } = fakeWindow();
+    const service = create();
+    service.setDock('window');
+    const session = TestBed.inject(UwtInspectorSession);
+    const history = session.store;
+
+    open.mock.calls[0][0].onReloaded();
+
+    // A new history, in the same window, still open.
+    expect(session.store).not.toBe(history);
+    expect(service.isOpen()).toBe(true);
+    expect(host.destroy).not.toHaveBeenCalled();
+  });
+
   it('should open a dialog, warning once, when the browser blocks the window', () => {
     jest.spyOn(windowHost, 'uwtOpenInspectorWindow').mockReturnValue(undefined);
     const warn = jest

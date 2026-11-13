@@ -406,7 +406,7 @@ test('an Esc that closes the inspector is marked handled, so notifications stay;
   ).toEqual([false, true]);
 });
 
-test('a separate window survives a reload, and shows what it had captured', async ({
+test('reloading a separate window reopens the inspector in it: the window stays, the history starts again', async ({
   page
 }) => {
   const popup = page.waitForEvent('popup');
@@ -416,7 +416,6 @@ test('a separate window survives a reload, and shows what it had captured', asyn
 
   const status = window.locator('.uwt-inspector__status');
   await expect(status).toContainText(/[1-9]\d* events?/);
-  const captured = (await status.innerText()).match(/(\d+) events?/)![1];
   // The reload gives it a new, empty document; this mark does not survive it.
   await window.evaluate(() => (document.body.dataset.before = 'reload'));
   let closed = false;
@@ -426,8 +425,12 @@ test('a separate window survives a reload, and shows what it had captured', asyn
 
   await expect(window.locator('.uwt-inspector__header')).toBeVisible();
   await expect(window.locator('body')).not.toHaveAttribute('data-before', /./);
-  await expect(status).toContainText(`${captured} event`);
+  // As closing it and opening it again: what it had captured is gone…
+  await expect(status).toContainText(/\b0 events/);
   expect(closed).toBe(false);
+  // …and it captures from here.
+  await press(page, 'One of each kind');
+  await expect(status).toContainText(/[1-9]\d* events?/);
 
   // Still the inspector's own window: closing it closes the inspector.
   await window.close();

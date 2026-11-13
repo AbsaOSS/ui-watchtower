@@ -55,6 +55,11 @@ export interface UwtInspectorWindowOptions {
   geometry?: UwtInspectorWindowGeometry;
   /** The user closed the window. */
   onClosed: () => void;
+  /**
+   * The user reloaded the window: as closing it and opening it again, so
+   * the inspector drawn in its new document starts afresh.
+   */
+  onReloaded: () => void;
   /** Every key pressed in the window, for the shortcut. */
   onKeydown: (event: KeyboardEvent) => void;
   /** The window's size and position, as it closes. */
@@ -166,7 +171,7 @@ export function uwtOpenInspectorWindow(
   };
 
   let settling: ReturnType<typeof setTimeout> | undefined;
-  /** Closed, or reloaded: a reload gets the inspector drawn again in its new document. */
+  /** Closed, or reloaded: a reload gets the inspector drawn afresh in its new document. */
   const settle = (triesLeft: number) => {
     settling = undefined;
     if (popup.closed) {
@@ -180,6 +185,8 @@ export function uwtOpenInspectorWindow(
         current = undefined;
       }
       try {
+        // Between the old view and the new: neither holds the history then.
+        options.onReloaded();
         current = mount(next);
         // Its size is saved again when it next closes.
         saved = false;

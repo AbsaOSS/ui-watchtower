@@ -386,6 +386,8 @@ export class UwtEventInspectorService {
       name: uwtInspectorWindowName(application),
       geometry: this.preferences.read().window,
       onClosed: () => host && this.closedByUser(host),
+      // A reload starts over, as on any page: a new session, in the same window.
+      onReloaded: () => this.session.end(),
       onKeydown: this.onKeydown,
       onGeometry: (window) => this.preferences.update({ window })
     });
