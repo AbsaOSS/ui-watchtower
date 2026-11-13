@@ -1,5 +1,11 @@
 {
   "@absaoss-cps/ui-watchtower": {
+    "UWT_BROADCAST_LOG_QUERY_TIMEOUT_MS": [
+      "const: 10000"
+    ],
+    "UWT_DEFAULT_BROADCAST_CHANNEL": [
+      "const: 'ngx-ui-watchtower'"
+    ],
     "UWT_DEFAULT_EVENT_NAMESPACE": [
       "const: 'com.uwt'"
     ],
@@ -61,8 +67,65 @@
       "report?: UwtReporter | undefined",
       "sink: UwtTelemetrySink"
     ],
+    "UwtBroadcastConnection": [
+      "interface",
+      "close(): void",
+      "isOpen(): boolean",
+      "onMessage(handler: (data: unknown) => void): () => void",
+      "post(message: UwtBroadcastMessage): void",
+      "readonly channelName: string"
+    ],
+    "UwtBroadcastConnectOptions": [
+      "interface",
+      "channelName?: string | undefined",
+      "open?: boolean | undefined",
+      "operation?: string | undefined",
+      "report?: UwtReporter | undefined"
+    ],
+    "UwtBroadcastLogApiProvider": [
+      "class",
+      "new (options?: UwtBroadcastLogApiProviderOptions | undefined): UwtBroadcastLogApiProvider",
+      "dispose(): void",
+      "flush(): void",
+      "query(filter: UwtLogQuery): Promise<UwtLogRecord[]>",
+      "send(record: UwtLogRecord): void"
+    ],
+    "UwtBroadcastLogApiProviderOptions": [
+      "interface",
+      "channelName?: string | undefined",
+      "connection?: UwtBroadcastConnection | undefined",
+      "enabled?: boolean | undefined",
+      "report?: UwtReporter | undefined",
+      "runInside?: (<T>(callback: () => T) => T) | undefined",
+      "runOutside?: (<T>(callback: () => T) => T) | undefined"
+    ],
+    "UwtBroadcastMessage": [
+      "type = { kind: 'event'; eventType: string; payload: object; metadata?: UwtTelemetryMetadata | undefined; } | { kind: 'error'; error: UwtTelemetryError; metadata?: UwtTelemetryMetadata | undefined; } | { kind: 'user'; userId: string | undefined; } | { kind: 'flush'; beacon: boolean; } | { kind: 'identity-request'; } | { kind: 'identity'; sessionId?: string | undefined; userId?: string | undefined; } | { kind: 'log'; record: UwtLogRecord; } | { kind: 'log-flush'; } | { kind: 'log-query'; id: string; filter: UwtLogQuery; } | { kind: 'log-query-result'; id: string; records: unknown[]; }"
+    ],
+    "UwtBroadcastTelemetrySink": [
+      "class",
+      "new (options: UwtBroadcastTelemetrySinkOptions): UwtBroadcastTelemetrySink",
+      "dispose(): void",
+      "flush(beacon?: boolean | undefined): void",
+      "getSessionId(): string | undefined",
+      "getUserId(): string | undefined",
+      "record(eventType: string, payload: object, metadata?: UwtTelemetryMetadata | undefined): void",
+      "recordError(error: UwtTelemetryError, metadata?: UwtTelemetryMetadata | undefined): void",
+      "setUserId(userId: string | undefined): void"
+    ],
+    "UwtBroadcastTelemetrySinkOptions": [
+      "interface",
+      "channelName?: string | undefined",
+      "connection?: UwtBroadcastConnection | undefined",
+      "enabled?: boolean | undefined",
+      "identity: UwtTelemetryIdentity",
+      "report?: UwtReporter | undefined"
+    ],
     "uwtClassifyTelemetryEvent": [
       "function(eventType: string, payload: object): UwtTelemetrySinkEvent"
+    ],
+    "uwtConnectBroadcastChannel": [
+      "function(options?: UwtBroadcastConnectOptions | undefined): UwtBroadcastConnection"
     ],
     "uwtCreateTelemetry": [
       "function(options: UwtTelemetryOptions): UwtTelemetry"
@@ -392,6 +455,20 @@
       "application: string",
       "sessionId?: string | undefined",
       "userId?: string | undefined"
+    ],
+    "UwtTelemetryBroadcastHost": [
+      "class",
+      "new (options: UwtTelemetryBroadcastHostOptions): UwtTelemetryBroadcastHost",
+      "dispose(): void",
+      "get received: number"
+    ],
+    "UwtTelemetryBroadcastHostOptions": [
+      "interface",
+      "channelName?: string | undefined",
+      "enabled?: boolean | undefined",
+      "logApi: UwtLogApiProvider",
+      "report?: UwtReporter | undefined",
+      "sink: UwtTelemetrySink"
     ],
     "UwtTelemetryConfig": [
       "interface",

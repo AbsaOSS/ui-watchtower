@@ -96,6 +96,7 @@
     "UwtBroadcastLogApiProvider": [
       "class",
       "new (): UwtBroadcastLogApiProvider",
+      "dispose(): void",
       "flush(): void",
       "ngOnDestroy(): void",
       "query(filter: UwtLogQuery): Promise<UwtLogRecord[]>",
@@ -104,6 +105,7 @@
     "UwtBroadcastTelemetrySink": [
       "class",
       "new (): UwtBroadcastTelemetrySink",
+      "dispose(): void",
       "flush(beacon?: boolean | undefined): void",
       "getSessionId(): string | undefined",
       "getUserId(): string | undefined",
@@ -395,6 +397,7 @@
     "UwtTelemetryBroadcastHost": [
       "class",
       "new (): UwtTelemetryBroadcastHost",
+      "dispose(): void",
       "get received: number",
       "ngOnDestroy(): void"
     ],

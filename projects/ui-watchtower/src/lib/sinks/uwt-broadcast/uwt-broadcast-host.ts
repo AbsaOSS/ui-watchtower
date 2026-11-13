@@ -1,0 +1,414 @@
+import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
+import { UwtBroadcastLogApiProvider } from '../../providers/uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
+import {
+  UwtLogApiProvider,
+  UwtLogQuery
+} from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+import { uwtSessionElapsed } from '../../utils/uwt-session-start.util/uwt-session-start.util';
+import { uwtClassifyTelemetryEvent } from '../../utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
+import {
+  uwtReport,
+  UwtReporter,
+  uwtSafe,
+  uwtSafeVoid,
+  uwtSafeVoidMaybeAsync
+} from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+import { UwtTelemetrySink } from '../uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+import { UwtBroadcastTelemetrySink } from './uwt-broadcast-telemetry.sink';
+import {
+  UwtBroadcastConnection,
+  uwtConnectBroadcastChannel,
+  uwtElectBroadcastHostLeader,
+  uwtIsBroadcastMessage
+} from './uwt-broadcast.messages';
+
+/** The identity fields scenario, BI and log records carry. */
+interface UwtIdentified {
+  sessionId?: string;
+  userId?: string;
+  sessionElapsed?: number;
+}
+
+/**
+ * Active host count per channel, scoped to this JS realm — distinguishes a
+ * true duplicate host from another tab sharing the same channel. Realm-wide
+ * on purpose; only a host that is active in a browser counts, so server-side
+ * renders never see each other's.
+ */
+const hostsInThisRealm = new Map<string, number>();
+
+/** Where warnings about a host that cannot work go when no reporter is given. */
+const consoleReporter: UwtReporter = (level, message, ...details) =>
+  console[level](`[ui-watchtower] ${message}`, ...details);
+
+/**
+ * What {@link UwtTelemetryBroadcastHost} needs.
+ *
+ * @group Interfaces
+ */
+export interface UwtTelemetryBroadcastHostOptions {
+  /** This realm's real destination, recording what followers forward. */
+  sink: UwtTelemetrySink;
+  /**
+   * This realm's real log store: it receives followers' records and answers
+   * their queries.
+   */
+  logApi: UwtLogApiProvider;
+  /**
+   * The channel's name; must match the followers'. Default
+   * {@link UWT_DEFAULT_BROADCAST_CHANNEL}.
+   */
+  channelName?: string;
+  /**
+   * `false` hosts nothing — no channel, no election: on a server, or while
+   * telemetry is off. Default `true`.
+   */
+  enabled?: boolean;
+  /**
+   * Receives failures, and the warnings about a host that cannot work as
+   * configured. Those warnings go to the console when no reporter is given:
+   * a misconfigured host is never silent.
+   */
+  report?: UwtReporter;
+}
+
+/**
+ * Receives telemetry forwarded by follower realms and records it through this
+ * realm's sink.
+ *
+ * Runs in the shell, the realm with the real sink. Fragments using
+ * {@link UwtBroadcastTelemetrySink} post their events here, so one AWS client,
+ * one session and one event budget serve the whole composed page. Their
+ * scenario, BI and log records are stamped with this realm's current session
+ * and user, which a fragment's own copy can lag behind.
+ *
+ * Fragments' log records arrive the same way, from
+ * {@link UwtBroadcastLogApiProvider}, and go to this realm's log provider —
+ * which also answers their `query()` calls.
+ *
+ * A realm that forwards its own telemetry cannot also host it: the host
+ * would receive its own realm's messages and forward them again, forever.
+ * Such a host warns and stays inactive.
+ *
+ * A Web Locks-based election keeps exactly one host active per channel;
+ * others stay passive.
+ *
+ * @group Services
+ */
+export class UwtTelemetryBroadcastHost {
+  private readonly sink: UwtTelemetrySink;
+  private readonly logApi: UwtLogApiProvider;
+  private readonly connection: UwtBroadcastConnection;
+  private readonly enabled: boolean;
+  private readonly report?: UwtReporter;
+
+  /** Number of messages accepted, for tests and diagnostics. */
+  private _received = 0;
+
+  /**
+   * The session and user id last sent in an `identity` message.
+   *
+   * Compared against the sink's current values on every follower activity, so
+   * a late-resolving session id or user id gets announced once it exists.
+   */
+  private lastAnnouncedSessionId?: string;
+  private lastAnnouncedUserId?: string;
+
+  /** Whether this realm won the leader election; non-leaders stay passive. */
+  private isLeader = false;
+  private releaseLeadership: () => void = () => undefined;
+  private disposed = false;
+
+  constructor(options: UwtTelemetryBroadcastHostOptions) {
+    this.sink = options.sink;
+    this.logApi = options.logApi;
+    this.enabled = options.enabled !== false;
+    this.report = options.report;
+    this.connection = uwtConnectBroadcastChannel({
+      channelName: options.channelName,
+      open: this.enabled,
+      operation: 'broadcastHost',
+      report: options.report
+    });
+
+    if (!this.enabled) {
+      // No listening, no leader election.
+      return;
+    }
+    this.warnIfDuplicateInThisRealm();
+    if (this.forwardsItsOwnRealm()) {
+      this.connection.close();
+      return;
+    }
+
+    this.connection.onMessage((data) => this.onMessage(data));
+    this.releaseLeadership = uwtElectBroadcastHostLeader(
+      this.connection.channelName,
+      () => {
+        this.isLeader = true;
+        this.announceIdentity();
+      }
+    );
+  }
+
+  /** How many follower messages have been accepted. */
+  get received(): number {
+    return this._received;
+  }
+
+  /**
+   * Gives up leadership and closes the channel. Calling it again does
+   * nothing.
+   */
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    if (this.enabled) {
+      this.forgetInThisRealm();
+    }
+    this.releaseLeadership();
+    this.connection.close();
+  }
+
+  private onMessage(data: unknown): void {
+    uwtSafeVoid(
+      'broadcastHost.receive',
+      () => {
+        if (!this.isLeader || !uwtIsBroadcastMessage(data)) {
+          return;
+        }
+
+        if (
+          data.kind !== 'identity' &&
+          data.kind !== 'identity-request' &&
+          data.kind !== 'log-query-result'
+        ) {
+          this._received++;
+        }
+
+        switch (data.kind) {
+          case 'event':
+            this.sink.record(
+              data.eventType,
+              this.stampEvent(data.eventType, data.payload),
+              data.metadata
+            );
+            this.reannounceIfIdentityChanged();
+            break;
+          case 'error':
+            this.sink.recordError(data.error, data.metadata);
+            this.reannounceIfIdentityChanged();
+            break;
+          case 'user':
+            this.sink.setUserId(data.userId);
+            this.announceIdentity();
+            break;
+          case 'flush':
+            this.sink.flush(data.beacon);
+            this.reannounceIfIdentityChanged();
+            break;
+          case 'identity-request':
+            this.announceIdentity();
+            break;
+          case 'identity':
+            // Another realm's host on this origin-wide channel — expected,
+            // not a problem. Same-document duplicates are caught by
+            // warnIfDuplicateInThisRealm() instead.
+            break;
+          case 'log':
+            this.deliverLog(this.withIdentity(data.record));
+            this.reannounceIfIdentityChanged();
+            break;
+          case 'log-flush':
+            uwtSafeVoidMaybeAsync(
+              'broadcastHost.logFlush',
+              () => this.logApi?.flush?.(),
+              this.report
+            );
+            break;
+          case 'log-query':
+            this.answerLogQuery(data.id, data.filter);
+            break;
+          case 'log-query-result':
+            // Hosts answer queries; they never ask them.
+            break;
+        }
+      },
+      this.report
+    );
+  }
+
+  /**
+   * A forwarded scenario or BI record with this realm's identity; any other
+   * payload as it is.
+   */
+  private stampEvent(eventType: string, payload: object): object {
+    const { kind } = uwtClassifyTelemetryEvent(eventType, payload);
+    return kind === 'unknown'
+      ? payload
+      : this.withIdentity(payload as UwtIdentified, kind === 'scenario');
+  }
+
+  /**
+   * `record` with this realm's session and user id. A follower stamps the ids
+   * it was last told, which lag behind whenever they change here — the client
+   * starting after the follower asked, a session expiring, a sign-out — so its
+   * record could name a session other than the one it is sent in. With
+   * `measuresSession`, a changed session's `sessionElapsed` is measured again.
+   */
+  private withIdentity<T extends UwtIdentified>(
+    record: T,
+    measuresSession = false
+  ): T {
+    const sessionId = this.currentSessionId();
+    // '' is no user, as `setUserId('')` signs out.
+    const userId = this.currentUserId() || undefined;
+    if (record.sessionId === sessionId && record.userId === userId) {
+      return record;
+    }
+    // An id this realm doesn't have stays `undefined`,
+    // as in the library's own records.
+    const stamped: T = { ...record, sessionId, userId };
+    if (measuresSession && record.sessionId !== sessionId) {
+      // The old session's value no longer applies; absent when unknown.
+      delete stamped.sessionElapsed;
+      const elapsed = uwtSessionElapsed(sessionId);
+      if (elapsed !== undefined) {
+        stamped.sessionElapsed = Math.round(elapsed);
+      }
+    }
+    return stamped;
+  }
+
+  /** Hands a follower's record to this realm's log API provider. */
+  private deliverLog(record: UwtLogRecord): void {
+    uwtSafeVoidMaybeAsync(
+      'broadcastHost.log',
+      () => this.logApi.send(record),
+      this.report
+    );
+  }
+
+  /**
+   * Answers a follower's query from this realm's log API provider. Always
+   * answers — `[]` when there is no provider or it fails — so the follower
+   * isn't left waiting for its timeout.
+   */
+  private answerLogQuery(id: string, filter: UwtLogQuery): void {
+    const reply = (records: unknown) =>
+      this.connection.post({
+        kind: 'log-query-result',
+        id,
+        records: Array.isArray(records) ? records : []
+      });
+
+    const pending = uwtSafe(
+      'broadcastHost.logQuery',
+      () => this.logApi.query(filter),
+      undefined,
+      this.report
+    );
+
+    if (!pending) {
+      reply([]);
+      return;
+    }
+    // Promise.resolve: a provider breaking its contract with a plain value
+    // still gets an answer out.
+    Promise.resolve(pending).then(reply, () => reply([]));
+  }
+
+  /**
+   * Whether this realm's own sink or log provider forwards over the
+   * channel. Hosting then would loop: the host receives its own realm's
+   * messages and hands them straight back to the channel.
+   */
+  private forwardsItsOwnRealm(): boolean {
+    const forwards =
+      this.sink instanceof UwtBroadcastTelemetrySink ||
+      this.logApi instanceof UwtBroadcastLogApiProvider;
+
+    if (forwards) {
+      this.warn(
+        `this realm forwards its own telemetry on channel "${this.connection.channelName}", so it cannot also host it; the host stays inactive. Provide the host only in the realm with the real sink and log provider`
+      );
+    }
+    return forwards;
+  }
+
+  /**
+   * Warns when another host is already active on the same channel in this
+   * realm — a real misconfiguration. Not based on the `identity` broadcast,
+   * which can't distinguish this from a different, legitimate tab.
+   */
+  private warnIfDuplicateInThisRealm(): void {
+    const channelName = this.connection.channelName;
+    const activeCount = hostsInThisRealm.get(channelName) ?? 0;
+
+    if (activeCount > 0) {
+      this.warn(
+        `a second telemetry host is active on channel "${channelName}" in this document; only one realm should provide it`
+      );
+    }
+
+    hostsInThisRealm.set(channelName, activeCount + 1);
+  }
+
+  /** Releases this host's slot in {@link hostsInThisRealm}. */
+  private forgetInThisRealm(): void {
+    const channelName = this.connection.channelName;
+    const activeCount = hostsInThisRealm.get(channelName) ?? 0;
+
+    if (activeCount <= 1) {
+      hostsInThisRealm.delete(channelName);
+    } else {
+      hostsInThisRealm.set(channelName, activeCount - 1);
+    }
+  }
+
+  /** A host that cannot work as configured is never silent. */
+  private warn(message: string): void {
+    uwtReport(this.report ?? consoleReporter, 'warn', message);
+  }
+
+  private announceIdentity(): void {
+    const sessionId = this.currentSessionId();
+    const userId = this.currentUserId();
+    this.lastAnnouncedSessionId = sessionId;
+    this.lastAnnouncedUserId = userId;
+    this.connection.post({ kind: 'identity', sessionId, userId });
+  }
+
+  /**
+   * Re-announces identity when the sink's session id or user id has moved on
+   * from what followers were last told.
+   */
+  private reannounceIfIdentityChanged(): void {
+    if (
+      this.currentSessionId() !== this.lastAnnouncedSessionId ||
+      this.currentUserId() !== this.lastAnnouncedUserId
+    ) {
+      this.announceIdentity();
+    }
+  }
+
+  private currentSessionId(): string | undefined {
+    return uwtSafe(
+      'broadcastHost.getSessionId',
+      () => this.sink.getSessionId(),
+      undefined,
+      this.report
+    );
+  }
+
+  private currentUserId(): string | undefined {
+    return uwtSafe(
+      'broadcastHost.getUserId',
+      () => this.sink.getUserId(),
+      undefined,
+      this.report
+    );
+  }
+}

@@ -352,6 +352,9 @@ providers: [
 ```
 
 Fragment code doesn't change. Give each fragment its own `application` name.
+A shell or a fragment needn't be Angular: one built on
+[`@absaoss-cps/ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ui-watchtower)
+connects the same way.
 
 ## Seeing what is sent
 
