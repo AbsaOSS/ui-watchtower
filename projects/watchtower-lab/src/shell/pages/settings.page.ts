@@ -29,7 +29,8 @@ import {
 } from 'cps-ui-kit';
 import { labCheckConfig } from '../../lab/lab-config-check';
 import { parseJsonObject } from '../../lab/lab-json';
-import { labSearch } from '../../lab/lab-options';
+import { labSearch, LabOptions } from '../../lab/lab-options';
+import { LAB_FIELD_GROUPS, LabField } from '../../lab/lab-settings-fields';
 import {
   LAB_TELEMETRIES,
   LabBrokerMode,
@@ -39,6 +40,22 @@ import {
 import { LAB_OPTIONS } from '../shell.config';
 
 const DEBUG_FLAGS = ['debugScenario', 'debugBI', 'debugLogger'] as const;
+
+/** How the lab starts; each is a query-string option, read once at startup. */
+const DESTINATIONS: { label: string; value: LabOptions['destination'] }[] = [
+  { label: 'rum — the RUM sink, to the mock backend', value: 'rum' },
+  { label: 'noop — nothing is sent', value: 'noop' },
+  { label: "custom — the lab's own sink", value: 'custom' }
+];
+const CHANNELS: { label: string; value: LabOptions['channel'] }[] = [
+  { label: "tab — the shell's own channel", value: 'tab' },
+  { label: 'shared — one channel for every tab', value: 'shared' }
+];
+const INSPECTOR_MODES: { label: string; value: LabOptions['inspector'] }[] = [
+  { label: 'on — with its keyboard shortcut', value: 'on' },
+  { label: 'noshortcut — open it from the page', value: 'noshortcut' },
+  { label: 'off — disabled', value: 'off' }
+];
 type DebugFlag = (typeof DEBUG_FLAGS)[number];
 
 const BROKER_MODES: { label: string; value: LabBrokerMode }[] = [
@@ -81,32 +98,104 @@ const DEFAULT_TELEMETRIES: LabTelemetry[] = ['errors', 'performance', 'http'];
     <section class="lab-page">
       <h1>Settings</h1>
       <p>
-        What the next load runs with: the library's settings, as a
-        <code>?config=</code> overlay on the lab's own, and the mock RUM
-        broker's answer. Both apply together, with a reload.
+        What the next load runs with: how the lab starts, the library's settings
+        — a <code>?config=</code> overlay on the lab's own — and the mock RUM
+        broker's answer. They apply together, with a reload.
       </p>
 
       <div class="lab-card">
-        <h2>Library settings</h2>
-        <div class="lab-switches">
-          <cps-switch
-            label="Lifecycle step events (scenarios.emitLifecycleEvents)"
-            [value]="!!setting('scenarios', 'emitLifecycleEvents')"
-            [disabled]="!overlay()"
-            (valueChanged)="set('scenarios', 'emitLifecycleEvents', $event)" />
-          <cps-switch
-            label="User timings (scenarios.userTimings)"
-            [value]="!!setting('scenarios', 'userTimings')"
-            [disabled]="!overlay()"
-            (valueChanged)="set('scenarios', 'userTimings', $event)" />
+        <h2>Run</h2>
+        <p>How the lab starts: query-string options, read once at startup.</p>
+        <div class="lab-fields">
+          <cps-select
+            label="Destination (?destination=)"
+            [options]="destinations"
+            [returnObject]="false"
+            [value]="destination()"
+            width="26rem"
+            (valueChanged)="destination.set($event)" />
+          <cps-select
+            label="Broadcast channel (?channel=)"
+            [options]="channels"
+            [returnObject]="false"
+            [value]="channel()"
+            width="26rem"
+            (valueChanged)="channel.set($event)" />
+          <cps-select
+            label="Event Inspector (?inspector=)"
+            [options]="inspectorModes"
+            [returnObject]="false"
+            [value]="inspector()"
+            width="26rem"
+            (valueChanged)="inspector.set($event)" />
+          <div class="lab-switches">
+            <cps-switch
+              label="Telemetry (?telemetry=)"
+              [value]="telemetry()"
+              (valueChanged)="telemetry.set($event)" />
+            <cps-switch
+              label="Batch logs, sent on flush() (lab.logBatching)"
+              [value]="!!setting('lab', 'logBatching')"
+              [disabled]="!overlay()"
+              (valueChanged)="set('lab', 'logBatching', $event)" />
+          </div>
         </div>
-        <cps-input
-          type="number"
-          label="BI dedup window, ms (bi.dedupWindowMs)"
-          width="18rem"
-          [value]="'' + setting('bi', 'dedupWindowMs')"
-          [disabled]="!overlay()"
-          (valueChanged)="setNumber('bi', 'dedupWindowMs', $event)" />
+      </div>
+
+      @for (group of groups; track group.title) {
+        <div class="lab-card">
+          <h2>{{ group.title }}</h2>
+          <div class="lab-fields">
+            @for (field of group.fields; track field.key) {
+              @switch (field.kind) {
+                @case ('switch') {
+                  <cps-switch
+                    [label]="field.label"
+                    [value]="!!setting(field.section, field.key)"
+                    [disabled]="!overlay()"
+                    (valueChanged)="set(field.section, field.key, $event)" />
+                }
+                @case ('number') {
+                  <cps-input
+                    type="number"
+                    [label]="field.label"
+                    width="26rem"
+                    [value]="'' + setting(field.section, field.key)"
+                    [disabled]="!overlay()"
+                    (valueChanged)="
+                      setNumber(field.section, field.key, $event)
+                    " />
+                }
+                @case ('text') {
+                  <cps-input
+                    [label]="field.label"
+                    width="26rem"
+                    [value]="'' + (setting(field.section, field.key) ?? '')"
+                    [disabled]="!overlay()"
+                    (valueChanged)="set(field.section, field.key, $event)" />
+                }
+                @case ('select') {
+                  <cps-select
+                    [label]="field.label"
+                    [options]="selectOptions(field)"
+                    [returnObject]="false"
+                    [value]="'' + setting(field.section, field.key)"
+                    width="26rem"
+                    [disabled]="!overlay()"
+                    (valueChanged)="set(field.section, field.key, $event)" />
+                }
+              }
+            }
+          </div>
+        </div>
+      }
+
+      <div class="lab-card">
+        <h2>The ?config= overlay</h2>
+        <p>
+          What the controls above write, and what more the lab takes: edit it
+          here for anything they don't cover, such as patterns and loggers.
+        </p>
         <!-- cps-textarea can't be hydrated: it's rendered afresh. -->
         <cps-textarea
           ngSkipHydration
@@ -162,7 +251,7 @@ const DEFAULT_TELEMETRIES: LabTelemetry[] = ['errors', 'performance', 'http'];
           (valueChanged)="brokerConfig.set($event)" />
       </div>
 
-      <div class="lab-actions">
+      <div class="lab-actions lab-apply-bar">
         <cps-button label="Apply and reload" (clicked)="apply()" />
         <cps-button
           label="Back to the lab's settings"
@@ -200,6 +289,10 @@ const DEFAULT_TELEMETRIES: LabTelemetry[] = ['errors', 'performance', 'http'];
 })
 export class SettingsPage {
   protected readonly flags = DEBUG_FLAGS;
+  protected readonly groups = LAB_FIELD_GROUPS;
+  protected readonly destinations = DESTINATIONS;
+  protected readonly channels = CHANNELS;
+  protected readonly inspectorModes = INSPECTOR_MODES;
   protected readonly modes = BROKER_MODES;
   protected readonly telemetryOptions = LAB_TELEMETRIES.map((t) => ({
     label: t,
@@ -209,6 +302,12 @@ export class SettingsPage {
   private readonly window = inject(DOCUMENT).defaultView!;
   private readonly options = inject(LAB_OPTIONS);
   private readonly wire = inject(LabWire);
+
+  /** How the lab starts, to be: the load's own to begin with. */
+  protected readonly destination = signal(this.options.destination);
+  protected readonly channel = signal(this.options.channel);
+  protected readonly inspector = signal(this.options.inspector);
+  protected readonly telemetry = signal(this.options.telemetry);
 
   /** The settings in effect, which the controls show until changed. */
   private readonly inEffect: Record<string, Record<string, unknown>> = (() => {
@@ -295,6 +394,10 @@ export class SettingsPage {
     2
   );
 
+  protected selectOptions(field: LabField): { label: string; value: string }[] {
+    return field.kind === 'select' ? field.options : [];
+  }
+
   /** A setting as the draft has it, or as it is in effect. */
   protected setting(section: string, key: string): unknown {
     const fromDraft = (
@@ -355,7 +458,12 @@ export class SettingsPage {
     await this.wire.setBrokerMode(this.mode());
     await this.wire.setTelemetries(this.telemetries());
     await this.wire.setBrokerConfig(brokerConfig);
-    this.reload(overlay);
+    this.reload(overlay, {
+      destination: this.destination(),
+      channel: this.channel(),
+      inspector: this.inspector(),
+      telemetry: this.telemetry()
+    });
   }
 
   /** The lab's own settings, and the broker's default answer. */
@@ -379,9 +487,13 @@ export class SettingsPage {
     this.debug.set(this.readDebug());
   }
 
-  private reload(config: Record<string, unknown>): void {
+  /** Starts the lab again, with `config` and how it is to start: as now, by default. */
+  private reload(
+    config: Record<string, unknown>,
+    start: Omit<LabOptions, 'config'> = this.options
+  ): void {
     this.window.location.assign(
-      `${this.window.location.pathname}${labSearch({ ...this.options, config })}`
+      `${this.window.location.pathname}${labSearch({ ...start, config })}`
     );
   }
 

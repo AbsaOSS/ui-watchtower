@@ -19,6 +19,21 @@ const asPane = (page: Page) =>
     )
   );
 
+/** Picks the option starting with `option` in the select labelled `label`, from the keyboard. */
+async function choose(page: Page, label: string, option: string) {
+  await page.getByRole('combobox', { name: label }).press('ArrowDown');
+  await page.getByRole('option', { name: new RegExp(`^${option}`) }).click();
+}
+
+const toggle = (page: Page, label: string) =>
+  page
+    .locator('cps-switch', { hasText: label })
+    .locator('label.cps-switch')
+    .click();
+
+const fill = (page: Page, label: string, value: string) =>
+  page.locator('cps-input', { hasText: label }).locator('input').fill(value);
+
 /** Waits for the log backend to hold one record, and returns it. */
 async function onlyLog(backend: {
   logs(): Promise<LogRecord[]>;
@@ -281,6 +296,92 @@ test('redact: false for logging stops its value scan only; BI still scans, and k
   expect(JSON.stringify(named(events, 'lab_privacy_checked'))).not.toContain(
     'anna.smith@example.com'
   );
+});
+
+test('Settings sets the startup options, and applying them reloads with them', async ({
+  page
+}) => {
+  await openLab(page, 'settings');
+  await choose(page, 'Destination', 'noop');
+  await choose(page, 'Broadcast channel', 'shared');
+  await choose(page, 'Event Inspector', 'noshortcut');
+  await toggle(page, 'Telemetry');
+
+  // Nothing changes until applied.
+  expect(new URL(page.url()).searchParams.get('destination')).toBeNull();
+
+  await press(page, 'Apply and reload');
+  await expect(page).toHaveURL(/destination=noop/);
+
+  const params = new URL(page.url()).searchParams;
+  expect(params.get('destination')).toBe('noop');
+  expect(params.get('channel')).toBe('shared');
+  expect(params.get('inspector')).toBe('noshortcut');
+  expect(params.get('telemetry')).toBe('off');
+  const header = page.locator('.lab-header');
+  await expect(header).toContainText('destination: noop');
+  await expect(header).toContainText('telemetry: off');
+  await expect(header).toContainText('channel: shared');
+});
+
+test("every area's settings are controls on the page, and apply as set", async ({
+  page
+}) => {
+  await openLab(page, 'settings');
+  const overlay = page.getByRole('textbox', { name: '?config= (JSON)' });
+
+  await fill(page, 'Event namespace', 'acme');
+  await fill(page, 'Default timeout', '12345');
+  await fill(page, 'Step limit', '7');
+  await fill(page, 'Mark cleanup fallback', '999');
+  await toggle(page, 'Redact scenario payloads');
+  await choose(page, 'Minimum level', 'warn');
+  await toggle(page, 'Mirror errors to RUM');
+  await toggle(page, 'Redact log values');
+  await fill(page, 'BI dedup keys kept', '77');
+  await toggle(page, 'Redact BI payloads');
+  await fill(page, 'Longest string', '321');
+  await fill(page, 'Most keys', '9');
+  await fill(page, 'Longest stack', '456');
+  await toggle(page, 'Include stacks');
+  await toggle(page, 'Strip URL queries');
+  await fill(page, 'Events kept per kind', '25');
+  await fill(page, 'Payload characters shown', '1234');
+  await fill(page, 'Keep events from before opening', '5');
+  await toggle(page, 'Batch logs');
+
+  // Each control writes into the overlay, which shows it.
+  await expect(overlay).toHaveValue(/"eventNamespace": "acme"/);
+  await expect(overlay).toHaveValue(/"minLevel": "warn"/);
+  await expect(overlay).toHaveValue(/"captureBeforeOpen": 5/);
+  await expect(overlay).toHaveValue(/"logBatching": true/);
+
+  await press(page, 'Apply and reload');
+
+  const effective = page.locator('.lab-readout');
+  for (const line of [
+    '"eventNamespace": "acme"',
+    '"defaultTimeoutMs": 12345',
+    '"maxSteps": 7',
+    '"markCleanupFallbackMs": 999',
+    '"minLevel": "warn"',
+    '"mirrorErrorsToRum": false',
+    '"dedupMaxKeys": 77',
+    '"maxStringLength": 321',
+    '"maxKeys": 9',
+    '"maxStackLength": 456',
+    '"includeStack": false',
+    '"stripUrlQuery": false',
+    '"maxEventsPerSection": 25',
+    '"maxPayloadCharsInView": 1234',
+    '"captureBeforeOpen": 5'
+  ]) {
+    await expect(effective).toContainText(line);
+  }
+  // The three `redact` switches each turned their own concern's scrubbing off.
+  await expect(overlay).toHaveValue(/"scenarios": \{[^}]*"redact": false/);
+  await expect(overlay).toHaveValue(/"logging": \{[^}]*"redact": false/);
+  await expect(overlay).toHaveValue(/"bi": \{[^}]*"redact": false/);
 });
 
 test('inspector settings: a custom shortcut, a smaller section, a smaller view', async ({

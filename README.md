@@ -82,7 +82,8 @@ each forwarding through the shell over the tab's own channel). **Tools**:
 **Event Inspector** (every dock, showing the one it is in, event generators,
 and the `--uwt-inspector-inset-*` opt-in on the lab's fixed header and status
 bar), **On the wire**: what the mock backend actually received, and
-**Settings**: the library's settings and the mock broker's answer, applied
+**Settings**: how the lab starts, a control for each of the library's
+settings and the Event Inspector's, the mock broker's answer, all applied
 together with one reload, the debug flags, and the settings in effect.
 
 The header's chips show how this load runs; where the broker is set
@@ -113,8 +114,8 @@ and the one value transform is `mask-order-ids`. One more, `lab`, is the
 lab's own: `{ "logBatching": true }` makes its log provider batch, and send
 when the library flushes it. For example
 `?config={"scenarios":{"emitLifecycleEvents":true}}`. **Settings** edits it,
-with switches for the common options, and refuses a section, setting or
-type the library doesn't have.
+with a control for each setting and a JSON field for the rest, and refuses a
+section, setting or type the library doesn't have.
 
 The mock RUM broker's answer is set on the **Settings** page too:
 

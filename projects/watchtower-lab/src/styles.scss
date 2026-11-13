@@ -38,6 +38,25 @@
   background-color: #fff;
 }
 
+// A card's controls side by side where there is room, one under another where there isn't.
+.lab-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr));
+  gap: 0.75rem 1.5rem;
+  align-items: start;
+}
+
+.lab-apply-bar {
+  // Settings: in reach however far the page scrolls, above the status bar
+  // and any pane docked at the bottom.
+  position: sticky;
+  bottom: calc(2.25rem + var(--uwt-inspector-inset-bottom, 0px));
+  z-index: 5;
+  padding: 0.75rem 0;
+  border-top: 0.0625rem solid var(--cps-color-line-mid);
+  background-color: #f4f6f9;
+}
+
 .lab-main:focus {
   outline: none;
 }
