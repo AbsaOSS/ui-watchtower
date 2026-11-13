@@ -5,6 +5,7 @@ import {
   Page,
   press,
   sessionStarted,
+  settingsSection,
   test
 } from './lab';
 
@@ -22,13 +23,14 @@ test('Settings sets the broker, all at once with Apply and reload; the header te
   page,
   backend
 }) => {
-  await openLab(page, 'settings');
+  await openLab(page, 'settings/rum-broker');
   await choose(page, 'Answer /rum/init with', 'null —');
   await page
     .locator('cps-switch', { hasText: "The library's default" })
     .locator('label.cps-switch')
     .click();
   await choose(page, 'Telemetries', 'replay');
+  await settingsSection(page, 'App monitor');
   const overlay = page.getByRole('textbox', {
     name: 'Laid over the app monitor config (JSON)'
   });
@@ -99,7 +101,7 @@ test('a broker overlay that is not JSON stops Apply, and sets nothing', async ({
   page,
   backend
 }) => {
-  await openLab(page, 'settings');
+  await openLab(page, 'settings/app-monitor');
   await page
     .getByRole('textbox', { name: 'Laid over the app monitor config (JSON)' })
     .fill('[1, 2]');

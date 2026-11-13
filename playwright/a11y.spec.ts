@@ -15,7 +15,21 @@ const PAGES = [
   'web-fragment',
   'inspector',
   'wire',
-  'settings'
+  'settings',
+  ...[
+    'app-identity',
+    'delivery',
+    'scenarios',
+    'bi-events',
+    'logging',
+    'privacy',
+    'event-inspector',
+    'rum-broker',
+    'app-monitor',
+    'debug-flags',
+    'json',
+    'effective'
+  ].map((section) => `settings/${section}`)
 ];
 
 /** Each violation as its rule and where it was found. */
@@ -64,6 +78,20 @@ for (const path of PAGES) {
     expect(await violations(page)).toEqual([]);
   });
 }
+
+test('Settings with changes not applied, marked in its list and its bar: no violations', async ({
+  page
+}) => {
+  await openLab(page, 'settings/scenarios');
+  await page
+    .locator('cps-switch', { hasText: 'Lifecycle step events' })
+    .locator('label.cps-switch')
+    .click();
+  await expect(
+    page.getByRole('region', { name: 'Changes not applied' })
+  ).toBeVisible();
+  expect(await violations(page)).toEqual([]);
+});
 
 test('the Event Inspector with events, rows open, a filter being built with its help, and the Export menu open: no violations, and readable colours', async ({
   page

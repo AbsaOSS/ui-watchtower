@@ -19,7 +19,7 @@ import {
   RouterLinkActive,
   RouterOutlet
 } from '@angular/router';
-import { CpsTooltipDirective } from 'cps-ui-kit';
+import { CpsIconComponent, CpsTooltipDirective } from 'cps-ui-kit';
 import { filter } from 'rxjs';
 import { UwtTelemetrySink } from '@absaoss-cps/ngx-ui-watchtower';
 import { UwtEventInspectorService } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
@@ -27,7 +27,12 @@ import { LabLayout } from '../lab/lab-layout.service';
 import { LabRumCredentialsProvider } from '../lab/lab-rum-credentials.provider';
 import { LAB_USER_NAMES } from '../lab/lab-users';
 import { labTelemetriesLabel, LabWire } from '../lab/lab-wire.service';
-import { LAB_OPTIONS, SHELL_GROUPS, SHELL_PAGES } from './shell.config';
+import {
+  LAB_OPTIONS,
+  SHELL_GROUPS,
+  SHELL_PAGES,
+  SHELL_SETTINGS
+} from './shell.config';
 
 /**
  * The broker's setting as this page load got it, and the next load's when
@@ -46,6 +51,7 @@ function inEffect(now?: string, next?: string): string {
 @Component({
   selector: 'lab-root',
   imports: [
+    CpsIconComponent,
     CpsTooltipDirective,
     NgTemplateOutlet,
     RouterLink,
@@ -146,6 +152,19 @@ function inEffect(now?: string, next?: string): string {
                 }
               </ul>
             }
+            <ul class="lab-nav__pinned">
+              <li>
+                <a
+                  [routerLink]="settings.path"
+                  queryParamsHandling="preserve"
+                  routerLinkActive="active"
+                  ariaCurrentWhenActive="page"
+                  ><cps-icon icon="settings" size="small" />{{
+                    settings.label
+                  }}</a
+                >
+              </li>
+            </ul>
           </div>
         </nav>
         <main class="lab-main" id="lab-main" tabindex="-1">
@@ -201,11 +220,17 @@ export class ShellComponent {
     return `Signed in as ${name ? `${name} (${id})` : id}`;
   });
 
+  protected readonly settings = SHELL_SETTINGS;
+
   /** Whether the folded nav is open, on a narrow screen. */
   protected readonly navOpen = signal(false);
   private readonly path = signal('');
+  /** The page shown: Settings for any of its sections. */
   protected readonly current = computed(
-    () => SHELL_PAGES.find((page) => page.path === this.path())?.label ?? ''
+    () =>
+      [...SHELL_PAGES, SHELL_SETTINGS].find(
+        (page) => page.path === this.path().split('/')[0]
+      )?.label ?? ''
   );
 
   private readonly credentials = inject(LabRumCredentialsProvider);

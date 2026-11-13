@@ -81,10 +81,17 @@ as a [Web Fragment](https://web-fragments.dev) through the server's gateway,
 each forwarding through the shell over the tab's own channel). **Tools**:
 **Event Inspector** (every dock, showing the one it is in, event generators,
 and the `--uwt-inspector-inset-*` opt-in on the lab's fixed header and status
-bar), **On the wire**: what the mock backend actually received, and
-**Settings**: how the lab starts, a control for each of the library's
-settings and the Event Inspector's, the mock broker's answer, all applied
-together with one reload, the debug flags, and the settings in effect.
+bar) and **On the wire**: what the mock backend actually received.
+
+**Settings**, at the foot of the nav, sets up the run every page shares: a
+page per section, listed beside it by area, each saying how it applies.
+**Library**: App identity, Delivery, Scenarios, BI events, Logging, Privacy &
+redaction and Event Inspector. **Mock backend**: RUM broker and App monitor.
+**Diagnostics**: Debug flags, which apply at once. **Advanced**: Configuration
+as JSON, and the Effective configuration. A change waits, from whichever
+section, in a bar listing them all, until they are applied together with one
+reload, or discarded; the **Overview** reviews them. On a narrow screen the
+sections fold into a picker.
 
 The header's chips show how this load runs; where the broker is set
 differently for the next one, its chip says so: `broker: ok → null after
@@ -119,7 +126,8 @@ of patterns, and editors for logger levels and the inspector's shortcuts — and
 the JSON itself, and refuses a section, setting or type the library doesn't
 have.
 
-The mock RUM broker's answer is set on the **Settings** page too:
+The mock RUM broker's answer is set in **Settings** too, under **RUM
+broker**:
 
 | Mode                        | The broker                                                   |
 | --------------------------- | ------------------------------------------------------------ |
@@ -134,11 +142,11 @@ The mock RUM broker's answer is set on the **Settings** page too:
 
 It also sets RUM's own `telemetries` (the library's default, or any of
 `errors`, `performance`, `interaction`, `http` and `replay`, down to none),
-and the broker's app monitor config: controls for the settings most worth
-trying (`sessionSampleRate`, `sessionEventLimit`, `dispatchInterval`,
-`allowCookies`, `enableXRay`, `disableAutoPageView`, `recordResourceUrl` and
-the pages to include or exclude), and a JSON object laid over it for the rest,
-such as `{ "sessionSampleRate": 0 }`.
+and, under **App monitor**, the broker's app monitor config: controls for the
+settings most worth trying (`sessionSampleRate`, `sessionEventLimit`,
+`dispatchInterval`, `allowCookies`, `enableXRay`, `disableAutoPageView`,
+`recordResourceUrl` and the pages to include or exclude), and a JSON object
+laid over it for the rest, such as `{ "sessionSampleRate": 0 }`.
 
 ### Automated tests
 

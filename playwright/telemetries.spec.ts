@@ -109,7 +109,7 @@ test('Settings switches between the default and a list to edit, set on Apply', a
   page,
   backend
 }) => {
-  await openLab(page, 'settings');
+  await openLab(page, 'settings/rum-broker');
   const telemetriesList = page.locator('cps-select[label="Telemetries"]');
   const useDefault = page
     .locator('cps-switch', { hasText: "The library's default" })

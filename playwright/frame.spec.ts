@@ -11,7 +11,21 @@ const PAGES = [
   'web-fragment',
   'inspector',
   'wire',
-  'settings'
+  'settings',
+  ...[
+    'app-identity',
+    'delivery',
+    'scenarios',
+    'bi-events',
+    'logging',
+    'privacy',
+    'event-inspector',
+    'rum-broker',
+    'app-monitor',
+    'debug-flags',
+    'json',
+    'effective'
+  ].map((section) => `settings/${section}`)
 ];
 
 test('a page lists what it sent beside its buttons, ticked once it arrives, and says so', async ({

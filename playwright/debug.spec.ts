@@ -1,9 +1,9 @@
-import { expect, navigate, openLab, press, test } from './lab';
+import { expect, navigate, openLab, press, settingsSection, test } from './lab';
 
 test('debug flags print what is sent, without a reload', async ({ page }) => {
   const lines: string[] = [];
   page.on('console', (m) => lines.push(m.text()));
-  await openLab(page, 'settings');
+  await openLab(page, 'settings/debug-flags');
   for (const flag of ['debugScenario', 'debugBI', 'debugLogger']) {
     await page
       .locator('cps-switch', { hasText: flag })
@@ -53,6 +53,7 @@ test('debugLogger with a list prints only those loggers', async ({ page }) => {
 
   // A list isn't "on" for every logger: the Settings switch says so.
   await navigate(page, 'Settings');
+  await settingsSection(page, 'Debug flags');
   await expect(
     page.getByRole('switch', { name: 'debugLogger' })
   ).not.toBeChecked();

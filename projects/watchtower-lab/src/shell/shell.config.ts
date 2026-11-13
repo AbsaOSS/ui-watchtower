@@ -104,14 +104,14 @@ export const SHELL_PAGES: {
     group: 'Tools',
     label: 'On the wire',
     load: () => import('./pages/wire.page').then((m) => m.WirePage)
-  },
-  {
-    path: 'settings',
-    group: 'Tools',
-    label: 'Settings',
-    load: () => import('./pages/settings.page').then((m) => m.SettingsPage)
   }
 ];
+
+/**
+ * Settings, at the foot of the nav, apart from the pages: it sets up the run
+ * they all share, rather than being one of them. A page for each section.
+ */
+export const SHELL_SETTINGS = { path: 'settings', label: 'Settings' };
 
 const routes: Routes = [
   ...SHELL_PAGES.map(({ path, label, load }) => ({
@@ -119,6 +119,11 @@ const routes: Routes = [
     title: `${label} · Watchtower Lab`,
     loadComponent: load
   })),
+  {
+    path: SHELL_SETTINGS.path,
+    loadChildren: () =>
+      import('./pages/settings.routes').then((m) => m.SETTINGS_ROUTES)
+  },
   { path: '**', redirectTo: 'scenarios' }
 ];
 

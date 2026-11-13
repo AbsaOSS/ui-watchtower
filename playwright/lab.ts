@@ -218,6 +218,36 @@ export async function navigate(page: Page, label: string): Promise<void> {
   await expect(page.locator('lab-root main h1').first()).toHaveText(label);
 }
 
+/**
+ * Moves to a section of Settings within the app, through its list, keeping
+ * the changes not applied yet.
+ */
+export async function settingsSection(
+  page: Page,
+  label: string
+): Promise<void> {
+  const link = page
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: label });
+  await link.click();
+  await expect(link).toHaveAttribute('aria-current', 'page');
+  // For a frame both sections are there, the new one not yet filled in.
+  await expect(page.locator('lab-root main h1').first()).toHaveText(
+    label === 'Overview' ? 'Settings' : label
+  );
+}
+
+/**
+ * Presses Settings' Apply and reload, and waits for the lab to load again:
+ * at the same address, when only the mock broker changed.
+ */
+export async function applyAndReload(page: Page): Promise<void> {
+  const loaded = page.waitForEvent('load');
+  await press(page, 'Apply and reload');
+  await loaded;
+  await expect(page.locator('html[data-lab-ready]')).toHaveCount(1);
+}
+
 /** Presses the lab's button with exactly this label. */
 export async function press(
   where: Page | FrameLocator | Locator,

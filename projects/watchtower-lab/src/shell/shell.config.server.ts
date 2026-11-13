@@ -15,6 +15,7 @@ const serverRoutes: ServerRoute[] = [
   { path: 'wire', renderMode: RenderMode.Client },
   // Its effective settings are the browser's, from the query string.
   { path: 'settings', renderMode: RenderMode.Client },
+  { path: 'settings/**', renderMode: RenderMode.Client },
   { path: '**', renderMode: RenderMode.Server }
 ];
 
