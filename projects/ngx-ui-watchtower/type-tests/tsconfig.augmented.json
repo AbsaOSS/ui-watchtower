@@ -1,0 +1,5 @@
+/* The registries augmented, kept apart from the empty-registry fallback. */
+{
+  "extends": "./tsconfig.json",
+  "files": ["augmented.ts"]
+}

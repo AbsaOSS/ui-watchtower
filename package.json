@@ -8,9 +8,11 @@
     "test": "ng test --project=ngx-ui-watchtower",
     "test:coverage": "ng test --project=ngx-ui-watchtower --coverage --coverage-reporters text-summary --coverage-reporters lcov --json --output-file=./coverage/report.json",
     "lint": "eslint \"**/*.ts\" --max-warnings=0",
-    "format": "prettier --write \"**/*.{ts,html}\"",
-    "format:check": "prettier --check \"**/*.{ts,html}\"",
-    "typecheck": "tsc -p projects/ngx-ui-watchtower/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/tsconfig.spec.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.spec.json --noEmit"
+    "format": "prettier --write \"**/*.{ts,mjs,html}\"",
+    "format:check": "prettier --check \"**/*.{ts,mjs,html}\"",
+    "typecheck": "tsc -p projects/ngx-ui-watchtower/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/tsconfig.spec.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.spec.json --noEmit && ngc -p projects/ngx-ui-watchtower/type-tests/tsconfig.json && ngc -p projects/ngx-ui-watchtower/type-tests/tsconfig.augmented.json",
+    "api:check": "npm run build && node scripts/api-snapshot.mjs",
+    "api:update": "npm run build && node scripts/api-snapshot.mjs --update"
   },
   "private": true,
   "dependencies": {

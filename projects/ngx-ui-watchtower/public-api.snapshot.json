@@ -1,0 +1,552 @@
+{
+  "@absaoss-cps/ngx-ui-watchtower": {
+    "provideUwtTelemetry": [
+      "function(identity: UwtTelemetryIdentity, ...features: UwtTelemetryFeature[]): EnvironmentProviders"
+    ],
+    "provideUwtTelemetryBroadcastHost": [
+      "function(channelName?: string | undefined): EnvironmentProviders"
+    ],
+    "provideUwtTelemetryDestination": [
+      "function<T extends UwtTelemetrySink>(sink: Type<T>, options?: UwtTelemetryDestinationOptions<T> | undefined): EnvironmentProviders"
+    ],
+    "provideUwtTelemetrySink": [
+      "function(mode: UwtTelemetryLocalSinkMode, options?: { channelName?: string | undefined; } | undefined): EnvironmentProviders"
+    ],
+    "traceScenario": [
+      "function<T>(scenario: UwtScenario, options?: UwtTraceScenarioOptions<T> | ((value: T) => void | UwtScenarioOutcome) | undefined): MonoTypeOperatorFunction<T>"
+    ],
+    "UWT_BI_TELEMETRY_CONFIG": [
+      "const: InjectionToken<UwtBITelemetryConfig>"
+    ],
+    "UWT_BROADCAST_CHANNEL": [
+      "const: InjectionToken<string>"
+    ],
+    "UWT_DEFAULT_BROADCAST_CHANNEL": [
+      "const: 'ngx-ui-watchtower'"
+    ],
+    "UWT_DEFAULT_EVENT_NAMESPACE": [
+      "const: 'com.uwt'"
+    ],
+    "UWT_DEFAULT_REDACT_CONFIG": [
+      "const: UwtRedactConfig"
+    ],
+    "UWT_DEFAULT_TELEMETRY_CONFIG": [
+      "const: { eventNamespace: string; scenario: UwtScenarioTelemetryConfig; logs: UwtLogConfig; bi: UwtBITelemetryConfig; redact: UwtRedactConfig; }"
+    ],
+    "UWT_LOG_API_PROVIDER": [
+      "const: InjectionToken<UwtLogApiProvider>"
+    ],
+    "UWT_LOG_CONFIG": [
+      "const: InjectionToken<UwtLogConfig>"
+    ],
+    "UWT_LOG_LEVEL_ORDER": [
+      "const: Record<UwtLogLevel, number>"
+    ],
+    "UWT_REDACT_CONFIG": [
+      "const: InjectionToken<UwtRedactConfig>"
+    ],
+    "UWT_REDACTED": [
+      "const: '[redacted]'"
+    ],
+    "UWT_SCENARIO_TELEMETRY_CONFIG": [
+      "const: InjectionToken<UwtScenarioTelemetryConfig>"
+    ],
+    "UWT_TELEMETRY_ENABLED": [
+      "const: InjectionToken<boolean>"
+    ],
+    "UWT_TELEMETRY_EVENT_TYPE": [
+      "const: UwtTelemetryEventTypes"
+    ],
+    "UWT_TELEMETRY_IDENTITY": [
+      "const: InjectionToken<UwtTelemetryIdentity>"
+    ],
+    "UwtBIEvent": [
+      "interface",
+      "application: string",
+      "eventName: string",
+      "eventTime: string",
+      "feature?: string | undefined",
+      "metadata?: UwtTelemetryMetadata | undefined",
+      "scenarioId?: string | undefined",
+      "sessionId?: string | undefined",
+      "userId?: string | undefined"
+    ],
+    "UwtBIEventDetail": [
+      "interface",
+      "feature?: string | undefined",
+      "scenarioId?: string | undefined"
+    ],
+    "UwtBIEventName": [
+      "type = string"
+    ],
+    "UwtBIEventNames": [
+      "interface"
+    ],
+    "UwtBITelemetryConfig": [
+      "interface",
+      "dedupMaxKeys: number",
+      "dedupWindowMs: number",
+      "redact: boolean"
+    ],
+    "UwtBITelemetryService": [
+      "class",
+      "new (): UwtBITelemetryService",
+      "track(eventName: string, metadata?: UwtTelemetryMetadata | undefined, detail?: UwtBIEventDetail | undefined): void"
+    ],
+    "UwtBroadcastLogApiProvider": [
+      "class",
+      "new (): UwtBroadcastLogApiProvider",
+      "flush(): void",
+      "ngOnDestroy(): void",
+      "query(filter: UwtLogQuery): Promise<UwtLogRecord[]>",
+      "send(record: UwtLogRecord): void"
+    ],
+    "UwtBroadcastTelemetrySink": [
+      "class",
+      "new (): UwtBroadcastTelemetrySink",
+      "flush(beacon?: boolean | undefined): void",
+      "getSessionId(): string | undefined",
+      "getUserId(): string | undefined",
+      "ngOnDestroy(): void",
+      "record(eventType: string, payload: object, metadata?: UwtTelemetryMetadata | undefined): void",
+      "recordError(error: UwtTelemetryError, metadata?: UwtTelemetryMetadata | undefined): void",
+      "setUserId(userId: string | undefined): void"
+    ],
+    "uwtClassifyTelemetryEvent": [
+      "function(eventType: string, payload: object): UwtTelemetrySinkEvent"
+    ],
+    "UwtDebugFlag": [
+      "type = 'debugLogger' | 'debugScenario' | 'debugBI'"
+    ],
+    "uwtEventTypes": [
+      "function(namespace?: string | undefined): UwtTelemetryEventTypes"
+    ],
+    "uwtIsDebugEnabled": [
+      "function(flag: UwtDebugFlag, name?: string | undefined): boolean"
+    ],
+    "UwtLogApiProvider": [
+      "interface",
+      "flush?(): void",
+      "query(filter: UwtLogQuery): Promise<UwtLogRecord[]>",
+      "send(record: UwtLogRecord): void"
+    ],
+    "UwtLogConfig": [
+      "interface",
+      "levels?: Partial<Record<string, UwtLogLevel>> | undefined",
+      "minLevel: UwtLogLevel",
+      "mirrorErrorsToRum: boolean",
+      "redact: boolean"
+    ],
+    "UwtLogDetail": [
+      "interface",
+      "context?: string | undefined",
+      "correlationId?: string | undefined",
+      "error?: unknown",
+      "metadata?: UwtTelemetryMetadata | undefined"
+    ],
+    "UwtLogger": [
+      "interface",
+      "error(message: string, detail?: UwtLogDetail | undefined): void",
+      "log(message: string, detail?: UwtLogDetail | undefined): void",
+      "warn(message: string, detail?: UwtLogDetail | undefined): void"
+    ],
+    "UwtLoggerName": [
+      "type = string"
+    ],
+    "UwtLoggerNames": [
+      "interface"
+    ],
+    "UwtLoggerService": [
+      "class",
+      "new (): UwtLoggerService",
+      "getLogger(name: string): UwtLogger",
+      "ngOnDestroy(): void",
+      "query(filter?: UwtLogQuery | undefined): Promise<UwtLogRecord[]>"
+    ],
+    "UwtLogLevel": [
+      "type = 'log' | 'warn' | 'error'"
+    ],
+    "UwtLogQuery": [
+      "interface",
+      "correlationId?: string | undefined",
+      "from?: string | undefined",
+      "limit?: number | undefined",
+      "logger?: string | undefined",
+      "minLevel?: UwtLogLevel | undefined",
+      "to?: string | undefined"
+    ],
+    "UwtLogRecord": [
+      "interface",
+      "application: string",
+      "context?: string | undefined",
+      "correlationId?: string | undefined",
+      "environment: string",
+      "error?: UwtTelemetryError | undefined",
+      "level: UwtLogLevel",
+      "logger?: string | undefined",
+      "message: string",
+      "metadata?: UwtTelemetryMetadata | undefined",
+      "sessionId?: string | undefined",
+      "timestamp: string",
+      "userId?: string | undefined",
+      "version: string"
+    ],
+    "uwtMarkSessionStart": [
+      "function(sessionId: string, now?: number | undefined): void"
+    ],
+    "UwtNoopLogApiProvider": [
+      "class",
+      "new (): UwtNoopLogApiProvider",
+      "query(_filter: UwtLogQuery): Promise<UwtLogRecord[]>",
+      "send(_record: UwtLogRecord): void"
+    ],
+    "UwtNoopTelemetrySink": [
+      "class",
+      "new (): UwtNoopTelemetrySink",
+      "flush(_beacon?: boolean | undefined): void",
+      "getSessionId(): string | undefined",
+      "getUserId(): string | undefined",
+      "record(_eventType: string, _payload: object, _metadata?: UwtTelemetryMetadata | undefined): void",
+      "recordError(_error: UwtTelemetryError, _metadata?: UwtTelemetryMetadata | undefined): void",
+      "setUserId(userId: string | undefined): void"
+    ],
+    "uwtNormalizeError": [
+      "function(error: unknown, config?: UwtRedactConfig | undefined): UwtTelemetryError | undefined"
+    ],
+    "UwtPiiValuePattern": [
+      "type = 'email' | 'creditCard' | 'ssn' | 'ipv4' | 'phone'"
+    ],
+    "UwtRedactConfig": [
+      "interface",
+      "extraKeyPatterns: RegExp[]",
+      "extraValuePatterns: RegExp[]",
+      "extraValueTransforms: ((value: string) => string)[]",
+      "includeStack: boolean",
+      "maxKeys: number",
+      "maxStackLength: number",
+      "maxStringLength: number",
+      "scanValuePatterns: UwtPiiValuePattern[]",
+      "stripUrlQuery: boolean"
+    ],
+    "uwtRedactConfigFor": [
+      "function(config: UwtRedactConfig, enabled: boolean): UwtRedactConfig"
+    ],
+    "uwtRedactMetadata": [
+      "function(value: unknown, config?: UwtRedactConfig | undefined): UwtTelemetryMetadata | undefined"
+    ],
+    "UwtScenario": [
+      "class",
+      "new (options: UwtScenarioOptions, deps: UwtScenarioDeps): UwtScenario",
+      "aggregateEnd(name: string): UwtScenario",
+      "aggregateStart(name: string): UwtScenario",
+      "cancel(outcome?: UwtScenarioOutcome | undefined): void",
+      "complete(outcome?: UwtScenarioOutcome | undefined): void",
+      "endStep(detail?: UwtScenarioStepDetail | undefined): UwtScenario",
+      "fail(outcome?: UwtScenarioOutcome | undefined): void",
+      "failStep(error: unknown, detail?: UwtScenarioStepDetail | undefined): UwtScenario",
+      "get delta: number",
+      "get id: string",
+      "get isSettled: boolean",
+      "get name: string",
+      "get status: UwtScenarioStatus | undefined",
+      "incomplete(outcome?: UwtScenarioOutcome | undefined): void",
+      "setData(metadata: UwtTelemetryMetadata): UwtScenario",
+      "settle(status: UwtScenarioStatus, outcome?: UwtScenarioOutcome | undefined, error?: unknown): void",
+      "step(name: string, metadata?: UwtTelemetryMetadata | undefined): UwtScenario",
+      "toRecord(): UwtScenarioRecord"
+    ],
+    "UwtScenarioAggregate": [
+      "interface",
+      "callCount: number",
+      "elapsed: number",
+      "name: string"
+    ],
+    "UwtScenarioName": [
+      "type = string"
+    ],
+    "UwtScenarioNames": [
+      "interface"
+    ],
+    "UwtScenarioOptions": [
+      "interface",
+      "feature?: string | undefined",
+      "metadata?: UwtTelemetryMetadata | undefined",
+      "name: string",
+      "operation?: string | undefined",
+      "parentScenarioId?: string | undefined",
+      "route?: string | undefined",
+      "startedAt?: number | undefined",
+      "timeoutMs?: number | undefined"
+    ],
+    "UwtScenarioOutcome": [
+      "interface",
+      "error?: unknown",
+      "message?: string | undefined",
+      "metadata?: UwtTelemetryMetadata | undefined",
+      "reason?: string | undefined",
+      "statusCode?: string | number | undefined"
+    ],
+    "UwtScenarioRecord": [
+      "interface",
+      "aggregates?: UwtScenarioAggregate[] | undefined",
+      "application: string",
+      "delta: number",
+      "elapsed: number",
+      "endTime?: string | undefined",
+      "error?: UwtTelemetryError | undefined",
+      "exceededStepsLimit?: boolean | undefined",
+      "feature?: string | undefined",
+      "message?: string | undefined",
+      "metadata?: UwtTelemetryMetadata | undefined",
+      "operation?: string | undefined",
+      "parentScenarioId?: string | undefined",
+      "previousStep?: string | undefined",
+      "reason?: string | undefined",
+      "route?: string | undefined",
+      "scenarioId: string",
+      "scenarioName: string",
+      "sessionElapsed?: number | undefined",
+      "sessionId?: string | undefined",
+      "startTime: string",
+      "status?: UwtScenarioStatus | undefined",
+      "statusCode?: string | number | undefined",
+      "stepCount: number",
+      "steps: UwtScenarioStep[]",
+      "userId?: string | undefined"
+    ],
+    "UwtScenarioStatus": [
+      "type = 'success' | 'failure' | 'abandoned' | 'incomplete' | 'timeout'"
+    ],
+    "UwtScenarioStep": [
+      "interface",
+      "elapsed?: number | undefined",
+      "endOffset?: number | undefined",
+      "error?: UwtTelemetryError | undefined",
+      "message?: string | undefined",
+      "metadata?: UwtTelemetryMetadata | undefined",
+      "name: string",
+      "reason?: string | undefined",
+      "startOffset: number",
+      "status?: UwtScenarioStatus | undefined",
+      "stepDelta?: number | undefined"
+    ],
+    "UwtScenarioStepDetail": [
+      "interface",
+      "message?: string | undefined",
+      "metadata?: UwtTelemetryMetadata | undefined",
+      "reason?: string | undefined"
+    ],
+    "UwtScenarioStepEvent": [
+      "interface",
+      "application: string",
+      "elapsed?: number | undefined",
+      "endOffset?: number | undefined",
+      "error?: UwtTelemetryError | undefined",
+      "message?: string | undefined",
+      "metadata?: UwtTelemetryMetadata | undefined",
+      "name: string",
+      "reason?: string | undefined",
+      "scenarioId: string",
+      "scenarioName: string",
+      "sessionId?: string | undefined",
+      "startOffset: number",
+      "status?: UwtScenarioStatus | undefined",
+      "stepDelta?: number | undefined",
+      "userId?: string | undefined"
+    ],
+    "UwtScenarioSteps": [
+      "interface"
+    ],
+    "UwtScenarioStepStatus": [
+      "type = 'success' | 'failure' | 'abandoned' | 'incomplete' | 'timeout'"
+    ],
+    "UwtScenarioTelemetryConfig": [
+      "interface",
+      "defaultTimeoutMs: number",
+      "emitLifecycleEvents: boolean",
+      "markCleanupFallbackMs: number",
+      "maxSteps: number",
+      "redact: boolean",
+      "userTimings: boolean"
+    ],
+    "UwtScenarioTelemetryService": [
+      "class",
+      "new (): UwtScenarioTelemetryService",
+      "find(scenarioId: string): UwtScenario | undefined",
+      "findByName(name: string): UwtScenario[]",
+      "findByNameAndId(name: string, scenarioId: string): UwtScenario | undefined",
+      "getActive(): UwtScenario[]",
+      "ngOnDestroy(): void",
+      "readonly settled$: Observable<UwtScenarioRecord>",
+      "start(options: UwtScenarioOptions): UwtScenario"
+    ],
+    "uwtScrubString": [
+      "function(value: string, config: UwtRedactConfig): string"
+    ],
+    "UwtStepName": [
+      "type = string"
+    ],
+    "UwtTelemetryAttribution": [
+      "interface",
+      "application: string",
+      "sessionId?: string | undefined",
+      "userId?: string | undefined"
+    ],
+    "UwtTelemetryBroadcastHost": [
+      "class",
+      "new (): UwtTelemetryBroadcastHost",
+      "get received: number",
+      "ngOnDestroy(): void"
+    ],
+    "UwtTelemetryDestinationOptions": [
+      "interface<T extends UwtTelemetrySink>",
+      "init?: ((sink: T) => void) | undefined"
+    ],
+    "UwtTelemetryError": [
+      "interface",
+      "message: string",
+      "name: string",
+      "stack?: string | undefined"
+    ],
+    "UwtTelemetryEventTypes": [
+      "interface",
+      "bi: string",
+      "scenario: string",
+      "scenarioStep: string"
+    ],
+    "UwtTelemetryFeature": [
+      "interface",
+      "providers: Provider[]"
+    ],
+    "UwtTelemetryIdentity": [
+      "interface",
+      "application: string",
+      "environment: string",
+      "eventNamespace?: string | undefined",
+      "version: string"
+    ],
+    "UwtTelemetryLocalSinkMode": [
+      "type = 'broadcast' | 'noop'"
+    ],
+    "UwtTelemetryMetadata": [
+      "type = { [x: string]: string | number | boolean | null; }"
+    ],
+    "UwtTelemetrySink": [
+      "abstract class",
+      "new (): UwtTelemetrySink",
+      "abstract flush(beacon?: boolean | undefined): void",
+      "abstract getSessionId(): string | undefined",
+      "abstract getUserId(): string | undefined",
+      "abstract record(eventType: string, payload: object, metadata?: UwtTelemetryMetadata | undefined): void",
+      "abstract recordError(error: UwtTelemetryError, metadata?: UwtTelemetryMetadata | undefined): void",
+      "abstract setUserId(userId: string | undefined): void"
+    ],
+    "UwtTelemetrySinkEvent": [
+      "type = { kind: 'scenario'; payload: UwtScenarioRecord; } | { kind: 'scenario-step'; payload: UwtScenarioStepEvent; } | { kind: 'bi'; payload: UwtBIEvent; } | { kind: 'unknown'; payload: object; }"
+    ],
+    "UwtTraceScenarioOptions": [
+      "interface<T>",
+      "cancelOutcome?: UwtScenarioOutcome | (() => void | UwtScenarioOutcome) | undefined",
+      "outcome?: ((value: T) => void | UwtScenarioOutcome) | undefined",
+      "valueThenTeardown?: 'complete' | 'cancel' | undefined"
+    ],
+    "uwtUuid": [
+      "function(): string"
+    ],
+    "withBIEvents": [
+      "function(config?: Partial<UwtBITelemetryConfig> | undefined): UwtTelemetryFeature"
+    ],
+    "withLogging": [
+      "function(config?: Partial<UwtLogConfig> | undefined): UwtTelemetryFeature"
+    ],
+    "withRedaction": [
+      "function(config?: Partial<UwtRedactConfig> | undefined): UwtTelemetryFeature"
+    ],
+    "withScenarios": [
+      "function(config?: Partial<UwtScenarioTelemetryConfig> | undefined): UwtTelemetryFeature"
+    ],
+    "withTelemetryEnabled": [
+      "function(enabled: boolean | (() => boolean)): UwtTelemetryFeature"
+    ]
+  },
+  "@absaoss-cps/ngx-ui-watchtower/rum": {
+    "provideUwtTelemetryRumSink": [
+      "function(): EnvironmentProviders"
+    ],
+    "UWT_RUM_CREDENTIALS_PROVIDER": [
+      "const: InjectionToken<UwtRumCredentialsProvider>"
+    ],
+    "UwtRumAppMonitorConfig": [
+      "interface",
+      "alias?: string | undefined",
+      "allowCookies?: boolean | undefined",
+      "applicationAttributes?: Record<string, string | number | boolean> | undefined",
+      "applicationId: string",
+      "applicationVersion: string",
+      "batchLimit?: number | undefined",
+      "candidatesCacheSize?: number | undefined",
+      "client?: string | undefined",
+      "clientBuilder?: ((endpoint: URL, region: string, credentials?: ClientBuilderCredentials | undefined, compressionStrategy?: { enabled: boolean; } | undefined) => unknown) | undefined",
+      "compressionStrategy?: { enabled: boolean; } | undefined",
+      "cookieAttributes?: { unique?: boolean | undefined; domain?: string | undefined; path?: string | undefined; sameSite?: string | undefined; secure?: boolean | undefined; } | undefined",
+      "debug?: boolean | undefined",
+      "disableAutoPageView?: boolean | undefined",
+      "dispatchInterval?: number | undefined",
+      "enableRumClient?: boolean | undefined",
+      "enableW3CTraceId?: boolean | undefined",
+      "enableXRay?: boolean | undefined",
+      "endpoint?: string | undefined",
+      "eventCacheSize?: number | undefined",
+      "eventPluginsToLoad?: unknown[] | undefined",
+      "fetchFunction?: ((input: RequestInfo | URL, init?: RequestInit | undefined) => Promise<Response>) | undefined",
+      "headers?: Record<string, string> | undefined",
+      "pageIdFormat?: 'PATH' | 'HASH' | 'PATH_AND_HASH' | undefined",
+      "pagesToExclude?: RegExp[] | undefined",
+      "pagesToInclude?: RegExp[] | undefined",
+      "recordResourceUrl?: boolean | undefined",
+      "region: string",
+      "releaseId?: string | undefined",
+      "retries?: number | undefined",
+      "routeChangeComplete?: number | undefined",
+      "routeChangeTimeout?: number | undefined",
+      "sessionAttributes?: Record<string, string | number | boolean> | undefined",
+      "sessionEventLimit?: number | undefined",
+      "sessionLengthSeconds?: number | undefined",
+      "sessionSampleRate?: number | undefined",
+      "signing?: boolean | undefined",
+      "suppressSessionStartEvent?: boolean | undefined",
+      "telemetries?: (string | (string | object)[])[] | undefined",
+      "useBeacon?: boolean | undefined",
+      "userIdRetentionDays?: number | undefined"
+    ],
+    "UwtRumBootstrap": [
+      "interface",
+      "config: UwtRumAppMonitorConfig",
+      "credentials?: UwtRumCredentials | undefined"
+    ],
+    "UwtRumCredentials": [
+      "interface",
+      "accessKeyId: string",
+      "expiration: string",
+      "secretAccessKey: string",
+      "sessionToken: string"
+    ],
+    "UwtRumCredentialsProvider": [
+      "interface",
+      "load(): Promise<UwtRumBootstrap | null>"
+    ],
+    "UwtRumTelemetrySink": [
+      "class",
+      "new (): UwtRumTelemetrySink",
+      "flush(beacon?: boolean | undefined): void",
+      "getSessionId(): string | undefined",
+      "getUserId(): string | undefined",
+      "init(): Promise<void>",
+      "ngOnDestroy(): void",
+      "record(eventType: string, payload: object, metadata?: UwtTelemetryMetadata | undefined): void",
+      "recordError(error: UwtTelemetryError, metadata?: UwtTelemetryMetadata | undefined): void",
+      "recordPageView(pageId: string): void",
+      "setUserId(userId: string | undefined): void"
+    ]
+  }
+}
