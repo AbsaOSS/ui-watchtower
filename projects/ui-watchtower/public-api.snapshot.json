@@ -78,7 +78,7 @@
     "UwtBroadcastConnectOptions": [
       "interface",
       "channelName?: string | undefined",
-      "open?: boolean | undefined",
+      "enabled?: boolean | undefined",
       "operation?: string | undefined",
       "report?: UwtReporter | undefined"
     ],
