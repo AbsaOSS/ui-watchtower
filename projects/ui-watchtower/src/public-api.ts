@@ -89,6 +89,27 @@ export type {
 } from './lib/providers/uwt-log-api.provider/uwt-log-api.provider';
 export { UwtNoopLogApiProvider } from './lib/providers/uwt-noop-log-api.provider/uwt-noop-log-api.provider';
 
+// Shell and fragments: a fragment forwards its telemetry and logs over a
+// BroadcastChannel to the shell's host, which records them
+export {
+  UWT_DEFAULT_BROADCAST_CHANNEL,
+  uwtConnectBroadcastChannel
+} from './lib/sinks/uwt-broadcast/uwt-broadcast.messages';
+export type {
+  UwtBroadcastConnection,
+  UwtBroadcastConnectOptions,
+  UwtBroadcastMessage
+} from './lib/sinks/uwt-broadcast/uwt-broadcast.messages';
+export { UwtBroadcastTelemetrySink } from './lib/sinks/uwt-broadcast/uwt-broadcast-telemetry.sink';
+export type { UwtBroadcastTelemetrySinkOptions } from './lib/sinks/uwt-broadcast/uwt-broadcast-telemetry.sink';
+export {
+  UWT_BROADCAST_LOG_QUERY_TIMEOUT_MS,
+  UwtBroadcastLogApiProvider
+} from './lib/providers/uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
+export type { UwtBroadcastLogApiProviderOptions } from './lib/providers/uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
+export { UwtTelemetryBroadcastHost } from './lib/sinks/uwt-broadcast/uwt-broadcast-host';
+export type { UwtTelemetryBroadcastHostOptions } from './lib/sinks/uwt-broadcast/uwt-broadcast-host';
+
 // Utilities an application or a destination needs
 export { uwtClassifyTelemetryEvent } from './lib/utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
 export type { UwtTelemetrySinkEvent } from './lib/utils/uwt-telemetry-event.util/uwt-telemetry-event.util';

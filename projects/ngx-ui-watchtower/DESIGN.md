@@ -96,8 +96,7 @@ fails where it always did: the logger needs a log provider but no
 destination, scenarios need a destination and no log provider. The services
 are root singletons, so each concern exists once per injector, and all of
 them share the one destination and log provider. `settled$` is the core's
-`onSettled` as an Observable that completes on destroy. It listens to the
-core only while subscribed, so no record is copied for nobody; `traceScenario` is the
+`onSettled` as an Observable that completes on destroy; `traceScenario` is the
 core's `./rxjs` operator, reporting through this package's dev-mode
 reporter. Framework-free applications compose the same three classes with
 `uwtCreateTelemetry`.
@@ -211,10 +210,7 @@ providers: [
   the same names. The dependency runs one way: the core imports neither
   Angular nor this package, which a lint rule enforces. The library build
   compiles against the core's built declarations, not its source, so it sees
-  the core exactly as an application does. An application upgrading from
-  0.4 changes nothing. Another framework's adapter needs only the core's
-  public entry points, as this package does;
-  `docs/ADAPTERS.md` is a short guide.
+  the core exactly as an application does.
 - **What the core owns, this package re-exports.** The engine, the models
   and name registries, the configuration types and defaults
   (`uwtResolveTelemetryConfig` completes every `with*` feature), redaction,
@@ -233,29 +229,10 @@ providers: [
   broadcast plumbing stay internal so they can change freely. Redaction is
   the exception: a custom sink needs `uwtRedactMetadata`,
   `uwtNormalizeError`, `uwtScrubString` and `uwtRedactConfigFor`.
-- **The RUM sink is the core's too.** Its logic — the lazy `aws-rum-web`
-  import, startup retries, credential refresh, the pre-init buffer, the
-  settings check — lives in `@absaoss-cps/ui-watchtower/rum`. This package's
-  `/rum` keeps `UWT_RUM_CREDENTIALS_PROVIDER`, `provideUwtTelemetryRumSink()`
-  and `UwtRumTelemetrySink`, an injectable subclass of the core's.
 - **The secondary entry keeps private copies of a few utilities.** ng-packagr
   fixes each entry point's `rootDir` to its own `src`, so
   `@absaoss-cps/ngx-ui-watchtower/rum` can't import the main entry's
-  internals by relative path and carries small copies of what it needs: its
-  Angular helpers and the reporter.
-- **What is published is tested as published.** `npm run smoke` installs
-  both tarballs into consumers outside the workspace: a framework-free one
-  with neither Angular nor `aws-rum-web` installed, and an Angular
-  application, prerendered as a fragment without `aws-rum-web` — which then
-  holds no RUM code — and as a shell with `/rum`, whose RUM client is a chunk
-  loaded on demand.
-- **Both packages share one version and release together.** Release Please
-  links their versions: a change to either releases both, and the same
-  release PR moves this package's dependency on the core to `^` the new
-  version. The release workflow publishes the core first and this package
-  only after it, so this package never depends on a core version npm doesn't
-  have. Publishing skips what npm already has, so running the workflow again
-  on the release tag completes a partial release.
+  internals by relative path and carries small copies of what it needs.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
@@ -1631,15 +1608,12 @@ convention, for an application that wants the pre-fallback behavior back.
 ## 11. Error handling and performance
 
 - **Telemetry never breaks the application.** Every public entry point is
-  wrapped and never rethrows. The core hands a suppressed error (`'error'`),
-  or data it had to drop (`'warn'`), to the `UwtReporter` it is given. This
-  package gives it one that writes to the console, prefixed
+  wrapped and never rethrows. The core prints nothing by itself: it hands a
+  suppressed error, or data it had to drop, to the `UwtReporter` it is
+  given. This package gives it one that writes to the console, prefixed
   `[ngx-ui-watchtower]`, in development mode only, so bugs surface in
-  development and production stays silent. What cannot work as configured
-  (`'config'`) — a second broadcast host, a host in a forwarding realm, RUM
-  settings of the wrong type — is printed in production too, as it always
-  was; without a reporter, the core prints it itself. Even a broken
-  `console.error` cannot turn a suppressed failure into a throw.
+  development and production stays silent. Even a broken `console.error`
+  cannot turn a suppressed failure into a throw.
 - **Fail-open.** A broker outage, expired credentials or an SDK throw all
   leave the application behaving exactly as with healthy telemetry. A failed
   broker request at startup is retried with backoff for five minutes. A
@@ -2208,12 +2182,6 @@ providers: [
 
 Code inside a fragment does not change: same services, same calls. One
 session, one budget, one bundle.
-
-| Realm          | Destination                                         | RUM and `UWT_RUM_CREDENTIALS_PROVIDER` | `UWT_LOG_API_PROVIDER`                 |
-| -------------- | --------------------------------------------------- | -------------------------------------- | -------------------------------------- |
-| Standalone app | Its own: `provideUwtTelemetryRumSink()`, or another | The app's                              | The app's                              |
-| Shell          | Its own, plus `provideUwtTelemetryBroadcastHost()`  | The shell's: the only ones on the page | The shell's, also for fragments' logs  |
-| Fragment       | `provideUwtTelemetrySink('broadcast')`              | None: the shell's records for it       | Bound by `'broadcast'`, to the shell's |
 
 Either side may be built without Angular. The protocol — the messages, the
 host, the forwarding sink and log provider — lives in

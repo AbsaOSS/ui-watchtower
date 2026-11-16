@@ -1,12 +1,27 @@
 import { DOCUMENT } from '@angular/common';
-import { Injectable, Injector, PLATFORM_ID } from '@angular/core';
+import {
+  createEnvironmentInjector,
+  EnvironmentInjector,
+  Injectable,
+  Injector,
+  PLATFORM_ID
+} from '@angular/core';
+import { TestBed } from '@angular/core/testing';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
+  UwtBroadcastLogApiProvider as CoreBroadcastLogApiProvider,
+  UwtBroadcastTelemetrySink as CoreBroadcastTelemetrySink,
+  uwtConnectBroadcastChannel,
+  uwtCreateTelemetry,
   UWT_DEFAULT_TELEMETRY_CONFIG,
   UwtLogApiProvider,
+  UwtLogger,
   UwtLogQuery,
   UwtLogRecord,
+  UwtScenario,
+  UwtScenarioOptions,
+  UwtTelemetryBroadcastHost as CoreTelemetryBroadcastHost,
   UwtTelemetryError,
   UwtTelemetryMetadata,
   UwtTelemetrySink
@@ -20,6 +35,10 @@ import { UWT_LOG_CONFIG } from '../../config/uwt-log.config/uwt-log.config';
 import { UWT_SCENARIO_TELEMETRY_CONFIG } from '../../config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
 import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { UwtBroadcastLogApiProvider } from '../../providers/uwt-broadcast-log-api.provider/uwt-broadcast-log-api.provider';
+import {
+  provideUwtTelemetry,
+  provideUwtTelemetrySink
+} from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
 import { UwtBITelemetryService } from '../../services/uwt-bi-telemetry.service/uwt-bi-telemetry.service';
 import { UwtLoggerService } from '../../services/uwt-logger.service/uwt-logger.service';
 import { UwtScenarioTelemetryService } from '../../services/uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';
@@ -28,13 +47,21 @@ import { UwtBroadcastTelemetrySink } from './uwt-broadcast-telemetry.sink';
 
 /**
  * The broadcast protocol is a contract between realms deployed separately:
- * a shell and its fragments may run different versions. This records every
- * message a shell and a fragment exchange through one full session, and
- * checks it against the fixture recorded from the implementation before the
- * core was extracted. Record it again only deliberately, with
- * `UPDATE_WIRE_FIXTURE=1`.
+ * a shell and its fragments may run different versions, and may be built
+ * with or without Angular. This records every message a shell and a fragment
+ * exchange through one full session, and checks it against the fixture
+ * recorded from the implementation before the core was extracted — for an
+ * Angular or a core-only realm on either side. Record it again only
+ * deliberately, with `UPDATE_WIRE_FIXTURE=1`.
  */
 const FIXTURE = join(__dirname, 'uwt-broadcast.wire.fixture.json');
+
+const IDENTITY = {
+  application: 'realm',
+  environment: 'test',
+  version: '1.0.0',
+  eventNamespace: 'com.uwt'
+};
 
 /** A message as posted: by which realm, and what it carried. */
 interface Posted {
@@ -66,6 +93,11 @@ class WireChannel {
   static reset(): void {
     WireChannel.posted.length = 0;
     WireChannel.channels.clear();
+  }
+
+  /** The realms with a channel still open, one entry per channel. */
+  static open(): string[] {
+    return [...WireChannel.channels.values()].flat().map((c) => c.realm);
   }
 
   postMessage(message: unknown): void {
@@ -154,11 +186,12 @@ function stable(posted: Posted[]): Posted[] {
 /** The shell's real destination, with a session and user it controls. */
 @Injectable()
 class ShellSink extends UwtTelemetrySink {
+  readonly events: string[] = [];
   sessionId: string | undefined = 'shell-session';
   userId?: string;
 
-  record(_eventType: string, _payload: object, _meta?: UwtTelemetryMetadata) {
-    // Recorded on the wire, not here.
+  record(eventType: string, _payload: object, _meta?: UwtTelemetryMetadata) {
+    this.events.push(eventType);
   }
 
   recordError(_error: UwtTelemetryError, _meta?: UwtTelemetryMetadata) {
@@ -204,21 +237,29 @@ class ShellLogApi implements UwtLogApiProvider {
   }
 }
 
-/** A realm: its own injector, as the shell and each fragment have. */
+/** A shell: its real destination, and how it goes away. */
+interface Shell {
+  sink: ShellSink;
+  destroy(): void;
+}
+
+/** A fragment, whatever it is built with: what its application code calls. */
+interface Fragment {
+  start(options: UwtScenarioOptions): UwtScenario;
+  track(eventName: string, metadata?: UwtTelemetryMetadata): void;
+  getLogger(name: string): UwtLogger;
+  sink: UwtTelemetrySink;
+  logApi: UwtLogApiProvider;
+  destroy(): void;
+}
+
+/** An Angular realm: its own injector, as the shell and each fragment have. */
 function createRealm(providers: unknown[]): Injector {
   return Injector.create({
     providers: [
       { provide: PLATFORM_ID, useValue: 'browser' },
       { provide: DOCUMENT, useValue: document },
-      {
-        provide: UWT_TELEMETRY_IDENTITY,
-        useValue: {
-          application: 'realm',
-          environment: 'test',
-          version: '1.0.0',
-          eventNamespace: 'com.uwt'
-        }
-      },
+      { provide: UWT_TELEMETRY_IDENTITY, useValue: IDENTITY },
       {
         provide: UWT_SCENARIO_TELEMETRY_CONFIG,
         useValue: UWT_DEFAULT_TELEMETRY_CONFIG.scenario
@@ -239,6 +280,99 @@ function createRealm(providers: unknown[]): Injector {
     ]
   });
 }
+
+/** What application code calls in an Angular fragment. */
+function angularFragmentOf(injector: Injector, destroy: () => void): Fragment {
+  const scenarios = injector.get(UwtScenarioTelemetryService);
+  const bi = injector.get(UwtBITelemetryService);
+  const logs = injector.get(UwtLoggerService);
+  return {
+    start: (options) => scenarios.start(options),
+    track: (eventName, metadata) => bi.track(eventName, metadata),
+    getLogger: (name) => logs.getLogger(name),
+    sink: injector.get(UwtTelemetrySink),
+    logApi: injector.get(UWT_LOG_API_PROVIDER),
+    destroy
+  };
+}
+
+const shells: Record<string, () => Shell> = {
+  'an Angular shell': () => {
+    const shell = createRealm([
+      ShellSink,
+      { provide: UwtTelemetrySink, useExisting: ShellSink },
+      ShellLogApi,
+      { provide: UWT_LOG_API_PROVIDER, useExisting: ShellLogApi },
+      UwtTelemetryBroadcastHost
+    ]);
+    const host = shell.get(UwtTelemetryBroadcastHost);
+    return { sink: shell.get(ShellSink), destroy: () => host.ngOnDestroy() };
+  },
+  'a core shell': () => {
+    const sink = new ShellSink();
+    const host = new CoreTelemetryBroadcastHost({
+      sink,
+      logApi: new ShellLogApi()
+    });
+    return { sink, destroy: () => host.dispose() };
+  }
+};
+
+const fragments: Record<string, () => Fragment> = {
+  // Each class opens its own channel, as before the extraction.
+  'an Angular fragment': () => {
+    const realm = createRealm([
+      UwtBroadcastTelemetrySink,
+      { provide: UwtTelemetrySink, useExisting: UwtBroadcastTelemetrySink },
+      UwtBroadcastLogApiProvider,
+      { provide: UWT_LOG_API_PROVIDER, useExisting: UwtBroadcastLogApiProvider }
+    ]);
+    return angularFragmentOf(realm, () => {
+      realm.get(UwtBroadcastTelemetrySink).ngOnDestroy();
+      realm.get(UwtBroadcastLogApiProvider).ngOnDestroy();
+    });
+  },
+  // Wired by provideUwtTelemetrySink: one channel, shared.
+  'an Angular fragment sharing one channel': () => {
+    const injector = createEnvironmentInjector(
+      [
+        provideUwtTelemetry(IDENTITY),
+        provideUwtTelemetrySink('broadcast'),
+        UwtScenarioTelemetryService,
+        UwtBITelemetryService,
+        UwtLoggerService
+      ],
+      TestBed.inject(EnvironmentInjector)
+    );
+    return angularFragmentOf(injector, () => injector.destroy());
+  },
+  'a core-only fragment': () => {
+    const connection = uwtConnectBroadcastChannel();
+    const sink = new CoreBroadcastTelemetrySink({
+      identity: IDENTITY,
+      connection
+    });
+    const logApi = new CoreBroadcastLogApiProvider({ connection });
+    const telemetry = uwtCreateTelemetry({
+      identity: IDENTITY,
+      destination: sink,
+      logApi
+    });
+    return {
+      start: (options) => telemetry.scenarios.start(options),
+      track: (eventName, metadata) => telemetry.bi.track(eventName, metadata),
+      getLogger: (name) => telemetry.logging.getLogger(name),
+      sink,
+      logApi,
+      destroy: () => {
+        telemetry.dispose();
+        sink.dispose();
+        logApi.dispose();
+        connection.close();
+      }
+    };
+  }
+};
 
 describe('the broadcast wire protocol', () => {
   beforeEach(() => {
@@ -262,64 +396,99 @@ describe('the broadcast wire protocol', () => {
     }
   }
 
-  it('should carry what a shell and a fragment exchange, unchanged', async () => {
+  /** A shell and a fragment, each in its own realm. */
+  async function connect(shellKind: string, fragmentKind: string) {
     WireChannel.realm = 'shell';
-    const shell = createRealm([
-      ShellSink,
-      { provide: UwtTelemetrySink, useExisting: ShellSink },
-      ShellLogApi,
-      { provide: UWT_LOG_API_PROVIDER, useExisting: ShellLogApi },
-      UwtTelemetryBroadcastHost
-    ]);
-    const shellSink = shell.get(ShellSink);
-    const host = shell.get(UwtTelemetryBroadcastHost);
-
+    const shell = shells[shellKind]();
     WireChannel.realm = 'fragment';
-    const fragment = createRealm([
-      UwtBroadcastTelemetrySink,
-      { provide: UwtTelemetrySink, useExisting: UwtBroadcastTelemetrySink },
-      UwtBroadcastLogApiProvider,
-      { provide: UWT_LOG_API_PROVIDER, useExisting: UwtBroadcastLogApiProvider }
-    ]);
-    const sink = fragment.get(UwtTelemetrySink);
-    const logApi = fragment.get(UWT_LOG_API_PROVIDER);
+    const fragment = fragments[fragmentKind]();
     await settle();
+    return { shell, fragment };
+  }
 
-    // A scenario with a step, a business event, logs and a mirrored error.
-    const scenario = fragment
-      .get(UwtScenarioTelemetryService)
-      .start({ name: 'checkout', metadata: { cart: 'c-1' } });
-    scenario.step('pay', { method: 'card' });
-    scenario.endStep();
-    scenario.complete({ metadata: { items: 2 } });
-    fragment
-      .get(UwtBITelemetryService)
-      .track('export_clicked', { format: 'csv' });
-    const logger = fragment.get(UwtLoggerService).getLogger('checkout');
-    logger.warn('Slow payment', { metadata: { ms: 900 } });
-    logger.error('Payment failed', { error: new Error('Declined') });
-    await settle();
+  const pairs = [
+    ['an Angular shell', 'an Angular fragment'],
+    ['an Angular shell', 'an Angular fragment sharing one channel'],
+    ['an Angular shell', 'a core-only fragment'],
+    ['a core shell', 'an Angular fragment'],
+    ['a core shell', 'an Angular fragment sharing one channel'],
+    ['a core shell', 'a core-only fragment']
+  ];
 
-    // A sign-in, flushes, and a query answered by the shell's backend.
-    sink.setUserId('user-1');
-    await settle();
-    sink.flush(true);
-    logApi.flush?.();
-    const found = logApi.query({ logger: 'checkout', limit: 1 });
-    await settle();
-    expect(await found).toHaveLength(1);
+  it.each(pairs)(
+    'should carry what %s and %s exchange, unchanged',
+    async (shellKind, fragmentKind) => {
+      const { shell, fragment } = await connect(shellKind, fragmentKind);
 
-    // The shell's session moves on: the next record is stamped with it.
-    shellSink.sessionId = 'shell-session-2';
-    fragment.get(UwtBITelemetryService).track('theme_changed');
-    await settle();
+      // A scenario with a step, a business event, logs and a mirrored error.
+      const scenario = fragment.start({
+        name: 'checkout',
+        metadata: { cart: 'c-1' }
+      });
+      scenario.step('pay', { method: 'card' });
+      scenario.endStep();
+      scenario.complete({ metadata: { items: 2 } });
+      fragment.track('export_clicked', { format: 'csv' });
+      const logger = fragment.getLogger('checkout');
+      logger.warn('Slow payment', { metadata: { ms: 900 } });
+      logger.error('Payment failed', { error: new Error('Declined') });
+      await settle();
 
-    host.ngOnDestroy();
-    const recorded = stable(WireChannel.posted);
-    if (process.env.UPDATE_WIRE_FIXTURE === '1') {
-      writeFileSync(FIXTURE, JSON.stringify(recorded, null, 2) + '\n');
+      // A sign-in, flushes, and a query answered by the shell's backend.
+      fragment.sink.setUserId('user-1');
+      await settle();
+      fragment.sink.flush(true);
+      fragment.logApi.flush?.();
+      const found = fragment.logApi.query({ logger: 'checkout', limit: 1 });
+      await settle();
+      expect(await found).toHaveLength(1);
+
+      // The shell's session moves on: the next record is stamped with it.
+      shell.sink.sessionId = 'shell-session-2';
+      fragment.track('theme_changed');
+      await settle();
+
+      shell.destroy();
+      // The session, and the host going away, as the fixture recorded them.
+      const recorded = stable(WireChannel.posted);
+      fragment.destroy();
+      if (
+        process.env.UPDATE_WIRE_FIXTURE === '1' &&
+        shellKind === pairs[0][0] &&
+        fragmentKind === pairs[0][1]
+      ) {
+        writeFileSync(FIXTURE, JSON.stringify(recorded, null, 2) + '\n');
+      }
+      expect(existsSync(FIXTURE)).toBe(true);
+      expect(recorded).toEqual(JSON.parse(readFileSync(FIXTURE, 'utf8')));
+      expect(WireChannel.open()).toEqual([]);
     }
-    expect(existsSync(FIXTURE)).toBe(true);
-    expect(recorded).toEqual(JSON.parse(readFileSync(FIXTURE, 'utf8')));
-  });
+  );
+
+  it.each(Object.keys(fragments))(
+    'should send nothing twice, and leave no channel open, when %s is remounted',
+    async (fragmentKind) => {
+      const { shell, fragment } = await connect(
+        'an Angular shell',
+        fragmentKind
+      );
+
+      fragment.track('export_clicked');
+      const pending = fragment.logApi.query({});
+      fragment.destroy();
+      expect(await pending).toEqual([]);
+      expect(WireChannel.open()).toEqual(['shell']);
+
+      WireChannel.realm = 'fragment';
+      const remounted = fragments[fragmentKind]();
+      await settle();
+      remounted.track('theme_changed');
+      await settle();
+
+      expect(shell.sink.events).toEqual(['com.uwt.bi', 'com.uwt.bi']);
+      remounted.destroy();
+      shell.destroy();
+      expect(WireChannel.open()).toEqual([]);
+    }
+  );
 });
