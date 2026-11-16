@@ -170,19 +170,54 @@
   color: var(--cps-text-secondary);
 }
 
-// Settings: its sections listed beside the one shown, or picked above it
-// where the list has no room.
+// Settings: its sections listed beside the one shown, at the page's edge as
+// the lab's own nav is elsewhere, or picked above it where the list has no
+// room.
 .lab-settings {
   display: grid;
   grid-template-columns: 14rem minmax(0, 1fr);
   gap: 2rem;
   align-items: start;
+  margin-left: -2rem;
+}
+
+// The search, and the way out at the row's end.
+.lab-settings__top {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 // Its results are as wide as it is, each name with where it is beside it.
 .lab-settings__search {
   display: block;
+  flex: 1;
   max-width: 40rem;
+}
+
+.lab-settings__close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0.25rem;
+  background: none;
+  color: var(--cps-color-text-dark);
+  cursor: pointer;
+
+  &:hover {
+    background-color: rgb(135 10 60 / 7%);
+    color: var(--cps-color-calm);
+  }
+
+  &:focus-visible {
+    @include cps.focus-ring;
+  }
 }
 
 // In view as the section scrolls, below the header, scrolled on its own if
@@ -266,6 +301,7 @@
   .lab-settings {
     grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
+    margin-left: 0;
   }
 
   .lab-settings__nav {
@@ -494,6 +530,31 @@
   cursor: default;
 }
 
+// Settings, at the header's end; marked while it is open.
+.lab-header-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-left: -0.5rem;
+  border-radius: 0.25rem;
+  color: #fff;
+
+  &:hover {
+    background-color: #ffffff26;
+  }
+
+  &.lab-header-icon--active {
+    background-color: #ffffff40;
+  }
+
+  &:focus-visible {
+    @include cps.focus-ring;
+  }
+}
+
 .lab-header-button {
   padding: 0.35rem 0.9rem;
   border: 0.0625rem solid #fff;
@@ -600,37 +661,16 @@ html.lab-insets {
   grid-template-columns: 12rem minmax(0, 1fr);
 }
 
-// As tall as the window between the header and the status bar, above a pane
-// docked below, so Settings sits at its foot; scrolled on its own when the
-// pages need more room.
+// Settings takes the whole page, without the nav of the lab's pages.
+.lab-layout__grid--whole {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .lab-nav {
   position: sticky;
   top: 3.5rem;
   align-self: start;
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 5.75rem - var(--uwt-inspector-inset-bottom, 0px));
-  overflow-y: auto;
-  padding-top: 0.5rem;
-
-  // Settings, apart from the pages.
-  .lab-nav__pinned {
-    margin-top: auto;
-    padding: 0.5rem 0;
-    border-top: 0.0625rem solid var(--cps-color-line-mid);
-
-    a {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-  }
-}
-
-.lab-nav__pages {
-  display: flex;
-  flex: 1 0 auto;
-  flex-direction: column;
+  padding: 0.5rem 0 1rem;
 }
 
 // The rows of the side nav, and of Settings' list of its sections.
@@ -732,8 +772,6 @@ html.lab-insets {
 
   .lab-nav {
     z-index: 5;
-    height: auto;
-    overflow: visible;
     padding: 0;
     border-bottom: 0.0625rem solid var(--cps-color-line-mid);
     background-color: #f4f6f9;

@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DOCUMENT,
   ElementRef,
   inject,
   signal,
@@ -18,9 +19,12 @@ import {
 import {
   CpsAutocompleteComponent,
   CpsButtonComponent,
-  CpsSelectComponent
+  CpsIconComponent,
+  CpsSelectComponent,
+  CpsTooltipDirective
 } from 'cps-ui-kit';
 import { filter } from 'rxjs';
+import { LabReturnPage } from '../../lab/lab-return-page';
 import {
   LabSettingsDraft,
   labSettingId
@@ -74,16 +78,20 @@ function sectionOf(url: string): string {
 }
 
 /**
- * Settings: a list of its sections beside the one shown — a picker, when
- * there's no room for the list — and, while there are any, the changes not
- * applied yet, from every section, in a bar that applies them together.
+ * Settings, taking the whole page: a list of its sections beside the one
+ * shown — a picker, when there's no room for the list — a way to close it,
+ * back to the lab page it was opened from, and, while there are any, the
+ * changes not applied yet, from every section, in a bar that applies them
+ * together.
  */
 @Component({
   selector: 'lab-settings-page',
   imports: [
     CpsAutocompleteComponent,
     CpsButtonComponent,
+    CpsIconComponent,
     CpsSelectComponent,
+    CpsTooltipDirective,
     RouterLink,
     RouterLinkActive,
     RouterOutlet
@@ -147,24 +155,36 @@ function sectionOf(url: string): string {
       </div>
 
       <div class="lab-settings__content">
-        <!-- Over the section, wide enough for its results: the kit sizes
+        <div class="lab-settings__top">
+          <!-- Over the section, wide enough for its results: the kit sizes
              them to the box. -->
-        <cps-autocomplete
-          class="lab-settings__search"
-          ariaLabel="Find a setting"
-          placeholder="Find a setting  /"
-          prefixIcon="search"
-          [options]="searchable"
-          [returnObject]="true"
-          optionLabel="label"
-          optionInfo="info"
-          [withOptionsAliases]="true"
-          optionAlias="alias"
-          [showChevron]="false"
-          [hideDetails]="true"
-          emptyMessage="No setting matches"
-          width="100%"
-          (valueChanged)="find($event)" />
+          <cps-autocomplete
+            class="lab-settings__search"
+            ariaLabel="Find a setting"
+            placeholder="Find a setting  /"
+            prefixIcon="search"
+            [options]="searchable"
+            [returnObject]="true"
+            optionLabel="label"
+            optionInfo="info"
+            [withOptionsAliases]="true"
+            optionAlias="alias"
+            [showChevron]="false"
+            [hideDetails]="true"
+            emptyMessage="No setting matches"
+            width="100%"
+            (valueChanged)="find($event)" />
+          <button
+            type="button"
+            class="lab-settings__close"
+            aria-label="Close settings"
+            [cpsTooltip]="'Back to ' + returnPage().label"
+            tooltipOpenDelay="0"
+            tooltipPosition="left"
+            (click)="close()">
+            <cps-icon icon="close-x" size="1.25rem" />
+          </button>
+        </div>
 
         <router-outlet />
 
@@ -221,6 +241,10 @@ export class SettingsPage {
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly search = viewChild.required(CpsAutocompleteComponent);
+  private readonly window = inject(DOCUMENT).defaultView;
+
+  /** Where closing Settings leads: the lab page it was opened from. */
+  protected readonly returnPage = inject(LabReturnPage).page;
 
   protected readonly overview = OVERVIEW;
   protected readonly searchable = SEARCHABLE;
@@ -282,6 +306,25 @@ export class SettingsPage {
         takeUntilDestroyed()
       )
       .subscribe(() => this.current.set(sectionOf(this.router.url)));
+  }
+
+  /**
+   * Back to the lab page Settings was opened from, asking first when that
+   * would drop changes not applied yet.
+   */
+  protected async close(): Promise<void> {
+    const count = this.draft.changes().length;
+    if (
+      count &&
+      !this.window?.confirm(
+        `Close Settings, and discard ${count} ${count === 1 ? 'change' : 'changes'} not applied?`
+      )
+    ) {
+      return;
+    }
+    await this.router.navigate(['/', this.returnPage().path], {
+      queryParamsHandling: 'preserve'
+    });
   }
 
   protected async go(section: string): Promise<void> {

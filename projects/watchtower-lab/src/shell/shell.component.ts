@@ -25,6 +25,7 @@ import { UwtTelemetrySink } from '@absaoss-cps/ngx-ui-watchtower';
 import { UwtEventInspectorService } from '@absaoss-cps/ngx-ui-watchtower/event-inspector';
 import { LabLayout } from '../lab/lab-layout.service';
 import { LabRumCredentialsProvider } from '../lab/lab-rum-credentials.provider';
+import { LabReturnPage } from '../lab/lab-return-page';
 import { LAB_USER_NAMES } from '../lab/lab-users';
 import { labTelemetriesLabel, LabWire } from '../lab/lab-wire.service';
 import {
@@ -98,6 +99,18 @@ function inEffect(now?: string, next?: string): string {
         (click)="inspector.open()">
         Event Inspector
       </button>
+      <a
+        class="lab-header-icon"
+        [routerLink]="settings.path"
+        queryParamsHandling="preserve"
+        routerLinkActive="lab-header-icon--active"
+        ariaCurrentWhenActive="page"
+        [attr.aria-label]="settings.label"
+        [cpsTooltip]="settings.label"
+        tooltipOpenDelay="0"
+        tooltipPosition="bottom"
+        ><cps-icon icon="settings" size="1.25rem"
+      /></a>
     </header>
 
     <!-- Each chip leads to its setting; a custom config, to what differs. -->
@@ -145,57 +158,48 @@ function inEffect(now?: string, next?: string): string {
     </ng-template>
 
     <div class="lab-layout">
-      <div class="lab-layout__grid">
-        <nav class="lab-nav" aria-label="Lab pages">
-          <button
-            #navToggle
-            type="button"
-            class="lab-nav__toggle"
-            aria-controls="lab-nav-pages"
-            [attr.aria-expanded]="navOpen()"
-            (click)="navOpen.set(!navOpen())">
-            <span aria-hidden="true">☰</span> Pages
-            <span class="lab-nav__current"
-              ><span aria-hidden="true">·</span> {{ current() }}</span
-            >
-          </button>
-          <div
-            id="lab-nav-pages"
-            class="lab-nav__pages"
-            [class.lab-nav__pages--open]="navOpen()">
-            @for (group of groups; track group.name) {
-              <p class="lab-nav__group" [id]="'lab-nav-' + group.name">
-                {{ group.name }}
-              </p>
-              <ul [attr.aria-labelledby]="'lab-nav-' + group.name">
-                @for (page of group.pages; track page.path) {
-                  <li>
-                    <a
-                      [routerLink]="page.path"
-                      queryParamsHandling="preserve"
-                      routerLinkActive="active"
-                      ariaCurrentWhenActive="page"
-                      >{{ page.label }}</a
-                    >
-                  </li>
-                }
-              </ul>
-            }
-            <ul class="lab-nav__pinned">
-              <li>
-                <a
-                  [routerLink]="settings.path"
-                  queryParamsHandling="preserve"
-                  routerLinkActive="active"
-                  ariaCurrentWhenActive="page"
-                  ><cps-icon icon="settings" size="small" />{{
-                    settings.label
-                  }}</a
-                >
-              </li>
-            </ul>
-          </div>
-        </nav>
+      <div
+        class="lab-layout__grid"
+        [class.lab-layout__grid--whole]="inSettings()">
+        @if (!inSettings()) {
+          <nav class="lab-nav" aria-label="Lab pages">
+            <button
+              #navToggle
+              type="button"
+              class="lab-nav__toggle"
+              aria-controls="lab-nav-pages"
+              [attr.aria-expanded]="navOpen()"
+              (click)="navOpen.set(!navOpen())">
+              <span aria-hidden="true">☰</span> Pages
+              <span class="lab-nav__current"
+                ><span aria-hidden="true">·</span> {{ current() }}</span
+              >
+            </button>
+            <div
+              id="lab-nav-pages"
+              class="lab-nav__pages"
+              [class.lab-nav__pages--open]="navOpen()">
+              @for (group of groups; track group.name) {
+                <p class="lab-nav__group" [id]="'lab-nav-' + group.name">
+                  {{ group.name }}
+                </p>
+                <ul [attr.aria-labelledby]="'lab-nav-' + group.name">
+                  @for (page of group.pages; track page.path) {
+                    <li>
+                      <a
+                        [routerLink]="page.path"
+                        queryParamsHandling="preserve"
+                        routerLinkActive="active"
+                        ariaCurrentWhenActive="page"
+                        >{{ page.label }}</a
+                      >
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          </nav>
+        }
         <main class="lab-main" id="lab-main" tabindex="-1">
           <router-outlet />
         </main>
@@ -253,13 +257,21 @@ export class ShellComponent {
 
   /** Whether the folded nav is open, on a narrow screen. */
   protected readonly navOpen = signal(false);
-  private readonly path = signal('');
-  /** The page shown: Settings for any of its sections. */
-  protected readonly current = computed(
-    () =>
-      [...SHELL_PAGES, SHELL_SETTINGS].find(
-        (page) => page.path === this.path().split('/')[0]
-      )?.label ?? ''
+  /** Read from the address at first, so Settings never shows the nav. */
+  private readonly path = signal(
+    (inject(DOCUMENT).location?.pathname ?? '').replace(/^\//, '')
+  );
+
+  /** The lab page shown, if one is: none in Settings. */
+  private readonly page = computed(() =>
+    SHELL_PAGES.find((page) => page.path === this.path().split('/')[0])
+  );
+
+  protected readonly current = computed(() => this.page()?.label ?? '');
+
+  /** Settings takes the whole page: its sections are its only nav. */
+  protected readonly inSettings = computed(
+    () => this.path().split('/')[0] === SHELL_SETTINGS.path
   );
 
   private readonly credentials = inject(LabRumCredentialsProvider);
@@ -280,8 +292,9 @@ export class ShellComponent {
 
   private readonly sink = inject(UwtTelemetrySink);
   private readonly document = inject(DOCUMENT);
+  // Not there in Settings.
   private readonly navToggle =
-    viewChild.required<ElementRef<HTMLButtonElement>>('navToggle');
+    viewChild<ElementRef<HTMLButtonElement>>('navToggle');
 
   private readonly runSettings =
     viewChild<ElementRef<HTMLDetailsElement>>('runSettings');
@@ -289,6 +302,7 @@ export class ShellComponent {
   constructor() {
     inject(LabLayout);
     const router = inject(Router);
+    const returnPage = inject(LabReturnPage);
     router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
@@ -297,6 +311,10 @@ export class ShellComponent {
       .subscribe(() => {
         this.path.set(router.url.split(/[?#]/)[0].replace(/^\//, ''));
         this.navOpen.set(false);
+        const page = this.page();
+        if (page) {
+          returnPage.set({ path: page.path, label: page.label });
+        }
         // Its chips lead into Settings: it folds away once one is followed.
         this.runSettings()?.nativeElement.removeAttribute('open');
       });
@@ -326,10 +344,10 @@ export class ShellComponent {
 
   /** Escape folds the open nav, back to its button. */
   protected closeNav(): void {
-    if (this.navOpen()) {
+    const toggle = this.navToggle()?.nativeElement;
+    if (this.navOpen() && toggle) {
       // Focus goes back to the toggle, unless it is in a field elsewhere:
       // Escape there is that field's.
-      const toggle = this.navToggle().nativeElement as HTMLElement;
       const focused = toggle.ownerDocument.activeElement;
       const elsewhere =
         !!focused &&

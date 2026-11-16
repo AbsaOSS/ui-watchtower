@@ -113,8 +113,9 @@ export const SHELL_PAGES: {
 ];
 
 /**
- * Settings, at the foot of the nav, apart from the pages: it sets up the run
- * they all share, rather than being one of them. A page for each section.
+ * Settings, opened from the header rather than listed with the pages: it
+ * sets up the run they all share, rather than being one of them. It takes
+ * the whole page, with a page for each section.
  */
 export const SHELL_SETTINGS = { path: 'settings', label: 'Settings' };
 

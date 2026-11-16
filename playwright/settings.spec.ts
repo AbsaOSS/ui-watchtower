@@ -66,29 +66,48 @@ async function onlyLog(backend: {
   return (await backend.logs())[0];
 }
 
-test('Settings sits at the foot of the nav, apart from the pages, and opens on its overview', async ({
+test("Settings opens from the header's Settings icon, as a page of its own, and closes back to where it was", async ({
   page
 }) => {
-  await openLab(page, 'bi?destination=noop');
+  await openLab(page, 'logging?destination=noop');
   const nav = page.locator('.lab-nav');
+  await expect(nav.getByRole('link', { name: 'Settings' })).toHaveCount(0);
   await expect(
     nav.getByRole('list', { name: 'Tools' }).getByRole('link')
   ).toHaveText(['Event Inspector', 'On the wire']);
-  const last = (await nav
-    .getByRole('link', { name: 'On the wire' })
-    .boundingBox())!;
-  const settings = (await nav
-    .getByRole('link', { name: 'Settings' })
-    .boundingBox())!;
-  // Well below the last page, just above the status bar.
-  expect(settings.y).toBeGreaterThan(last.y + 3 * last.height);
-  expect(settings.y + settings.height).toBeGreaterThan(
-    page.viewportSize()!.height - 36 - 48
-  );
 
-  await navigate(page, 'Settings');
+  const icon = page
+    .locator('.lab-header')
+    .getByRole('link', { name: 'Settings', exact: true });
+  await icon.click();
   await expect(page).toHaveURL(/\/settings\?destination=noop$/);
   await expect(page).toHaveTitle('Settings · Watchtower Lab');
+  await expect(icon).toHaveAttribute('aria-current', 'page');
+  // The whole page: its sections are the only sidebar, at the page's edge.
+  await expect(page.locator('.lab-nav')).toHaveCount(0);
+  const sections = page.getByRole('navigation', { name: 'Settings sections' });
+  await expect(sections).toBeVisible();
+  expect((await sections.boundingBox())!.x).toBeLessThan(1);
+
+  // Closing would drop a change not applied: it asks first.
+  await settingsSection(page, 'Logging');
+  await choose(page, 'Minimum level', 'warn');
+  const close = page.getByRole('button', { name: 'Close settings' });
+  let asked = '';
+  page.once('dialog', (dialog) => {
+    asked = dialog.message();
+    return dialog.dismiss();
+  });
+  await close.click();
+  await expect.poll(() => asked).toContain('discard 1 change not applied');
+  await expect(page).toHaveURL(/\/settings\/logging/);
+
+  // Applied, the page reloads, and still closes back to Logging.
+  await applyAndReload(page);
+  await close.click();
+  await expect(page).toHaveURL(/\/logging\?destination=noop&config=/);
+  await expect(page.locator('lab-root main h1').first()).toHaveText('Logging');
+  await expect(icon).not.toHaveAttribute('aria-current', 'page');
 });
 
 test('each section of Settings is a page of its own, listed by area, saying how it applies', async ({
@@ -209,6 +228,11 @@ test('on a narrow screen, the sections of Settings fold into a picker', async ({
     page.getByRole('navigation', { name: 'Settings sections' })
   ).toBeHidden();
   await expect(shown(page, 'Section')).toHaveText('Library › Logging');
+  // No fold for the Lab's pages either; the way out stays.
+  await expect(page.getByRole('button', { name: /^Pages/ })).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Close settings' })
+  ).toBeVisible();
   // The search stays, above the picker.
   await expect(
     page.getByRole('combobox', { name: 'Find a setting' })

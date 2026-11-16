@@ -83,8 +83,11 @@ each forwarding through the shell over the tab's own channel). **Tools**:
 and the `--uwt-inspector-inset-*` opt-in on the lab's fixed header and status
 bar) and **On the wire**: what the mock backend actually received.
 
-**Settings**, at the foot of the nav, sets up the run every page shares: a
-page per section, listed beside it by area, each saying how it applies.
+**Settings**, opened from the header's gear, sets up the run every page
+shares. It takes the whole page, the lab's nav giving way to its own: a page
+per section, listed beside it by area, each saying how it applies. Closing
+it (✕) goes back to the page it was opened from, even after the reload that
+applies its changes, and asks first when changes not applied would be lost.
 **Library**: App identity, Delivery, Scenarios, BI events, Logging, Privacy &
 redaction and Event Inspector. **Mock backend**: RUM broker and App monitor.
 **Diagnostics**: Debug flags, which apply at once. **Advanced**: Configuration

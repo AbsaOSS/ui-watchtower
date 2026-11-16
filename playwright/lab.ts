@@ -204,9 +204,23 @@ export async function sessionStarted(page: Page): Promise<string> {
 
 /**
  * Moves to another lab page within the app, keeping its state — through the
- * folded nav's button too, as on a narrow screen or beside a pane.
+ * folded nav's button too, as on a narrow screen or beside a pane. Settings
+ * opens from the header's icon, and is left by closing it.
  */
 export async function navigate(page: Page, label: string): Promise<void> {
+  if (label === 'Settings') {
+    await page
+      .locator('.lab-header')
+      .getByRole('link', { name: 'Settings', exact: true })
+      .click();
+    await expect(page.locator('lab-root main h1').first()).toHaveText(label);
+    return;
+  }
+  // Settings has no nav of the lab's pages: out of it first.
+  if (!(await page.locator('.lab-nav').count())) {
+    await page.getByRole('button', { name: 'Close settings' }).click();
+    await expect(page.locator('.lab-nav')).toHaveCount(1);
+  }
   const fold = page.locator('.lab-nav__toggle');
   if (
     (await fold.isVisible()) &&
