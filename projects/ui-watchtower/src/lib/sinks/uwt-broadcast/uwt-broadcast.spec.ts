@@ -132,6 +132,15 @@ describe('the core broadcast classes', () => {
       expect(() => sink.record('com.uwt.bi', {})).not.toThrow();
       await expect(logApi.query({})).resolves.toEqual([]);
     });
+
+    it('should open no channel while disabled, every call a no-op', () => {
+      const connection = uwtConnectBroadcastChannel({ enabled: false });
+
+      expect(connection.isOpen()).toBe(false);
+      expect(ChannelStub.open.size).toBe(0);
+      expect(() => connection.post({ kind: 'log-flush' })).not.toThrow();
+      expect(() => connection.close()).not.toThrow();
+    });
   });
 
   describe('a log query', () => {

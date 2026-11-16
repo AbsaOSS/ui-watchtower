@@ -90,7 +90,7 @@ export class UwtBroadcastTelemetrySink extends UwtTelemetrySink {
       shared ??
       uwtConnectBroadcastChannel({
         channelName: options.channelName,
-        open: options.enabled !== false,
+        enabled: options.enabled,
         operation: 'broadcastSink',
         report: options.report
       });

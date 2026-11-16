@@ -103,7 +103,7 @@ export class UwtBroadcastLogApiProvider implements UwtLogApiProvider {
       shared ??
       uwtConnectBroadcastChannel({
         channelName: options.channelName,
-        open: options.enabled !== false,
+        enabled: options.enabled,
         operation: 'broadcastLogApi',
         report: options.report
       });

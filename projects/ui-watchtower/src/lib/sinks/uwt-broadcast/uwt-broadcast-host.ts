@@ -126,7 +126,7 @@ export class UwtTelemetryBroadcastHost {
     this.report = options.report;
     this.connection = uwtConnectBroadcastChannel({
       channelName: options.channelName,
-      open: this.enabled,
+      enabled: this.enabled,
       operation: 'broadcastHost',
       report: options.report
     });
