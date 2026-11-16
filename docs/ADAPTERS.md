@@ -40,8 +40,8 @@ private file.
 5. **Destinations.** Accept any `UwtTelemetrySink`, and offer the core's:
    the RUM sink, started with an unawaited `init()`; for a fragment, the
    broadcast sink and log provider sharing one `uwtConnectBroadcastChannel()`;
-   for a shell, a `UwtTelemetryBroadcastHost`. Pass each the engine's
-   `enabled`, and the shared connection `open: enabled`.
+   for a shell, a `UwtTelemetryBroadcastHost`. Pass each, and the shared
+   connection, the engine's `enabled`.
 6. **Teardown.** When the application or fragment is destroyed, dispose the
    engine and then what you created for it. Every `dispose()` can be called
    more than once.
