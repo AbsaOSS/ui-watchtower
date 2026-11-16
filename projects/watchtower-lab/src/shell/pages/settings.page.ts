@@ -154,7 +154,8 @@ function sectionOf(url: string): string {
           (valueChanged)="go($event)" />
       </div>
 
-      <div class="lab-settings__content">
+      <!-- The page's main content, where Skip to content leads. -->
+      <main class="lab-main lab-settings__content" id="lab-main" tabindex="-1">
         <div class="lab-settings__top">
           <!-- Over the section, wide enough for its results: the kit sizes
              them to the box. -->
@@ -232,7 +233,7 @@ function sectionOf(url: string): string {
             </div>
           }
         }
-      </div>
+      </main>
     </div>
   `
 })

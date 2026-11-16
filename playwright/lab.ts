@@ -190,7 +190,7 @@ export async function openLab(
     : '';
   await page.goto(`/${address}${overlay}`);
   await expect(page.locator('html[data-lab-ready]')).toHaveCount(1);
-  await expect(page.locator('lab-root main h1').first()).toBeVisible();
+  await expect(page.getByRole('main').locator('h1').first()).toBeVisible();
 }
 
 /** Waits until RUM has started a session, as the status bar shows; its id. */
@@ -213,7 +213,9 @@ export async function navigate(page: Page, label: string): Promise<void> {
       .locator('.lab-header')
       .getByRole('link', { name: 'Settings', exact: true })
       .click();
-    await expect(page.locator('lab-root main h1').first()).toHaveText(label);
+    await expect(page.getByRole('main').locator('h1').first()).toHaveText(
+      label
+    );
     return;
   }
   // Settings has no nav of the lab's pages: out of it first.
@@ -229,7 +231,7 @@ export async function navigate(page: Page, label: string): Promise<void> {
     await fold.click();
   }
   await page.locator('.lab-nav').getByRole('link', { name: label }).click();
-  await expect(page.locator('lab-root main h1').first()).toHaveText(label);
+  await expect(page.getByRole('main').locator('h1').first()).toHaveText(label);
 }
 
 /**
@@ -246,7 +248,7 @@ export async function settingsSection(
   await link.click();
   await expect(link).toHaveAttribute('aria-current', 'page');
   // For a frame both sections are there, the new one not yet filled in.
-  await expect(page.locator('lab-root main h1').first()).toHaveText(
+  await expect(page.getByRole('main').locator('h1').first()).toHaveText(
     label === 'Overview' ? 'Settings' : label
   );
 }

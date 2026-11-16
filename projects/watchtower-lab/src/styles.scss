@@ -176,9 +176,7 @@
 .lab-settings {
   display: grid;
   grid-template-columns: 14rem minmax(0, 1fr);
-  gap: 2rem;
   align-items: start;
-  margin-left: -2rem;
 }
 
 // The search, and the way out at the row's end.
@@ -220,12 +218,13 @@
   }
 }
 
-// In view as the section scrolls, below the header, scrolled on its own if
-// the window is short.
+// Where the lab's nav is on its pages: in view as the section scrolls, below
+// the header, scrolled on its own if the window is short.
 .lab-settings__nav {
   position: sticky;
-  top: 5rem;
-  max-height: calc(100vh - 8.75rem - var(--uwt-inspector-inset-bottom, 0px));
+  top: 3.5rem;
+  max-height: calc(100vh - 5.75rem - var(--uwt-inspector-inset-bottom, 0px));
+  padding: 0.5rem 0 1rem;
   overflow-y: auto;
 
   // The dot at the row's end; past the shared rows' rule, which comes later.
@@ -235,15 +234,6 @@
     justify-content: space-between;
     gap: 0.5rem;
   }
-}
-
-.lab-settings__area {
-  margin: 1rem 0 0.25rem 1.25rem;
-  color: var(--cps-color-text-darkest);
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 // A section's marks: how many of its settings are modified, and a dot when
@@ -279,8 +269,10 @@
   }
 }
 
+// In line with the main content below it.
 .lab-settings__picker {
   display: none;
+  padding: 1.5rem 2rem 0;
 }
 
 // At least as tall as the window, so the bar sits at its foot under a short
@@ -289,7 +281,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  min-height: calc(100vh - 8.75rem - var(--uwt-inspector-inset-bottom, 0px));
+  min-height: calc(100vh - 5.75rem - var(--uwt-inspector-inset-bottom, 0px));
 
   // Only where the section goes, after it: no gap of its own.
   > router-outlet {
@@ -297,11 +289,10 @@
   }
 }
 
-@container lab-main (max-width: 50rem) {
+// Too narrow for the list beside a section: under 50rem for the section.
+@container lab-layout (max-width: 54rem) {
   .lab-settings {
     grid-template-columns: minmax(0, 1fr);
-    gap: 1rem;
-    margin-left: 0;
   }
 
   .lab-settings__nav {
@@ -310,6 +301,12 @@
 
   .lab-settings__picker {
     display: block;
+  }
+}
+
+@container lab-layout (max-width: 30rem) {
+  .lab-settings__picker {
+    padding: 1rem 1rem 0;
   }
 }
 
@@ -421,7 +418,8 @@
   color: var(--cps-color-error);
 }
 
-.lab-main:focus {
+// The main content, the shell's or Settings', focused by Skip to content.
+#lab-main:focus {
   outline: none;
 }
 
@@ -758,7 +756,9 @@ html.lab-insets {
   }
 }
 
-.lab-nav__group {
+// The side nav's group headers, and Settings' area headers.
+.lab-nav__group,
+.lab-settings__area {
   margin: 0.25rem 1.25rem 0.375rem;
   padding-top: 1rem;
   border-top: 0.0625rem solid var(--cps-color-line-mid);
@@ -768,7 +768,7 @@ html.lab-insets {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 
-  // A divider only between groups.
+  // A divider only between groups; in Settings, Overview is above the first.
   &:first-child {
     padding-top: 0.25rem;
     border-top: 0;

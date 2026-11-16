@@ -19,7 +19,7 @@ for (const mode of ['null', 'fail'] as const) {
     await page.waitForTimeout(4500);
 
     expect(sent).toEqual([]);
-    await expect(page.locator('lab-root main h1')).toHaveText('BI events');
+    await expect(page.getByRole('main').locator('h1')).toHaveText('BI events');
   });
 }
 

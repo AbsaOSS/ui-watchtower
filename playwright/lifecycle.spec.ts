@@ -7,7 +7,7 @@ test('a scenario running when the page goes arrives abandoned, by beacon', async
   await openLab(page, 'lifecycle');
   await sessionStarted(page);
   await press(page, 'Start a scenario and reload');
-  await expect(page.locator('lab-root main h1')).toHaveText('Lifecycle');
+  await expect(page.getByRole('main').locator('h1')).toHaveText('Lifecycle');
 
   const events = await backend.rumUntil(
     (e) => named(e, 'lab-abandoned').length > 0

@@ -97,7 +97,7 @@ test("the header's logo and name lead to the start page, keeping the run's optio
 
   await home.click();
   await expect(page).toHaveURL(/\/scenarios\?destination=noop$/);
-  await expect(page.locator('lab-root main h1').first()).toHaveText(
+  await expect(page.getByRole('main').locator('h1').first()).toHaveText(
     'Scenarios'
   );
 
@@ -129,7 +129,7 @@ test('under 900px the nav folds behind a button naming the page', async ({
 
   await fold.click();
   await page.locator('.lab-nav').getByRole('link', { name: 'Logging' }).click();
-  await expect(page.locator('lab-root main h1')).toHaveText('Logging');
+  await expect(page.getByRole('main').locator('h1')).toHaveText('Logging');
   await expect(links.first()).toBeHidden();
   await expect(fold).toContainText('Logging');
 });

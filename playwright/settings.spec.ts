@@ -1,6 +1,7 @@
 import {
   applyAndReload,
   expect,
+  Locator,
   LogRecord,
   named,
   navigate,
@@ -106,8 +107,89 @@ test("Settings opens from the header's Settings icon, as a page of its own, and 
   await applyAndReload(page);
   await close.click();
   await expect(page).toHaveURL(/\/logging\?destination=noop&config=/);
-  await expect(page.locator('lab-root main h1').first()).toHaveText('Logging');
+  await expect(page.getByRole('main').locator('h1').first()).toHaveText(
+    'Logging'
+  );
   await expect(icon).not.toHaveAttribute('aria-current', 'page');
+});
+
+test("Settings' list of sections is beside its main content, as the lab's nav is, so Skip to content passes it", async ({
+  page
+}) => {
+  await openLab(page, 'bi');
+  const main = page.getByRole('main');
+  await expect(main.getByRole('navigation')).toHaveCount(0);
+
+  await navigate(page, 'Settings');
+  await expect(main).toHaveCount(1);
+  await expect(main.getByRole('navigation')).toHaveCount(0);
+  await expect(main.getByRole('heading', { level: 1 })).toHaveText('Settings');
+
+  await page.getByRole('link', { name: 'Skip to content' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(main).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(main.locator(':focus')).toHaveCount(1);
+});
+
+test('Settings lays out as a lab page does: its list where the nav is, the padding only around its main content', async ({
+  page
+}) => {
+  const measure = async (nav: Locator) => {
+    const main = page.getByRole('main');
+    const navBox = (await nav.boundingBox())!;
+    const mainBox = (await main.boundingBox())!;
+    const padding = (locator: Locator): Promise<string> =>
+      locator.evaluate((element) => getComputedStyle(element).padding);
+    return {
+      navTop: navBox.y,
+      navLeft: navBox.x,
+      navPadding: await padding(nav),
+      mainLeft: mainBox.x - (navBox.x + navBox.width),
+      mainPadding: await padding(main)
+    };
+  };
+
+  await openLab(page, 'bi');
+  const lab = await measure(
+    page.getByRole('navigation', { name: 'Lab pages' })
+  );
+  await navigate(page, 'Settings');
+  expect(
+    await measure(page.getByRole('navigation', { name: 'Settings sections' }))
+  ).toEqual(lab);
+});
+
+test("Settings' list of sections looks as the lab's nav does: its lettering, and a divider above each area", async ({
+  page
+}) => {
+  const look = (selector: string, index = 0): Promise<string[]> =>
+    page
+      .locator(selector)
+      .nth(index)
+      .evaluate((element) => {
+        const style = getComputedStyle(element);
+        return [
+          style.font,
+          style.borderTop,
+          style.paddingTop,
+          style.marginLeft,
+          style.marginRight
+        ];
+      });
+
+  await openLab(page, 'bi');
+  // The second group: the first has nothing above it to divide it from.
+  const group = await look('.lab-nav__group', 1);
+  const link = await look('.lab-nav a:not(.active)');
+
+  await navigate(page, 'Settings');
+  // Every area, the first too, under Overview.
+  const areas = await page.locator('.lab-settings__area').count();
+  for (let index = 0; index < areas; index++) {
+    expect(await look('.lab-settings__area', index)).toEqual(group);
+  }
+  expect(await look('.lab-settings__nav a:not(.active)')).toEqual(link);
 });
 
 test('each section of Settings is a page of its own, listed by area, saying how it applies', async ({
@@ -136,7 +218,7 @@ test('each section of Settings is a page of its own, listed by area, saying how 
     ).toHaveText(labels.map((label) => new RegExp(`^${label}`)));
   }
 
-  const main = page.locator('lab-root main');
+  const main = page.getByRole('main');
   await settingsSection(page, 'Logging');
   await expect(page).toHaveURL(/\/settings\/logging\?destination=noop$/);
   await expect(page).toHaveTitle('Logging · Settings · Watchtower Lab');
@@ -213,7 +295,7 @@ test("JSON that isn't an object: its controls say why they're off, and Apply's b
     'Configuration as JSON: Not a JSON object.'
   );
   await problem.getByRole('link', { name: 'Configuration as JSON' }).click();
-  await expect(page.locator('lab-root main h1').first()).toHaveText(
+  await expect(page.getByRole('main').locator('h1').first()).toHaveText(
     'Configuration as JSON'
   );
   await expect(page.locator('.lab-header')).not.toContainText('config:');
@@ -240,7 +322,7 @@ test('on a narrow screen, the sections of Settings fold into a picker', async ({
 
   await choose(page, 'Section', 'Library › Scenarios');
   await expect(page).toHaveURL(/\/settings\/scenarios$/);
-  await expect(page.locator('lab-root main h1').first()).toHaveText(
+  await expect(page.getByRole('main').locator('h1').first()).toHaveText(
     'Scenarios'
   );
 });
@@ -356,7 +438,7 @@ test("the mock broker's answer, other than its default, is marked in its section
 test("the header's chips lead to their settings", async ({ page }) => {
   await openLab(page, 'bi', { bi: { dedupWindowMs: 0 } });
   const header = page.locator('.lab-header');
-  const title = page.locator('lab-root main h1').first();
+  const title = page.getByRole('main').locator('h1').first();
   await header.getByRole('link', { name: 'destination: rum' }).click();
   await expect(page).toHaveURL(/\/settings\/delivery\?config=/);
   await expect(title).toHaveText('Delivery');

@@ -202,9 +202,17 @@ function inEffect(now?: string, next?: string): string {
             </div>
           </nav>
         }
-        <main class="lab-main" id="lab-main" tabindex="-1">
+        <!-- Settings has a main of its own, padded as this one, beside its
+           list of sections as this one is beside the nav. One outlet,
+           either way, so moving into Settings doesn't build its page
+           twice. -->
+        <div
+          [class.lab-main]="!inSettings()"
+          [attr.role]="inSettings() ? null : 'main'"
+          [attr.id]="inSettings() ? null : 'lab-main'"
+          [attr.tabindex]="inSettings() ? null : -1">
           <router-outlet />
-        </main>
+        </div>
       </div>
     </div>
 
