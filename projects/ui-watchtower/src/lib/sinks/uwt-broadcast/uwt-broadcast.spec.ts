@@ -177,6 +177,15 @@ describe('the core broadcast classes', () => {
       await expect(logApi.query({})).resolves.toEqual([]);
     });
 
+    it('should open no channel while disabled, every call a no-op', () => {
+      const connection = uwtConnectBroadcastChannel({ enabled: false });
+
+      expect(connection.isOpen()).toBe(false);
+      expect(ChannelStub.open.size).toBe(0);
+      expect(() => connection.post({ kind: 'log-flush' })).not.toThrow();
+      expect(() => connection.close()).not.toThrow();
+    });
+
     it('should send nothing over a shared connection while disabled, and leave it open', async () => {
       const shell = new ChannelStub(UWT_DEFAULT_BROADCAST_CHANNEL);
       const heard: unknown[] = [];

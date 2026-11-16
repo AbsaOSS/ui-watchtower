@@ -53,7 +53,7 @@ export function uwtConnectBroadcastChannel(
   const { channelName, enabled } = uwtBroadcastChannelOptions();
   return coreConnectBroadcastChannel({
     channelName,
-    open: enabled,
+    enabled,
     operation,
     report: uwtDevModeReporter
   });
