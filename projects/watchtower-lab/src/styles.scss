@@ -445,6 +445,21 @@
   color: #fff;
 }
 
+// The logo and name, leading to the start page.
+.lab-home {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 0.25rem;
+  color: inherit;
+  text-decoration: none;
+
+  &:focus-visible {
+    @include cps.focus-ring;
+  }
+}
+
 .lab-logo {
   flex-shrink: 0;
   margin-right: -0.25rem;

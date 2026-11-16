@@ -87,6 +87,30 @@ test('a narrower header folds its chips behind Run settings', async ({
   await expect(panel).toContainText('broker: ok');
 });
 
+test("the header's logo and name lead to the start page, keeping the run's options", async ({
+  page
+}) => {
+  await openLab(page, 'bi?destination=noop');
+  const home = page
+    .locator('.lab-header')
+    .getByRole('link', { name: 'Watchtower Lab', exact: true });
+
+  await home.click();
+  await expect(page).toHaveURL(/\/scenarios\?destination=noop$/);
+  await expect(page.locator('lab-root main h1').first()).toHaveText(
+    'Scenarios'
+  );
+
+  // Out of Settings too, which hides the lab's nav.
+  await page
+    .locator('.lab-header')
+    .getByRole('link', { name: 'Settings', exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/settings\?destination=noop$/);
+  await home.click();
+  await expect(page).toHaveURL(/\/scenarios\?destination=noop$/);
+});
+
 test('under 900px the nav folds behind a button naming the page', async ({
   page
 }) => {

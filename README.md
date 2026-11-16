@@ -103,6 +103,7 @@ lists both, to undo or reset each, or to reset all of them at once.
 what it does, and shows it in its section. On a narrow screen the sections
 fold into a picker.
 
+The header's logo and name lead back to the start page, **Scenarios**.
 The header's chips show how this load runs, each a link to its setting;
 where the broker is set differently for the next one, its chip says so:
 `broker: ok → null after reload`. On a narrow screen, or beside a docked

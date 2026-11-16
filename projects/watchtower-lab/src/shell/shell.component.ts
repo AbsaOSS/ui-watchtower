@@ -68,13 +68,15 @@ function inEffect(now?: string, next?: string): string {
       >Skip to content</a
     >
     <header class="lab-header">
-      <img
-        class="lab-logo"
-        src="assets/logo/logo-mark.svg"
-        alt=""
-        width="32"
-        height="32" />
-      <strong class="lab-title">Watchtower Lab</strong>
+      <a class="lab-home" routerLink="/" queryParamsHandling="preserve">
+        <img
+          class="lab-logo"
+          src="assets/logo/logo-mark.svg"
+          alt=""
+          width="32"
+          height="32" />
+        <strong class="lab-title">Watchtower Lab</strong>
+      </a>
       <!-- Inline when there's room; otherwise behind Run settings. -->
       <div class="lab-chips">
         <ng-container [ngTemplateOutlet]="chips" />
