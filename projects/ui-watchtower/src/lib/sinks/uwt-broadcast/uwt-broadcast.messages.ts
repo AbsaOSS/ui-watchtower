@@ -84,10 +84,10 @@ export interface UwtBroadcastChannelLike {
 }
 
 /**
- * Opens a broadcast channel, when the browser provides the API.
- *
- * Feature-detected: unavailable under jsdom (tests) and in server-side
- * rendering.
+ * Opens a broadcast channel, where the runtime has the API: browsers, and
+ * Node 18 and later — so a server rendering the app has one too, shared by
+ * every request it renders. Callers keep it closed there, with
+ * `enabled: false`. Feature-detected: jsdom, so a test, has none.
  */
 export function uwtOpenBroadcastChannel(
   name: string
@@ -171,7 +171,11 @@ export function uwtElectBroadcastHostLeader(
 }
 
 /**
- * A realm's live connection to the shared broadcast channel.
+ * A realm's live connection to the shared broadcast channel. An app opens
+ * one with {@link uwtConnectBroadcastChannel}, lends it to the realm's
+ * `UwtBroadcastTelemetrySink` and `UwtBroadcastLogApiProvider`, and closes
+ * it. `post` and `onMessage` are what those two call on it, whichever
+ * connection they are lent; the app itself needn't.
  *
  * @group Interfaces
  */
@@ -211,7 +215,7 @@ export interface UwtBroadcastConnectOptions {
    * `false` opens no channel, so every call is a no-op: on a server, or
    * while telemetry is off. Default `true`.
    */
-  open?: boolean;
+  enabled?: boolean;
   /** Names this connection in failure reports. Default `broadcast`. */
   operation?: string;
   /** Receives failures; see {@link UwtReporter}. */
@@ -237,7 +241,9 @@ export function uwtConnectBroadcastChannel(
   const { report } = options;
   const handlers = new Set<(data: unknown) => void>();
   let channel =
-    options.open === false ? undefined : uwtOpenBroadcastChannel(channelName);
+    options.enabled === false
+      ? undefined
+      : uwtOpenBroadcastChannel(channelName);
 
   if (channel) {
     channel.onmessage = (event) => {

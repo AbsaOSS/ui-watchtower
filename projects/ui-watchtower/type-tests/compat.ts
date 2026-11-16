@@ -271,7 +271,7 @@ export function composedPage(
 ): () => void {
   const connectOptions: UwtBroadcastConnectOptions = {
     channelName: UWT_DEFAULT_BROADCAST_CHANNEL,
-    open: true,
+    enabled: true,
     report
   };
   const connection: UwtBroadcastConnection =
