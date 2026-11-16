@@ -309,23 +309,26 @@ export class SettingsPage {
       .subscribe(() => this.current.set(sectionOf(this.router.url)));
   }
 
-  /**
-   * Back to the lab page Settings was opened from, asking first when that
-   * would drop changes not applied yet.
-   */
+  /** Back to the lab page Settings was opened from. */
   protected async close(): Promise<void> {
-    const count = this.draft.changes().length;
-    if (
-      count &&
-      !this.window?.confirm(
-        `Close Settings, and discard ${count} ${count === 1 ? 'change' : 'changes'} not applied?`
-      )
-    ) {
-      return;
-    }
     await this.router.navigate(['/', this.returnPage().path], {
       queryParamsHandling: 'preserve'
     });
+  }
+
+  /**
+   * Whether Settings may be left, however it is: asked first, when that
+   * would drop changes not applied yet.
+   */
+  mayLeave(): boolean {
+    const count = this.draft.changes().length;
+    return (
+      !count ||
+      (this.window?.confirm(
+        `Close Settings, and discard ${count} ${count === 1 ? 'change' : 'changes'} not applied?`
+      ) ??
+        true)
+    );
   }
 
   protected async go(section: string): Promise<void> {

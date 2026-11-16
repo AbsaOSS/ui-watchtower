@@ -9,7 +9,12 @@ import {
   withEventReplay
 } from '@angular/platform-browser';
 import { provideAnimations } from '@angular/platform-browser/animations';
-import { provideRouter, Route, Routes } from '@angular/router';
+import {
+  provideRouter,
+  Route,
+  Routes,
+  withRouterConfig
+} from '@angular/router';
 import {
   UWT_LOG_API_PROVIDER,
   provideUwtTelemetry,
@@ -148,7 +153,12 @@ export const shellConfig = (options: LabOptions): ApplicationConfig => {
       provideClientHydration(withEventReplay()),
       provideAnimations(),
       provideHttpClient(withFetch()),
-      provideRouter(routes),
+      provideRouter(
+        routes,
+        // Back, when leaving Settings is called off, goes forward again,
+        // rather than writing Settings over the page before it.
+        withRouterConfig({ canceledNavigationResolution: 'computed' })
+      ),
       { provide: LAB_OPTIONS, useValue: options },
       provideUwtTelemetry(
         { ...LAB_DEFAULTS.identity, ...identity },

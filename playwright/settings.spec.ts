@@ -79,11 +79,12 @@ test("Settings opens from the header's Settings icon, as a page of its own, and 
 
   const icon = page
     .locator('.lab-header')
-    .getByRole('link', { name: 'Settings', exact: true });
+    .getByRole('button', { name: 'Settings', exact: true });
+  await expect(icon).toHaveAttribute('aria-pressed', 'false');
   await icon.click();
   await expect(page).toHaveURL(/\/settings\?destination=noop$/);
   await expect(page).toHaveTitle('Settings · Watchtower Lab');
-  await expect(icon).toHaveAttribute('aria-current', 'page');
+  await expect(icon).toHaveAttribute('aria-pressed', 'true');
   // The whole page: its sections are the only sidebar, at the page's edge.
   await expect(page.locator('.lab-nav')).toHaveCount(0);
   const sections = page.getByRole('navigation', { name: 'Settings sections' });
@@ -110,7 +111,56 @@ test("Settings opens from the header's Settings icon, as a page of its own, and 
   await expect(page.getByRole('main').locator('h1').first()).toHaveText(
     'Logging'
   );
-  await expect(icon).not.toHaveAttribute('aria-current', 'page');
+  await expect(icon).toHaveAttribute('aria-pressed', 'false');
+});
+
+test("the header's Settings button toggles it, and every way out asks before dropping changes not applied", async ({
+  page
+}) => {
+  await openLab(page, 'logging?destination=noop');
+  const header = page.locator('.lab-header');
+  const gear = header.getByRole('button', { name: 'Settings', exact: true });
+  const home = header.getByRole('link', {
+    name: 'Watchtower Lab',
+    exact: true
+  });
+  await gear.click();
+  await expect(page).toHaveURL(/\/settings\?destination=noop$/);
+  await gear.click();
+  await expect(page).toHaveURL(/\/logging\?destination=noop$/);
+  await expect(gear).toHaveAttribute('aria-pressed', 'false');
+
+  await gear.click();
+  await settingsSection(page, 'Logging');
+  await choose(page, 'Minimum level', 'warn');
+  // Back within Settings leaves nothing behind: the next Back leaves it.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/settings\?destination=noop$/);
+
+  const asked: string[] = [];
+  page.on('dialog', (dialog) => {
+    asked.push(dialog.message());
+    return dialog.dismiss();
+  });
+  const ways = [() => gear.click(), () => home.click(), () => page.goBack()];
+  for (const [index, leave] of ways.entries()) {
+    await leave();
+    await expect.poll(() => asked.length).toBe(index + 1);
+    await expect(page).toHaveURL(/\/settings\?destination=noop$/);
+  }
+  expect(asked).toEqual(
+    ways.map(() => 'Close Settings, and discard 1 change not applied?')
+  );
+  await expect(gear).toHaveAttribute('aria-pressed', 'true');
+
+  // Told yes, Back leaves, to the page before Settings.
+  page.removeAllListeners('dialog');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.goBack();
+  await expect(page).toHaveURL(/\/logging\?destination=noop$/);
+  await expect(page.getByRole('main').locator('h1').first()).toHaveText(
+    'Logging'
+  );
 });
 
 test("Settings' list of sections is beside its main content, as the lab's nav is, so Skip to content passes it", async ({

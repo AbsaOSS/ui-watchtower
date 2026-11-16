@@ -211,7 +211,7 @@ export async function navigate(page: Page, label: string): Promise<void> {
   if (label === 'Settings') {
     await page
       .locator('.lab-header')
-      .getByRole('link', { name: 'Settings', exact: true })
+      .getByRole('button', { name: 'Settings', exact: true })
       .click();
     await expect(page.getByRole('main').locator('h1').first()).toHaveText(
       label

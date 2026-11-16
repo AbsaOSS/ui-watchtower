@@ -101,18 +101,18 @@ function inEffect(now?: string, next?: string): string {
         (click)="inspector.open()">
         Event Inspector
       </button>
-      <a
+      <button
+        type="button"
         class="lab-header-icon"
-        [routerLink]="settings.path"
-        queryParamsHandling="preserve"
-        routerLinkActive="lab-header-icon--active"
-        ariaCurrentWhenActive="page"
+        [class.lab-header-icon--active]="inSettings()"
         [attr.aria-label]="settings.label"
-        [cpsTooltip]="settings.label"
+        [attr.aria-pressed]="inSettings()"
+        [cpsTooltip]="inSettings() ? 'Close settings' : settings.label"
         tooltipOpenDelay="0"
         tooltipPosition="bottom"
-        ><cps-icon icon="settings" size="1.25rem"
-      /></a>
+        (click)="toggleSettings()">
+        <cps-icon icon="settings" size="1.25rem" />
+      </button>
     </header>
 
     <!-- Each chip leads to its setting; a custom config, to what differs. -->
@@ -309,21 +309,22 @@ export class ShellComponent {
   private readonly runSettings =
     viewChild<ElementRef<HTMLDetailsElement>>('runSettings');
 
+  private readonly router = inject(Router);
+  private readonly returnPage = inject(LabReturnPage);
+
   constructor() {
     inject(LabLayout);
-    const router = inject(Router);
-    const returnPage = inject(LabReturnPage);
-    router.events
+    this.router.events
       .pipe(
         filter((event) => event instanceof NavigationEnd),
         takeUntilDestroyed()
       )
       .subscribe(() => {
-        this.path.set(router.url.split(/[?#]/)[0].replace(/^\//, ''));
+        this.path.set(this.router.url.split(/[?#]/)[0].replace(/^\//, ''));
         this.navOpen.set(false);
         const page = this.page();
         if (page) {
-          returnPage.set({ path: page.path, label: page.label });
+          this.returnPage.set({ path: page.path, label: page.label });
         }
         // Its chips lead into Settings: it folds away once one is followed.
         this.runSettings()?.nativeElement.removeAttribute('open');
@@ -347,6 +348,16 @@ export class ShellComponent {
   }
 
   /** Focuses the page's content; handled here, so the router stays out. */
+  /** Into Settings, or out of it, back to the page it was opened from. */
+  protected async toggleSettings(): Promise<void> {
+    const path = this.inSettings()
+      ? this.returnPage.page().path
+      : SHELL_SETTINGS.path;
+    await this.router.navigate(['/', path], {
+      queryParamsHandling: 'preserve'
+    });
+  }
+
   protected skipToContent(event: Event): void {
     event.preventDefault();
     this.document.getElementById('lab-main')?.focus();

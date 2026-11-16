@@ -104,7 +104,7 @@ test("the header's logo and name lead to the start page, keeping the run's optio
   // Out of Settings too, which hides the lab's nav.
   await page
     .locator('.lab-header')
-    .getByRole('link', { name: 'Settings', exact: true })
+    .getByRole('button', { name: 'Settings', exact: true })
     .click();
   await expect(page).toHaveURL(/\/settings\?destination=noop$/);
   await home.click();

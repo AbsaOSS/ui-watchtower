@@ -543,7 +543,8 @@
   cursor: default;
 }
 
-// Settings, at the header's end; marked while it is open.
+// Settings, at the header's end: opens it, and closes it again; marked
+// while it is open.
 .lab-header-icon {
   display: inline-flex;
   flex: none;
@@ -552,8 +553,12 @@
   width: 2.25rem;
   height: 2.25rem;
   margin-left: -0.5rem;
+  padding: 0;
+  border: 0;
   border-radius: 0.25rem;
+  background: none;
   color: #fff;
+  cursor: pointer;
 
   &:hover {
     background-color: #ffffff26;

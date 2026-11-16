@@ -9,6 +9,7 @@ export const SETTINGS_ROUTES: Routes = [
   {
     path: '',
     component: SettingsPage,
+    canDeactivate: [(page: SettingsPage) => page.mayLeave()],
     children: [
       {
         path: '',
