@@ -66,14 +66,20 @@ telemetry.dispose();
 
 // The RUM entry point loads aws-rum-web only once a sink starts, which
 // without a page it never does: it is not installed here.
+// A flag, not a throw from load(): the sink catches that and retries.
 const { UwtRumTelemetrySink } = await import('@absaoss-cps/ui-watchtower/rum');
+let loaded = false;
 const rum = new UwtRumTelemetrySink({
   identity: { application: 'worker', environment: 'test', version: '1.0.0' },
   credentialsProvider: {
-    load: async () => assert.fail('a sink without a page never starts')
+    load: async () => {
+      loaded = true;
+      return null;
+    }
   }
 });
 await rum.init();
 rum.dispose();
+assert.equal(loaded, false, 'a sink without a page never starts');
 
 console.log('core-only Node consumer: ok');
