@@ -1,0 +1,14 @@
+/*
+ * Core consumer type tests, compiled against the public entry point by plain
+ * `tsc`: no framework. `compat.ts` and `empty-registry.ts` share this
+ * compilation; the augmentation in `augmented.ts` would leak into them, so
+ * it has its own.
+ */
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": []
+  },
+  "files": ["compat.ts", "empty-registry.ts"]
+}

@@ -1,6 +1,6 @@
 import { NgZone } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
+import { UwtLogRecord } from '@absaoss-cps/ui-watchtower';
 import { UWT_BROADCAST_CHANNEL } from '../../sinks/uwt-broadcast/uwt-broadcast.messages';
 import {
   UWT_BROADCAST_LOG_QUERY_TIMEOUT_MS,

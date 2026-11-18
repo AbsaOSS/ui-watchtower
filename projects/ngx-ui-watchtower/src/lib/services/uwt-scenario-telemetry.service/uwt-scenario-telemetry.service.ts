@@ -1,39 +1,25 @@
-import { DOCUMENT } from '@angular/common';
-import { inject, Injectable, NgZone, OnDestroy } from '@angular/core';
+import { inject, Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
+import {
+  UwtScenario,
+  UwtScenarioName,
+  UwtScenarioOptions,
+  UwtScenarioRecord,
+  UwtScenarioTelemetry,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
 import {
   UWT_REDACT_CONFIG,
   uwtTelemetryEnabled,
   UWT_TELEMETRY_IDENTITY
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_SCENARIO_TELEMETRY_CONFIG } from '../../config/uwt-scenario-telemetry.config/uwt-scenario-telemetry.config';
-import type {
-  UwtScenarioName,
-  UwtScenarioOptions,
-  UwtScenarioRecord
-} from '../../models/uwt-scenario.models/uwt-scenario.models';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import {
-  uwtDeepClone,
-  uwtIsBrowser,
-  uwtIsDevMode,
-  uwtSafeVoid
+  uwtBrowserDocument,
+  uwtDevModeReporter,
+  uwtRunOutsideZone
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
-import { uwtRedactConfigFor } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-import { UwtScenario } from '../../scenario/uwt-scenario/uwt-scenario';
 import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
-
-/**
- * How many scenarios may be in flight before a development-mode warning
- * suggests a leak.
- *
- * Concurrent scenarios are legitimate — several journeys, tabs or panels
- * can run at once — so this is a smell threshold, not a limit: nothing is
- * dropped or rejected when it is crossed. Set well above any plausible
- * real concurrency, so crossing it might mean scenarios with `timeoutMs: 0` or
- * long lifecycles are being started and never settled.
- */
-const ACTIVE_SCENARIO_WARN_THRESHOLD = 50;
 
 /**
  * Creates and tracks scenarios — user journeys whose health this telemetry
@@ -59,32 +45,18 @@ const ACTIVE_SCENARIO_WARN_THRESHOLD = 50;
  */
 @Injectable({ providedIn: 'root' })
 export class UwtScenarioTelemetryService implements OnDestroy {
-  private readonly identity = inject(UWT_TELEMETRY_IDENTITY);
-  private readonly scenarioTelemetryConfig = inject(
-    UWT_SCENARIO_TELEMETRY_CONFIG
-  );
-
-  private readonly redact = uwtRedactConfigFor(
-    inject(UWT_REDACT_CONFIG),
-    this.scenarioTelemetryConfig.redact
-  );
-
-  private readonly sink = inject(UwtTelemetrySink);
-  private readonly monitor = inject(UwtTelemetryMonitor);
-  private readonly document = inject(DOCUMENT);
-  private readonly enabled = uwtTelemetryEnabled();
-
-  /** Page listeners: only in a browser, and only while telemetry is on. */
-  private readonly listensToPage = uwtIsBrowser() && this.enabled;
-  private readonly zone = inject(NgZone, { optional: true });
-
-  private readonly active = new Map<string, UwtScenario>();
-  private readonly onPageHide = () => this.flushActive();
-  private readonly onVisibilityChange = () => {
-    if (this.document.visibilityState === 'hidden') {
-      this.flushSink();
-    }
-  };
+  /** The core's scenario telemetry, configured from this injector. */
+  private readonly scenarios = new UwtScenarioTelemetry({
+    identity: inject(UWT_TELEMETRY_IDENTITY),
+    config: inject(UWT_SCENARIO_TELEMETRY_CONFIG),
+    redact: inject(UWT_REDACT_CONFIG),
+    sink: inject(UwtTelemetrySink),
+    document: uwtBrowserDocument(),
+    enabled: uwtTelemetryEnabled(),
+    runOutside: uwtRunOutsideZone(),
+    report: uwtDevModeReporter,
+    monitor: inject(UwtTelemetryMonitor)
+  });
 
   private readonly _settled$ = new Subject<UwtScenarioRecord>();
 
@@ -102,18 +74,27 @@ export class UwtScenarioTelemetryService implements OnDestroy {
    * ```
    */
   readonly settled$: Observable<UwtScenarioRecord> =
-    this._settled$.asObservable();
+    new Observable<UwtScenarioRecord>((subscriber) => {
+      const subscription = this._settled$.subscribe(subscriber);
+      // Listens to the core only while observed: the core copies each record
+      // for its listeners, wasted work when nobody reads it.
+      if (!this.destroyed) {
+        this.stopListening ??= this.scenarios.onSettled((record) =>
+          this._settled$.next(record)
+        );
+      }
+      return () => {
+        subscription.unsubscribe();
+        if (!this._settled$.observed) {
+          this.stopListening?.();
+          this.stopListening = undefined;
+        }
+      };
+    });
 
-  constructor() {
-    if (this.listensToPage) {
-      this.document.defaultView?.addEventListener('pagehide', this.onPageHide);
-
-      this.document.addEventListener(
-        'visibilitychange',
-        this.onVisibilityChange
-      );
-    }
-  }
+  /** Stops the core's listener; set while {@link settled$} has subscribers. */
+  private stopListening?: () => void;
+  private destroyed = false;
 
   /**
    * Starts a new scenario.
@@ -123,49 +104,7 @@ export class UwtScenarioTelemetryService implements OnDestroy {
    * @returns an independent scenario instance
    */
   start(options: UwtScenarioOptions): UwtScenario {
-    if (!this.enabled) {
-      // Same return type, nothing recorded, timed, registered or sent.
-      return new UwtScenario(options, {
-        identity: this.identity,
-        scenarioTelemetryConfig: this.scenarioTelemetryConfig,
-        redact: this.redact,
-        sink: this.sink,
-        monitor: this.monitor,
-        onSettled: () => undefined,
-        inert: true
-      });
-    }
-    const scenario = new UwtScenario(options, {
-      identity: this.identity,
-      scenarioTelemetryConfig: this.scenarioTelemetryConfig,
-      redact: this.redact,
-      sink: this.sink,
-      monitor: this.monitor,
-      runOutsideAngular: (callback) =>
-        this.zone?.runOutsideAngular(callback) ?? callback(),
-      onSettled: (scenarioId, record) => {
-        this.active.delete(scenarioId);
-        if (!this._settled$.observed) {
-          return;
-        }
-        // Cloned so a settled$ subscriber can't mutate the same object
-        // that's about to be (or already was) shipped to the sink.
-        uwtSafeVoid('scenarioTelemetry.notify', () =>
-          this._settled$.next(uwtDeepClone(record))
-        );
-      }
-    });
-
-    uwtSafeVoid('scenarioTelemetry.register', () => {
-      this.active.set(scenario.id, scenario);
-      if (uwtIsDevMode() && this.active.size > ACTIVE_SCENARIO_WARN_THRESHOLD) {
-        console.warn(
-          `[ngx-ui-watchtower] High number of active scenarios (${this.active.size}). Ensure scenarios with timeoutMs: 0 or long lifecycles are settled on destroy.`
-        );
-      }
-    });
-
-    return scenario;
+    return this.scenarios.start(options);
   }
 
   /**
@@ -175,7 +114,7 @@ export class UwtScenarioTelemetryService implements OnDestroy {
    * @returns the scenario, or `undefined` if unknown or already settled
    */
   find(scenarioId: string): UwtScenario | undefined {
-    return this.active.get(scenarioId);
+    return this.scenarios.find(scenarioId);
   }
 
   /**
@@ -191,7 +130,7 @@ export class UwtScenarioTelemetryService implements OnDestroy {
    * @returns matching active scenarios, in start order
    */
   findByName(name: UwtScenarioName): UwtScenario[] {
-    return this.getActive().filter((scenario) => scenario.name === name);
+    return this.scenarios.findByName(name);
   }
 
   /**
@@ -210,8 +149,7 @@ export class UwtScenarioTelemetryService implements OnDestroy {
     name: UwtScenarioName,
     scenarioId: string
   ): UwtScenario | undefined {
-    const scenario = this.find(scenarioId);
-    return scenario?.name === name ? scenario : undefined;
+    return this.scenarios.findByNameAndId(name, scenarioId);
   }
 
   /**
@@ -220,52 +158,13 @@ export class UwtScenarioTelemetryService implements OnDestroy {
    * @returns the active scenarios, in start order
    */
   getActive(): UwtScenario[] {
-    return [...this.active.values()];
+    return this.scenarios.getActive();
   }
 
   /** @inheritdoc */
   ngOnDestroy(): void {
-    if (this.listensToPage) {
-      this.document.defaultView?.removeEventListener(
-        'pagehide',
-        this.onPageHide
-      );
-      this.document.removeEventListener(
-        'visibilitychange',
-        this.onVisibilityChange
-      );
-    }
-    if (this.enabled) {
-      this.flushActive();
-    }
+    this.destroyed = true;
+    this.scenarios.dispose();
     this._settled$.complete();
-  }
-
-  /**
-   * Dispatches what the sink holds, leaving running scenarios alone.
-   *
-   * Uses the beacon transport since the page may not survive a normal request.
-   */
-  private flushSink(): void {
-    uwtSafeVoid('scenarioTelemetry.flushSink', () => this.sink.flush(true));
-  }
-
-  /**
-   * Settles every in-flight scenario as abandoned and asks the sink to send
-   * what it holds using a transport that survives unload.
-   *
-   * Scenario emission is synchronous, so everything settled here reaches the
-   * sink before the beacon goes out.
-   */
-  private flushActive(): void {
-    uwtSafeVoid('scenarioTelemetry.flush', () => {
-      for (const scenario of this.getActive()) {
-        scenario.settle('abandoned', {
-          reason: 'page-hidden',
-          metadata: { abandonedBy: 'page-hidden' }
-        });
-      }
-      this.sink.flush(true);
-    });
   }
 }

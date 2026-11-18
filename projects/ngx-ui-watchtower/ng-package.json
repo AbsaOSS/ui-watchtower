@@ -3,5 +3,6 @@
   "dest": "../../dist/ngx-ui-watchtower",
   "lib": {
     "entryFile": "src/public-api.ts"
-  }
+  },
+  "allowedNonPeerDependencies": ["@absaoss-cps/ui-watchtower"]
 }

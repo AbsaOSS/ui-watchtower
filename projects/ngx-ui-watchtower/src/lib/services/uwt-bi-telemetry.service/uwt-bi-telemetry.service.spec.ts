@@ -6,22 +6,20 @@ import {
   withRedaction,
   withScenarios
 } from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
-import { UwtBIEvent } from '../../models/uwt-bi.models/uwt-bi.models';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import {
-  UWT_LOG_API_PROVIDER,
+  UWT_REDACTED,
+  UWT_TELEMETRY_EVENT_TYPE,
+  UwtBIEvent,
   UwtLogApiProvider,
-  UwtLogQuery
-} from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
-import { UWT_REDACTED } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
+  UwtLogQuery,
+  UwtLogRecord,
+  UwtTelemetryError,
+  UwtTelemetryMetadata,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
+import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { UwtBITelemetryService } from './uwt-bi-telemetry.service';
 import { UwtScenarioTelemetryService } from '../uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';
-import {
-  UWT_TELEMETRY_EVENT_TYPE,
-  UwtTelemetryError,
-  UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
 
 /** Captures what the library emitted, so a test can assert on it. */
 @Injectable()

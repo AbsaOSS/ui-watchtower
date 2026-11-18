@@ -1,13 +1,10 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import {
-  UwtTelemetryObservedEvent,
-  UwtTelemetryPublishInput
-} from '../../models/uwt-telemetry-monitor.models/uwt-telemetry-monitor.models';
-import {
-  uwtDeepClone,
-  uwtSafeVoid
-} from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+  UwtTelemetryMonitor as CoreTelemetryMonitor,
+  UwtTelemetryObservedEvent
+} from '@absaoss-cps/ui-watchtower';
+import { uwtDevModeReporter } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 
 /**
  * A read-only view of every event this library hands to a destination —
@@ -36,46 +33,44 @@ import {
  * @group Services
  */
 @Injectable({ providedIn: 'root' })
-export class UwtTelemetryMonitor implements OnDestroy {
-  private readonly subject = new Subject<UwtTelemetryObservedEvent>();
-  private sequence = 0;
+export class UwtTelemetryMonitor
+  extends CoreTelemetryMonitor
+  implements OnDestroy
+{
+  private readonly _events$ = new Subject<UwtTelemetryObservedEvent>();
 
   /** Every observed event, from the moment of subscription onward. */
   readonly events$: Observable<UwtTelemetryObservedEvent> =
-    this.subject.asObservable();
-
-  /** Whether anything is currently subscribed to {@link events$}. */
-  get observed(): boolean {
-    return this.subject.observed;
-  }
-
-  /**
-   * Records one hand-off. Called by the library's own hand-off sites; an
-   * application has no reason to call it.
-   *
-   * @param input the event just handed over, and where it went
-   * @returns the sequence number assigned, or `undefined` when nobody is
-   *   subscribed and the event was not recorded
-   */
-  publish(input: UwtTelemetryPublishInput): number | undefined {
-    if (!this.subject.observed) {
-      return undefined;
-    }
-
-    const sequence = ++this.sequence;
-    uwtSafeVoid('monitor.publish', () => {
-      this.subject.next({
-        ...input,
-        payload: uwtDeepClone(input.payload),
-        sequence,
-        capturedAt: new Date().toISOString()
-      } as UwtTelemetryObservedEvent);
+    new Observable<UwtTelemetryObservedEvent>((subscriber) => {
+      const subscription = this._events$.subscribe(subscriber);
+      // Listens to the core only while observed: the core copies each event
+      // for its listeners, wasted work when nobody reads it.
+      if (!this.destroyed) {
+        this.stopListening ??= this.subscribe((event) =>
+          this._events$.next(event)
+        );
+      }
+      return () => {
+        subscription.unsubscribe();
+        if (!this._events$.observed) {
+          this.stopListening?.();
+          this.stopListening = undefined;
+        }
+      };
     });
-    return sequence;
+
+  /** Stops the core's listener; set while {@link events$} has subscribers. */
+  private stopListening?: () => void;
+  private destroyed = false;
+
+  constructor() {
+    super({ report: uwtDevModeReporter });
   }
 
   /** @inheritdoc */
   ngOnDestroy(): void {
-    this.subject.complete();
+    this.destroyed = true;
+    this.dispose();
+    this._events$.complete();
   }
 }

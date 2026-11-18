@@ -7,9 +7,11 @@ import {
   PLATFORM_ID
 } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { UwtTelemetryError } from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
-import { UwtScenario } from '../../scenario/uwt-scenario/uwt-scenario';
+import {
+  UwtScenario,
+  UwtTelemetryError,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
 import { traceScenario } from '../../scenario/uwt-scenario-operators/uwt-scenario-operators';
 import { UwtScenarioTelemetryService } from '../../services/uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';
 import { UwtBITelemetryService } from '../../services/uwt-bi-telemetry.service/uwt-bi-telemetry.service';

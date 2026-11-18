@@ -6,16 +6,14 @@ import {
   withScenarios
 } from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
 import {
-  UWT_LOG_API_PROVIDER,
-  UwtLogApiProvider
-} from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
-import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
-import {
+  UwtLogApiProvider,
+  UwtLogRecord,
   UwtTelemetryError,
-  UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import { UwtTelemetryObservedEvent } from '../../models/uwt-telemetry-monitor.models/uwt-telemetry-monitor.models';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+  UwtTelemetryMetadata,
+  UwtTelemetryObservedEvent,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
+import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { UwtBITelemetryService } from '../uwt-bi-telemetry.service/uwt-bi-telemetry.service';
 import { UwtLoggerService } from '../uwt-logger.service/uwt-logger.service';
 import { UwtScenarioTelemetryService } from '../uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';

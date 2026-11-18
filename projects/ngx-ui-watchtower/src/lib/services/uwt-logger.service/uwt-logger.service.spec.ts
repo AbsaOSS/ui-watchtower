@@ -1,29 +1,26 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable, OnDestroy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { UwtLogConfig } from '../../config/uwt-log.config/uwt-log.config';
+import {
+  UWT_REDACTED,
+  UwtLogApiProvider,
+  UwtLogConfig,
+  UwtLogDetail,
+  UwtLogger,
+  UwtLogQuery,
+  UwtLogRecord,
+  UwtTelemetryError,
+  UwtTelemetryMetadata,
+  UwtTelemetrySink
+} from '@absaoss-cps/ui-watchtower';
 import {
   provideUwtTelemetry,
   withLogging,
   withRedaction
 } from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
-import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
-import {
-  UWT_LOG_API_PROVIDER,
-  UwtLogApiProvider,
-  UwtLogQuery
-} from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
-import * as uwtTelemetryRedactUtil from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-import { UWT_REDACTED } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
+import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+// The logging logic lives in the core, which calls its own redaction module.
+import * as uwtTelemetryRedactUtil from '../../../../../ui-watchtower/src/lib/utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import { UwtLoggerService } from './uwt-logger.service';
-import {
-  UwtTelemetryError,
-  UwtTelemetryMetadata
-} from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
-import type {
-  UwtLogDetail,
-  UwtLogger,
-  UwtLogRecord
-} from '../../models/uwt-log.models/uwt-log.models';
 
 /** Captures what the library emitted, so a test can assert on it. */
 @Injectable()
@@ -855,6 +852,33 @@ describe('UwtLoggerService', () => {
       TestBed.inject(UwtLoggerService);
 
       expect(() => window.dispatchEvent(new Event('pagehide'))).not.toThrow();
+    });
+  });
+
+  describe('teardown', () => {
+    it('should still ship a line logged by a service destroyed after the logger service', () => {
+      // Angular destroys a service before those that inject it, so this one
+      // logs after UwtLoggerService has been destroyed.
+      @Injectable({ providedIn: 'root' })
+      class ClosingService implements OnDestroy {
+        private readonly logger = inject(UwtLoggerService).getLogger('closing');
+
+        ngOnDestroy(): void {
+          this.logger.log('closing');
+        }
+      }
+      TestBed.inject(ClosingService);
+
+      TestBed.resetTestingModule();
+
+      expect(transport.records.map((r) => r.message)).toContain('closing');
+    });
+
+    it('should keep answering queries after the logger service is destroyed', async () => {
+      logger.log('before');
+      service.ngOnDestroy();
+
+      await expect(service.query({})).resolves.toHaveLength(1);
     });
   });
 });

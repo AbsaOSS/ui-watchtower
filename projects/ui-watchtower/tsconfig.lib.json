@@ -1,0 +1,22 @@
+/*
+ * The core library: plain TypeScript, built by ng-packagr like the Angular
+ * package, but with no Angular in it.
+ */
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../out-tsc/lib-core",
+    "rootDir": "./src",
+    "lib": ["ES2022", "DOM"],
+    "declaration": true,
+    "declarationMap": true,
+    "inlineSources": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "isolatedModules": false,
+    "types": [],
+    "paths": {}
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["**/*.spec.ts"]
+}

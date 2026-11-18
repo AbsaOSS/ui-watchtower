@@ -1,37 +1,59 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/logo-stacked-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/logo/logo-stacked-light.svg">
-    <img src="assets/logo/logo-stacked-auto.svg" alt="Angular UI Watchtower" width="280">
-  </picture>
+  <img src="assets/logo/logo-stacked-light.svg#gh-light-mode-only" alt="UI Watchtower" width="280">
+  <img src="assets/logo/logo-stacked-dark.svg#gh-dark-mode-only" alt="UI Watchtower" width="280">
 </p>
 
-# Angular UI Watchtower
+# UI Watchtower
 
-Source of [`@absaoss-cps/ngx-ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ngx-ui-watchtower),
-a telemetry library for Angular apps: scenarios (user end-to-end journeys or specific functional workflows through an app), BI events and
-logs, with an optional AWS CloudWatch RUM sink.
+Telemetry for frontend applications, in three parts:
 
-How to use the library: [projects/ngx-ui-watchtower/README.md](projects/ngx-ui-watchtower/README.md)
-(also the npm page).
-How it is designed: [projects/ngx-ui-watchtower/DESIGN.md](projects/ngx-ui-watchtower/DESIGN.md).
+- **Scenarios** — did a user journey or a workflow succeed, and how long did
+  it take?
+- **BI events** — which features are used?
+- **Logs** — what exactly happened?
+
+Events go to AWS CloudWatch RUM or another destination you choose; logs go
+to a backend you provide.
+
+It comes as two packages, each with its own version:
+
+| Package                                                                                          | Use it in                                                                                                                                              | Guide                                          |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| [`@absaoss-cps/ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ui-watchtower)         | Any frontend: plain JavaScript or TypeScript, or any framework. Framework adapters are built on it ([how](docs/ADAPTERS.md)).                          | [README](projects/ui-watchtower/README.md)     |
+| [`@absaoss-cps/ngx-ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ngx-ui-watchtower) | Angular applications. A thin adapter over `@absaoss-cps/ui-watchtower`: Angular providers, injectable services and Observables around the same engine. | [README](projects/ngx-ui-watchtower/README.md) |
+
+Each guide is also the package's npm page. How it is designed:
+[projects/ngx-ui-watchtower/DESIGN.md](projects/ngx-ui-watchtower/DESIGN.md).
 
 ## Layout
 
 ```text
+projects/ui-watchtower/
+  src/          @absaoss-cps/ui-watchtower — the framework-independent engine
+  rxjs/         secondary entry point — @absaoss-cps/ui-watchtower/rxjs
+  rum/          secondary entry point — @absaoss-cps/ui-watchtower/rum
+  type-tests/   consumer type tests, without a framework
+  README.md     usage guide, published to npm
+  package.json  the published package's manifest
 projects/ngx-ui-watchtower/
   src/              main entry point — @absaoss-cps/ngx-ui-watchtower
   rum/              secondary entry point — @absaoss-cps/ngx-ui-watchtower/rum
   event-inspector/  secondary entry point — @absaoss-cps/ngx-ui-watchtower/event-inspector
+  type-tests/       consumer type tests
   README.md         usage guide, published to npm
   DESIGN.md         full design
   package.json      the published package's manifest
-projects/watchtower-lab/             the Watchtower Lab: a testing app, never published
-  server/                            its server: mock backend, fragment gateway, SSR
-projects/watchtower-lab-fragment/    the lab's embedded application: a second app it embeds
-projects/watchtower-consumer-smoke/  a minimal app that installs the packed library
-playwright/                          the lab's end-to-end suite (Playwright)
+projects/watchtower-lab/           the Watchtower Lab: a testing app, never published
+  server/                          its server: mock backend, fragment gateway, SSR
+projects/watchtower-lab-fragment/  the lab's embedded application: a second app it embeds
+playwright/                        the lab's end-to-end suite (Playwright)
+docs/                              ADAPTERS.md: how to write a framework adapter
+scripts/                           the public API snapshot and the packaging smoke test
 ```
+
+The Angular package depends on the core, never the other way round. Each
+package has its own version; a core release also releases the Angular
+package, with its dependency moved (see [Releases](#releases)).
 
 ## Getting started
 
@@ -43,25 +65,54 @@ npm run test
 npm run build
 ```
 
-The package is built to `dist/ngx-ui-watchtower`.
+The packages are built to `dist/ui-watchtower` and `dist/ngx-ui-watchtower`,
+the core first: the Angular package compiles against the built core, as an
+application does. Tests and the typecheck read the core's source.
 
 ## Scripts
 
-| Script                  | What it does                                           |
-| ----------------------- | ------------------------------------------------------ |
-| `npm run build`         | Builds the package (production, partial compilation)   |
-| `npm run watch`         | Rebuilds on change (development)                       |
-| `npm run test`          | Runs the unit tests (Jest)                             |
-| `npm run test:coverage` | Runs the unit tests with coverage, as CI does          |
-| `npm run typecheck`     | Type-checks every library, spec and suite tsconfig     |
-| `npm run lint`          | ESLint, no warnings allowed                            |
-| `npm run format`        | Formats with Prettier                                  |
-| `npm run format:check`  | Checks formatting without writing                      |
-| `npm run lab`           | Starts the Watchtower Lab on http://localhost:4280     |
-| `npm run lab:build`     | Builds the lab's fragment and shell                    |
-| `npm run e2e`           | Builds the lab and runs the Playwright suite           |
-| `npm run e2e:ui`        | Builds the lab, and opens the suite in Playwright's UI |
-| `npm run smoke`         | Packs the library and builds an app from the tarball   |
+| Script                  | What it does                                                     |
+| ----------------------- | ---------------------------------------------------------------- |
+| `npm run build`         | Builds both packages (production), the core first                |
+| `npm run watch`         | Builds the core, then rebuilds the Angular package on change     |
+| `npm run test`          | Runs the unit tests of both packages (Jest)                      |
+| `npm run test:core`     | Runs the core's unit tests only: plain Jest, no Angular          |
+| `npm run test:coverage` | Runs the unit tests with coverage, as CI does; fails below 90%   |
+| `npm run typecheck`     | Builds the core, then type-checks every tsconfig and type test   |
+| `npm run api:check`     | Builds both packages, then compares their public APIs            |
+| `npm run api:update`    | Builds both packages, then rewrites their snapshots              |
+| `npm run smoke`         | Installs the built packages, packed, into throwaway consumers    |
+| `npm run lab`           | Starts the Watchtower Lab on http://localhost:4280               |
+| `npm run lab:build`     | Builds the lab's fragment and shell                              |
+| `npm run e2e`           | Builds the lab and runs the Playwright suite                     |
+| `npm run e2e:ui`        | Builds the lab, and opens the suite in Playwright's UI           |
+| `npm run lint`          | ESLint, no warnings allowed                                      |
+| `npm run format`        | Formats with Prettier                                            |
+| `npm run format:check`  | Checks formatting without writing                                |
+
+Four checks guard what consumers depend on:
+
+- **Type tests** (`type-tests/` in each package) compile a consumer that uses
+  every public export, and one that augments the name registries: registered
+  names accepted, others rejected, `string` while nothing is registered. The
+  Angular package's are compiled by the Angular compiler, the core's by plain
+  `tsc`.
+- **The API snapshots** (`public-api.snapshot.json` in each package) record
+  every export of the built packages with its members and signatures. After an intended change, run `npm run api:update` and review
+  the diff.
+- **The broadcast wire fixture**
+  (`projects/ngx-ui-watchtower/src/lib/sinks/uwt-broadcast/uwt-broadcast.wire.fixture.json`) records
+  every message a shell and a fragment exchange. Shells and fragments are
+  deployed separately, so it changes only with a deliberate protocol change:
+  `UPDATE_WIRE_FIXTURE=1 npm test` records it again. Every pairing of an
+  Angular or framework-free shell and fragment is held to it.
+- **The smoke test** (`scripts/smoke/`) packs both packages and installs the
+  tarballs, outside this workspace, into a framework-free Node consumer (no
+  Angular, RxJS or `aws-rum-web` installed), a TypeScript one (the core's
+  type tests, and a project without the DOM typings), and an unchanged
+  Angular application, prerendered as a fragment without `aws-rum-web`, as a
+  shell with `/rum`, and with the Event Inspector. It installs from the
+  registry, so it needs a network.
 
 ## Watchtower Lab
 
@@ -186,21 +237,6 @@ starting its own each time: one already on that port stops it, rather than
 serving an older build. The first time, download the browsers with
 `npx playwright install chromium webkit`.
 
-## Consumer smoke test
-
-Everything above uses the library from source. `npm run smoke` uses it as
-published: it packs the built package, then sets up
-`projects/watchtower-consumer-smoke` on its own, in a temporary folder
-outside the workspace, with its own `package.json` (the workspace's
-versions) and `angular.json`, and installs it with `npm install`, peer
-checks and all. Nothing comes from the workspace, so a peer the package
-leaves out or mis-ranges fails as it would for an app. It builds that app
-for the browser and, prerendering, for the server, and checks the tarball's
-files, that all three entry points resolve with their typings, that the page
-renders on the server, and that an app which never imports `/rum` has no
-`aws-rum-web` in its bundle. It needs the npm registry, and keeps the folder
-when a check fails.
-
 ## Before you push
 
 Run all of them — each catches something the others don't:
@@ -211,6 +247,7 @@ npm run typecheck
 npm run lint
 npm run format:check
 npm run build
+npm run api:check
 npm run e2e
 npm run smoke
 ```
@@ -231,15 +268,67 @@ Squash-merge pull requests: the title then becomes the commit message on
 ## Releases
 
 Releases are automated with [release-please](https://github.com/googleapis/release-please)
-— don't publish by hand.
+— don't publish by hand. Each package has its own version and changelog, and
+is released when it changes:
 
-1. Every push to `main` updates a release PR. `feat` bumps the minor version,
-   `fix`, `perf` and `revert` the patch; until 1.0, a breaking change bumps
-   the minor. Other types don't trigger a release.
-2. The release PR holds the version bump and the `CHANGELOG.md` entry.
-3. Merging it tags the release, creates the GitHub release and publishes the
-   package to npm from GitHub Actions through trusted publishing — no npm
-   token.
+| A change to         | Releases                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| The Angular package | The Angular package                                                                        |
+| The core            | The core, and a patch of the Angular package that moves its dependency to `^` the new core |
+| Both                | Each, with its own bump                                                                    |
+
+1. Every push to `main` updates one release PR, for every package with
+   changes. `feat` bumps the minor version, `fix`, `perf` and `revert` the
+   patch; until 1.0, a breaking change bumps the minor. Other types don't
+   trigger a release.
+2. The release PR holds each released package's version bump and
+   `CHANGELOG.md` entry. When the core is released, Release Please's
+   `node-workspace` plugin also moves the Angular package's dependency on the
+   core and releases it as a patch, so it always depends on the core it was
+   built against.
+3. Merging it tags each release, `ui-watchtower-v<version>` or
+   `ngx-ui-watchtower-v<version>` (until 0.4.0, the Angular package's tags
+   were `v<version>`), and creates its GitHub release. GitHub Actions then
+   publishes what was released, the core before the Angular package, through
+   trusted publishing — no npm token.
+
+**A failed publish** stops before the Angular package, so it never depends
+on a core that isn't on npm. To finish a partial release, use **Re-run failed
+jobs** on that workflow run: each package's step skips a version npm already
+has.
+
+**The core's first release is 0.1.0**, set by its `initial-version` in
+`release-please-config.json`, and published by the workflow like every
+release. npm adds a trusted publisher only to a package that exists, so
+before the first release PR that releases the core is merged, an
+`@absaoss-cps` owner publishes a placeholder, `0.0.0`, by hand:
+
+```bash
+npm login
+mkdir ui-watchtower-placeholder && cd ui-watchtower-placeholder
+echo '{ "name": "@absaoss-cps/ui-watchtower", "version": "0.0.0", "description": "Placeholder: the first release is 0.1.0", "license": "Apache-2.0" }' > package.json
+npm publish --access public
+```
+
+Then, on npmjs.com, in the package's settings, add the trusted publisher the
+Angular package has: GitHub Actions, `AbsaOSS/ui-watchtower`, workflow
+`release-please.yml`. Once the workflow has published 0.1.0, deprecate the
+placeholder:
+
+```bash
+npm deprecate @absaoss-cps/ui-watchtower@0.0.0 "Placeholder, use 0.1.0 or later"
+```
+
+If the release PR is merged first, publishing the core fails, and the
+Angular package isn't published: add the trusted publisher, then re-run the
+failed job.
+
+`bootstrap-sha` in `release-please-config.json` is the commit tagged
+`v0.4.0`: it keeps what that release shipped out of the first changelogs,
+and is read only until both packages have a release. If another `v` release
+reaches `main` first, set it to that release's commit. That commit is also
+tagged `ngx-ui-watchtower-v0.4.0`, in the new format, so the Angular
+package's first changelog compares from a tag that exists.
 
 ## License
 

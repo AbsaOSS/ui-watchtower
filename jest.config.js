@@ -1,9 +1,15 @@
 module.exports = {
-  roots: ['<rootDir>/projects'],
+  roots: ['<rootDir>/projects/ngx-ui-watchtower'],
   coverageDirectory: '<rootDir>/coverage',
   preset: 'jest-preset-angular',
   moduleNameMapper: {
     '^lodash-es$': 'lodash',
+    '^@absaoss-cps/ui-watchtower$':
+      '<rootDir>/projects/ui-watchtower/src/public-api.ts',
+    '^@absaoss-cps/ui-watchtower/rxjs$':
+      '<rootDir>/projects/ui-watchtower/rxjs/src/public-api.ts',
+    '^@absaoss-cps/ui-watchtower/rum$':
+      '<rootDir>/projects/ui-watchtower/rum/src/public-api.ts',
     '^@absaoss-cps/ngx-ui-watchtower$':
       '<rootDir>/projects/ngx-ui-watchtower/src/public-api.ts',
     '^@absaoss-cps/ngx-ui-watchtower/rum$':
@@ -30,6 +36,11 @@ module.exports = {
   collectCoverageFrom: [
     'projects/ngx-ui-watchtower/**/*.ts',
     '!projects/**/*.spec.ts',
-    '!projects/**/public-api.ts'
-  ]
+    '!projects/**/public-api.ts',
+    // Compiled by the typecheck, never run.
+    '!projects/**/type-tests/**'
+  ],
+  coverageThreshold: {
+    global: { statements: 90, branches: 90, functions: 90, lines: 90 }
+  }
 };

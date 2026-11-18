@@ -1,0 +1,83 @@
+import {
+  UwtRegistered,
+  UwtTelemetryAttribution,
+  UwtTelemetryMetadata
+} from '../uwt-telemetry-common.models/uwt-telemetry-common.models';
+
+/**
+ * Registry of this application's business event names.
+ *
+ * An event name is a metric dimension: a typo does not produce a wrong
+ * figure, it silently starts a second, incomplete series alongside the one
+ * the dashboard reads. Declaring the vocabulary turns that into a compile
+ * error.
+ *
+ * An Angular application augments `@absaoss-cps/ngx-ui-watchtower` instead,
+ * which re-exports this registry: either module path reaches the same one.
+ *
+ * @example
+ * ```typescript
+ * // src/app/telemetry.schema.ts
+ * declare module '@absaoss-cps/ui-watchtower' {
+ *   interface UwtBIEventNames {
+ *     export_clicked: true;
+ *     theme_changed: true;
+ *   }
+ * }
+ * export {};
+ * ```
+ *
+ * @group Interfaces
+ */
+// Empty by design — see UwtScenarioNames in uwt-scenario.models.ts.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface UwtBIEventNames {}
+
+/**
+ * Every business event name this application declares.
+ *
+ * Resolves to `string` until {@link UwtBIEventNames} is augmented.
+ *
+ * @group Types
+ */
+export type UwtBIEventName = UwtRegistered<UwtBIEventNames>;
+
+/**
+ * Optional correlation detail for a business/UX event, carried through
+ * unchanged onto the emitted {@link UwtBIEvent}.
+ *
+ * @group Interfaces
+ */
+export interface UwtBIEventDetail {
+  /** Scenario this event happened inside. Pass {@link UwtScenario.id}. */
+  scenarioId?: string;
+
+  /** Product area, e.g. `customers`. Scrubbed the same as any other string value. */
+  feature?: string;
+}
+
+/**
+ * A discrete business or UX event.
+ *
+ * Browser, device and page attributes come from the RUM envelope and aren't
+ * repeated here — the client already stamps `pageId`/`pageUrl` on every
+ * event, so a `route` field would just duplicate that. `application`,
+ * `sessionId` and `userId` are carried anyway, for a self-describing record;
+ * see {@link UwtScenarioRecord}.
+ *
+ * @group Interfaces
+ */
+export interface UwtBIEvent extends UwtBIEventDetail, UwtTelemetryAttribution {
+  /**
+   * Event name, e.g. `export_clicked`. Declared by the application in
+   * {@link UwtBIEventNames} — this library never hardcodes business event
+   * names.
+   */
+  eventName: UwtBIEventName;
+
+  /** ISO-8601 timestamp. */
+  eventTime: string;
+
+  /** Redacted structured attributes. */
+  metadata?: UwtTelemetryMetadata;
+}

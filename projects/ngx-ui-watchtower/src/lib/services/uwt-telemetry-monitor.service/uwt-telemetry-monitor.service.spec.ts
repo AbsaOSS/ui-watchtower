@@ -1,13 +1,12 @@
-import { isDevMode } from '@angular/core';
-import { UwtBIEvent } from '../../models/uwt-bi.models/uwt-bi.models';
-import { UwtTelemetryObservedEvent } from '../../models/uwt-telemetry-monitor.models/uwt-telemetry-monitor.models';
-import * as safeUtil from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+import {
+  UwtBIEvent,
+  UwtTelemetryObservedEvent
+} from '@absaoss-cps/ui-watchtower';
 import { UwtTelemetryMonitor } from './uwt-telemetry-monitor.service';
 
-jest.mock('@angular/core', () => ({
-  ...jest.requireActual('@angular/core'),
-  isDevMode: jest.fn(() => false)
-}));
+// What it does with each event — when it copies, numbers, and stays out of
+// the way of a failure — is the core monitor's, tested in the core. These
+// cover what this package adds: `events$`.
 
 function biEvent(): UwtBIEvent {
   return {
@@ -41,14 +40,6 @@ describe('UwtTelemetryMonitor', () => {
       origin: { forwarded: false }
     });
   }
-
-  it('should do nothing, and copy nothing, while nobody is subscribed', () => {
-    const clone = jest.spyOn(safeUtil, 'uwtDeepClone');
-
-    expect(monitor.observed).toBe(false);
-    expect(publishBI()).toBeUndefined();
-    expect(clone).not.toHaveBeenCalled();
-  });
 
   it('should deliver an event to a subscriber, with the envelope filled in', () => {
     monitor.events$.subscribe((e) => received.push(e));
@@ -105,14 +96,20 @@ describe('UwtTelemetryMonitor', () => {
     expect(received).toHaveLength(0);
   });
 
-  it('should never throw into the hand-off site, even when copying fails', () => {
-    (isDevMode as jest.Mock).mockReturnValue(false);
-    monitor.events$.subscribe((e) => received.push(e));
-    jest.spyOn(safeUtil, 'uwtDeepClone').mockImplementation(() => {
-      throw new Error('clone failed');
+  it('should complete its subscribers and stop observing when destroyed', () => {
+    let completed = false;
+    monitor.events$.subscribe({
+      next: (e) => received.push(e),
+      complete: () => (completed = true)
     });
 
-    expect(() => publishBI()).not.toThrow();
+    monitor.ngOnDestroy();
+
+    expect(completed).toBe(true);
+    expect(monitor.observed).toBe(false);
+    expect(publishBI()).toBeUndefined();
+    monitor.events$.subscribe((e) => received.push(e));
+    expect(publishBI()).toBeUndefined();
     expect(received).toHaveLength(0);
   });
 });

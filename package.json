@@ -3,19 +3,22 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "build": "ng build --configuration=production --project=ngx-ui-watchtower",
-    "watch": "ng build ngx-ui-watchtower --watch --configuration development",
+    "build": "ng build --configuration=production --project=ui-watchtower && ng build --configuration=production --project=ngx-ui-watchtower",
+    "watch": "ng build ui-watchtower --configuration development && ng build ngx-ui-watchtower --watch --configuration development",
     "lab": "node projects/watchtower-lab/server/dev.mjs",
     "lab:build": "ng build watchtower-lab-fragment && ng build watchtower-lab",
     "e2e": "npm run lab:build && playwright test",
     "e2e:ui": "npm run lab:build && playwright test --ui",
-    "smoke": "node projects/watchtower-consumer-smoke/smoke.mjs",
-    "test": "ng test --project=ngx-ui-watchtower",
-    "test:coverage": "ng test --project=ngx-ui-watchtower --coverage --coverage-reporters text-summary --coverage-reporters lcov --json --output-file=./coverage/report.json",
+    "test": "npm run test:core && ng test --project=ngx-ui-watchtower",
+    "test:core": "jest --config projects/ui-watchtower/jest.config.js",
+    "test:coverage": "jest --config projects/ui-watchtower/jest.config.js --coverage --coverageReporters=text-summary --coverageReporters=lcov --json --outputFile=./coverage/ui-watchtower/report.json && ng test --project=ngx-ui-watchtower --coverage --coverage-reporters text-summary --coverage-reporters lcov --json --output-file=./coverage/report.json",
     "lint": "eslint \"**/*.ts\" --max-warnings=0",
-    "format": "prettier --write \"**/*.{ts,html}\"",
-    "format:check": "prettier --check \"**/*.{ts,html}\"",
-    "typecheck": "tsc -p projects/ngx-ui-watchtower/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/tsconfig.spec.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.spec.json --noEmit && tsc -p projects/ngx-ui-watchtower/event-inspector/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/event-inspector/tsconfig.spec.json --noEmit && tsc -p playwright/tsconfig.json"
+    "format": "prettier --write \"**/*.{ts,mjs,html}\"",
+    "format:check": "prettier --check \"**/*.{ts,mjs,html}\"",
+    "typecheck": "tsc -p projects/ui-watchtower/tsconfig.lib.json --noEmit && tsc -p projects/ui-watchtower/rxjs/tsconfig.lib.json --noEmit && tsc -p projects/ui-watchtower/rum/tsconfig.lib.json --noEmit && tsc -p projects/ui-watchtower/tsconfig.spec.json --noEmit && tsc -p projects/ui-watchtower/type-tests/tsconfig.json && tsc -p projects/ui-watchtower/type-tests/tsconfig.augmented.json && ng build --configuration=production --project=ui-watchtower && tsc -p projects/ngx-ui-watchtower/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/tsconfig.spec.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/rum/tsconfig.spec.json --noEmit && ngc -p projects/ngx-ui-watchtower/type-tests/tsconfig.json && ngc -p projects/ngx-ui-watchtower/type-tests/tsconfig.augmented.json && tsc -p projects/ngx-ui-watchtower/event-inspector/tsconfig.lib.json --noEmit && tsc -p projects/ngx-ui-watchtower/event-inspector/tsconfig.spec.json --noEmit && tsc -p playwright/tsconfig.json",
+    "api:check": "npm run build && node scripts/api-snapshot.mjs",
+    "api:update": "npm run build && node scripts/api-snapshot.mjs --update",
+    "smoke": "node scripts/smoke/smoke.mjs"
   },
   "private": true,
   "dependencies": {
@@ -65,6 +68,7 @@
     "lodash-es": "^4.17.21",
     "ng-packagr": "~21.0.1",
     "prettier": "^3.4.2",
+    "ts-jest": "^29.4.14",
     "typescript": "~5.9.3",
     "web-fragments": "^0.8.2"
   },
