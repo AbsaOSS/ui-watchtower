@@ -215,6 +215,28 @@ Something that cannot work as configured (`'config'`) — a second broadcast
 host, RUM settings of the wrong type — is reported too, and printed to the
 console when there is no reporter: it is never silent.
 
+## Watching what telemetry hands over
+
+A `UwtTelemetryMonitor` sees every event, error and log record right after
+it is handed to the destination or the log store — a fragment's, forwarded
+to a shell's host, too, marked with the realm it came from. Nothing is sent
+from it; it is for observers such as an event inspector, and costs one check
+per event while nobody listens:
+
+```ts
+const monitor = new UwtTelemetryMonitor();
+const telemetry = uwtCreateTelemetry({ ...options, monitor });
+
+const stop = monitor.subscribe((event) => {
+  if (event.kind === 'scenario') console.table(event.payload);
+});
+```
+
+Each listener gets a copy of what was sent, numbered in order. The monitor
+is yours: `stop()` a listener, and `dispose()` the monitor with the engine.
+For a shell's forwarded events, give the host the same monitor:
+`new UwtTelemetryBroadcastHost({ sink, logApi, monitor })`.
+
 ## RxJS
 
 `traceScenario` settles a scenario from an Observable's outcome. It lives in
@@ -236,6 +258,7 @@ customers$.pipe(traceScenario(scenario)).subscribe();
 | Models        | scenario, step, BI event and log record types; `UWT_LOG_LEVEL_ORDER`, `UWT_TELEMETRY_EVENT_TYPE`, `uwtEventTypes`                                                     |
 | Names         | `UwtScenarioNames`, `UwtScenarioSteps`, `UwtBIEventNames`, `UwtLoggerNames` and their `Uwt*Name` types                                                                |
 | Scenarios     | `UwtScenario`                                                                                                                                                         |
+| Monitor       | `UwtTelemetryMonitor`, `UwtTelemetryObservedEvent` and the types it carries; the `monitor` option of the engine, each concern and the host                            |
 | Contracts     | `UwtTelemetrySink` and `UwtNoopTelemetrySink`; `UwtLogApiProvider`, `UwtLogQuery` and `UwtNoopLogApiProvider`                                                         |
 | Broadcast     | `UwtTelemetryBroadcastHost`, `UwtBroadcastTelemetrySink`, `UwtBroadcastLogApiProvider`, `uwtConnectBroadcastChannel`, `UWT_DEFAULT_BROADCAST_CHANNEL`                 |
 | Redaction     | `uwtRedactMetadata`, `uwtScrubString`, `uwtNormalizeError`, `uwtRedactConfigFor`, `UwtRedactConfig`, `UWT_DEFAULT_REDACT_CONFIG`, `UWT_REDACTED`                      |

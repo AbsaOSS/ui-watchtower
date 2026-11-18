@@ -12,6 +12,7 @@ import {
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import { UwtBITelemetry } from '../uwt-bi-telemetry/uwt-bi-telemetry';
 import { UwtLogTelemetry } from '../uwt-log-telemetry/uwt-log-telemetry';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor/uwt-telemetry-monitor';
 import { UwtScenarioTelemetry } from '../uwt-scenario-telemetry/uwt-scenario-telemetry';
 import {
   UwtTelemetryDocument,
@@ -58,6 +59,11 @@ export interface UwtTelemetryOptions extends UwtTelemetryConfigOverrides {
    * dropped. Nothing is reported without one; see {@link UwtReporter}.
    */
   report?: UwtReporter;
+  /**
+   * Told about every event, error and log record once it is handed to the
+   * destination or the log store; see {@link UwtTelemetryMonitor}.
+   */
+  monitor?: UwtTelemetryMonitor;
 }
 
 /**
@@ -124,11 +130,17 @@ export interface UwtTelemetry {
  */
 export function uwtCreateTelemetry(options: UwtTelemetryOptions): UwtTelemetry {
   assertOptions(options);
-  const { identity, destination, logApi, report } = options;
+  const { identity, destination, logApi, report, monitor } = options;
   const enabled = options.enabled !== false;
   const config = uwtResolveTelemetryConfig(options);
   const document = uwtTelemetryDocument(options.document);
-  const shared = { identity, redact: config.redaction, enabled, report };
+  const shared = {
+    identity,
+    redact: config.redaction,
+    enabled,
+    report,
+    monitor
+  };
 
   const scenarios = new UwtScenarioTelemetry({
     ...shared,

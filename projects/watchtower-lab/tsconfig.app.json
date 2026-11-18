@@ -1,0 +1,10 @@
+/* The Watchtower Lab: a testing app for the library, built from its source. */
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../out-tsc/watchtower-lab",
+    "types": ["node"]
+  },
+  "files": ["src/main.ts", "src/main.server.ts", "server/server.ts"],
+  "include": ["src/**/*.ts", "server/**/*.ts"]
+}

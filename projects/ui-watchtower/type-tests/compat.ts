@@ -86,7 +86,16 @@ import {
   UwtTelemetryOptions,
   UwtTelemetrySink,
   UwtTelemetrySinkEvent,
-  uwtUuid
+  uwtUuid,
+  UwtJsonObject,
+  UwtJsonValue,
+  UwtTelemetryDestination,
+  UwtTelemetryEventKind,
+  UwtTelemetryEventOrigin,
+  UwtTelemetryMonitor,
+  UwtTelemetryMonitorOptions,
+  UwtTelemetryObservedEvent,
+  UwtTelemetryPublishInput
 } from '@absaoss-cps/ui-watchtower';
 
 /** A destination the application writes itself. */
@@ -230,6 +239,44 @@ export async function engine(
     0,
     report
   );
+}
+
+/** Watching what telemetry hands over, as an event inspector does. */
+export function observe(): () => void {
+  const options: UwtTelemetryMonitorOptions = { report };
+  const monitor = new UwtTelemetryMonitor(options);
+  const telemetry = uwtCreateTelemetry({
+    identity,
+    destination: new UwtNoopTelemetrySink(),
+    logApi: new UwtNoopLogApiProvider(),
+    monitor
+  });
+  const kinds: UwtTelemetryEventKind[] = [];
+  const stop = monitor.subscribe((event: UwtTelemetryObservedEvent) => {
+    const where: UwtTelemetryDestination = event.destination;
+    const origin: UwtTelemetryEventOrigin = event.origin;
+    kinds.push(event.kind);
+    if (event.kind === 'unknown' && origin.forwarded) {
+      const payload: UwtJsonObject = event.payload;
+      const value: UwtJsonValue | undefined = payload[where];
+      report('warn', String(value), origin.application);
+    }
+  });
+  const input: UwtTelemetryPublishInput = {
+    kind: 'unknown',
+    eventType: 'custom.event',
+    payload: { count: 1 },
+    destination: 'sink',
+    origin: { forwarded: true, application: 'cart' }
+  };
+  const sequence: number | undefined = monitor.publish(input);
+  telemetry.bi.track('export_clicked');
+  return () => {
+    stop();
+    telemetry.dispose();
+    monitor.dispose();
+    report('warn', String(sequence ?? monitor.observed));
+  };
 }
 
 /** Each concern on its own, as an adapter composes them. */

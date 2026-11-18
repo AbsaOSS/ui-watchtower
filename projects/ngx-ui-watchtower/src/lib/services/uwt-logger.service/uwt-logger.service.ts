@@ -14,6 +14,7 @@ import {
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_LOG_CONFIG } from '../../config/uwt-log.config/uwt-log.config';
 import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 import {
   uwtBrowserDocument,
   uwtDevModeReporter
@@ -68,7 +69,8 @@ export class UwtLoggerService implements OnDestroy {
     logApi: inject(UWT_LOG_API_PROVIDER),
     document: uwtBrowserDocument(),
     enabled: uwtTelemetryEnabled(),
-    report: uwtDevModeReporter
+    report: uwtDevModeReporter,
+    monitor: inject(UwtTelemetryMonitor)
   });
 
   /** @inheritdoc */

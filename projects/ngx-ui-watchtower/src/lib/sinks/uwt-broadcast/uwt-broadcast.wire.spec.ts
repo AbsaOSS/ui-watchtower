@@ -42,6 +42,7 @@ import {
 import { UwtBITelemetryService } from '../../services/uwt-bi-telemetry.service/uwt-bi-telemetry.service';
 import { UwtLoggerService } from '../../services/uwt-logger.service/uwt-logger.service';
 import { UwtScenarioTelemetryService } from '../../services/uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';
+import { UwtTelemetryMonitor } from '../../services/uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 import { UwtTelemetryBroadcastHost } from './uwt-broadcast-host.service';
 import { UwtBroadcastTelemetrySink } from './uwt-broadcast-telemetry.sink';
 
@@ -273,6 +274,7 @@ function createRealm(providers: unknown[]): Injector {
         provide: UWT_REDACT_CONFIG,
         useValue: UWT_DEFAULT_TELEMETRY_CONFIG.redact
       },
+      UwtTelemetryMonitor,
       UwtLoggerService,
       UwtScenarioTelemetryService,
       UwtBITelemetryService,

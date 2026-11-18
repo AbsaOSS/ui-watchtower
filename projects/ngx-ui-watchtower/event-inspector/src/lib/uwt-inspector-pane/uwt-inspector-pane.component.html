@@ -1,0 +1,16 @@
+<div
+  class="uwt-inspector-pane__handle"
+  role="separator"
+  tabindex="0"
+  aria-label="Resize the Event Inspector"
+  [attr.aria-orientation]="side() === 'bottom' ? 'horizontal' : 'vertical'"
+  [attr.aria-valuenow]="size()"
+  [attr.aria-valuemin]="limits().min"
+  [attr.aria-valuemax]="limits().max"
+  (pointerdown)="startDrag($event)"
+  (pointermove)="drag($event)"
+  (pointerup)="endDrag()"
+  (pointercancel)="endDrag()"
+  (lostpointercapture)="endDrag()"
+  (keydown)="resizeByKey($event)"></div>
+<uwt-inspector [dock]="side()"></uwt-inspector>

@@ -9,8 +9,8 @@
  * 3. A core-only TypeScript consumer: the core's type tests, and a project
  *    without the DOM typings.
  * 4. An unchanged Angular consumer, built and prerendered as a fragment
- *    without aws-rum-web installed, then as a shell with /rum; and the
- *    Angular package's type tests.
+ *    without aws-rum-web installed, then as a shell with /rum, then with the
+ *    Event Inspector; and the Angular package's type tests.
  *
  * The Angular package depends on a core version that may not be published
  * yet, so every consumer resolves it to the packed core through `overrides`.
@@ -394,6 +394,19 @@ try {
   );
   step(
     'Angular shell with /rum: built, prerendered, aws-rum-web loaded on demand'
+  );
+
+  // The inspector's optional peers, as an application adding it installs
+  // them; npm brings cps-ui-kit's own.
+  install(
+    app,
+    `@angular/animations@${rangeOf('@angular/animations')}`,
+    `@angular/forms@${rangeOf('@angular/forms')}`,
+    `cps-ui-kit@${rangeOf('cps-ui-kit')}`
+  );
+  buildAngular(app, 'inspector');
+  step(
+    'Angular shell with the Event Inspector: built, prerendered with its service'
   );
 
   if (KEEP) {

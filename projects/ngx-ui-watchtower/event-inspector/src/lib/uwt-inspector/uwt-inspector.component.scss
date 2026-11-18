@@ -1,0 +1,184 @@
+@use 'cps-ui-kit/styles/mixins' as cps;
+
+:host {
+  // One spacing scale for the whole inspector, so that what belongs together
+  // sits closer than what doesn't: `s` inside a cluster of controls, `m`
+  // between controls and between their rows, `l` between groups, `pad` from
+  // the edge of a pane.
+  --uwt-inspector-space-s: 0.5rem;
+  --uwt-inspector-space-m: 0.75rem;
+  --uwt-inspector-space-l: 1.5rem;
+  --uwt-inspector-pad: 1.25rem;
+
+  display: block;
+  color: var(--cps-text-primary);
+}
+
+// What the shortcut focuses (see focusInspector()), with cps-ui-kit's ring in
+// place of the browser's outline. A dialog has padding for it to sit in; a
+// pane or window has none, and would cut it off, so there it goes inside.
+:host(:focus-visible) {
+  @include cps.focus-ring;
+
+  // The ring spans the whole inspector: it mustn't take its clicks.
+  &::before,
+  &::after {
+    pointer-events: none;
+  }
+}
+
+:host(.uwt-inspector--framed:focus-visible) {
+  @include cps.focus-ring(-0.125rem, -0.25rem, 0);
+}
+
+// In a pane or window: a header like cps-dialog's, and a body that scrolls.
+:host(.uwt-inspector--framed) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #fff;
+  font-family: 'Source Sans Pro', sans-serif;
+}
+
+.uwt-inspector__header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-left: 0.25rem solid var(--cps-color-surprise);
+  border-bottom: 0.0625rem solid var(--cps-color-line-mid);
+  color: var(--cps-color-text-dark);
+}
+
+.uwt-inspector__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.uwt-inspector__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+// cps-dialog spreads its header out, which centres the title between the
+// drag handle and the buttons; the panes and the window keep it left.
+::ng-deep .uwt-inspector-dialog .cps-dialog-header-left {
+  margin-inline: 0.5rem auto;
+}
+
+// cps-dialog's focus ring spans the whole dialog, and as the kit draws it, it
+// takes the clicks of everything inside: after a click on the header and a
+// key press such as Esc, nothing in the dialog would respond.
+// Temporary: remove once the cps-ui-kit fixes it,
+// https://github.com/AbsaOSS/cps-shared-ui/issues/948
+::ng-deep .uwt-inspector-dialog:focus-visible::before,
+::ng-deep .uwt-inspector-dialog:focus-visible::after {
+  pointer-events: none;
+}
+
+.uwt-inspector__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--uwt-inspector-space-l);
+  overscroll-behavior: contain;
+}
+
+// Wheeling over the inspector must not scroll the app under it: what the
+// body can't scroll any further passes to the page. Parts with nothing to
+// scroll are held by the component's wheel listener.
+::ng-deep .uwt-inspector-dialog .cps-dialog-content {
+  overscroll-behavior: contain;
+}
+
+:host(.uwt-inspector--framed) .uwt-inspector__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--uwt-inspector-pad);
+}
+
+.uwt-inspector__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--uwt-inspector-space-m);
+}
+
+.uwt-inspector__status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--uwt-inspector-space-m) 1rem;
+}
+
+.uwt-inspector__status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--cps-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.uwt-inspector__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--cps-radius-full, 50%);
+  background: var(--cps-state-success);
+  animation: uwt-inspector-pulse 1.6s ease-in-out infinite;
+
+  &--paused {
+    background: var(--cps-state-warn);
+    animation: none;
+  }
+}
+
+@keyframes uwt-inspector-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uwt-inspector__dot {
+    animation: none;
+  }
+}
+
+.uwt-inspector__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--uwt-inspector-space-m) 1rem;
+}
+
+.uwt-inspector__paused {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--cps-radius-sm);
+  background: var(--cps-state-warn-surface);
+  color: var(--cps-text-primary);
+  font-size: 0.8125rem;
+}
+
+.uwt-inspector__hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--cps-text-secondary);
+}
+
+// Forced colours empty the Pause switch's knob, which says by its side
+// whether updates are paused; a border draws it back.
+@media (forced-colors: active) {
+  :host ::ng-deep .cps-switch-slider::before {
+    box-sizing: border-box;
+    border: 0.4375rem solid;
+  }
+}

@@ -19,6 +19,7 @@ import {
   uwtDevModeReporter,
   uwtRunOutsideZone
 } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 
 /**
  * Creates and tracks scenarios — user journeys whose health this telemetry
@@ -53,7 +54,8 @@ export class UwtScenarioTelemetryService implements OnDestroy {
     document: uwtBrowserDocument(),
     enabled: uwtTelemetryEnabled(),
     runOutside: uwtRunOutsideZone(),
-    report: uwtDevModeReporter
+    report: uwtDevModeReporter,
+    monitor: inject(UwtTelemetryMonitor)
   });
 
   private readonly _settled$ = new Subject<UwtScenarioRecord>();

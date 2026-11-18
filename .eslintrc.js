@@ -34,7 +34,11 @@ module.exports = {
   },
   overrides: [
     {
-      files: ['playwright/**/*.ts', 'playwright.config.ts'],
+      files: [
+        'playwright/**/*.ts',
+        'playwright.config.ts',
+        'projects/watchtower-lab/server/**/*.ts'
+      ],
       env: {
         jest: false,
         node: true

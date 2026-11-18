@@ -63,6 +63,7 @@
       "config: UwtBITelemetryConfig",
       "enabled?: boolean | undefined",
       "identity: UwtTelemetryIdentity",
+      "monitor?: UwtTelemetryMonitor | undefined",
       "redact: UwtRedactConfig",
       "report?: UwtReporter | undefined",
       "sink: UwtTelemetrySink"
@@ -142,6 +143,12 @@
     "uwtIsDebugEnabled": [
       "function(flag: UwtDebugFlag, name?: string | undefined): boolean"
     ],
+    "UwtJsonObject": [
+      "type = { [key: string]: UwtJsonValue; }"
+    ],
+    "UwtJsonValue": [
+      "type = string | number | boolean | UwtJsonValue[] | { [key: string]: UwtJsonValue; } | null"
+    ],
     "UwtLogApiProvider": [
       "interface",
       "flush?(): void",
@@ -216,6 +223,7 @@
       "enabled?: boolean | undefined",
       "identity: UwtTelemetryIdentity",
       "logApi: UwtLogApiProvider",
+      "monitor?: UwtTelemetryMonitor | undefined",
       "redact: UwtRedactConfig",
       "report?: UwtReporter | undefined",
       "sink?: UwtTelemetrySink | null | undefined"
@@ -436,6 +444,7 @@
       "document?: UwtTelemetryDocument | null | undefined",
       "enabled?: boolean | undefined",
       "identity: UwtTelemetryIdentity",
+      "monitor?: UwtTelemetryMonitor | undefined",
       "redact: UwtRedactConfig",
       "report?: UwtReporter | undefined",
       "runOutside?: (<T>(callback: () => T) => T) | undefined",
@@ -476,6 +485,7 @@
       "channelName?: string | undefined",
       "enabled?: boolean | undefined",
       "logApi: UwtLogApiProvider",
+      "monitor?: UwtTelemetryMonitor | undefined",
       "report?: UwtReporter | undefined",
       "sink: UwtTelemetrySink"
     ],
@@ -493,6 +503,9 @@
       "redaction?: Partial<UwtRedactConfig> | undefined",
       "scenarios?: Partial<UwtScenarioTelemetryConfig> | undefined"
     ],
+    "UwtTelemetryDestination": [
+      "type = 'sink' | 'log-provider'"
+    ],
     "UwtTelemetryDocument": [
       "interface",
       "addEventListener(type: 'visibilitychange', listener: () => void): void",
@@ -505,6 +518,12 @@
       "message: string",
       "name: string",
       "stack?: string | undefined"
+    ],
+    "UwtTelemetryEventKind": [
+      "type = 'log' | 'error' | 'bi' | 'scenario' | 'scenario-step' | 'unknown'"
+    ],
+    "UwtTelemetryEventOrigin": [
+      "type = { forwarded: false; } | { forwarded: true; application?: string | undefined; }"
     ],
     "UwtTelemetryEventTypes": [
       "interface",
@@ -522,6 +541,21 @@
     "UwtTelemetryMetadata": [
       "type = { [x: string]: string | number | boolean | null; }"
     ],
+    "UwtTelemetryMonitor": [
+      "class",
+      "new (options?: UwtTelemetryMonitorOptions | undefined): UwtTelemetryMonitor",
+      "dispose(): void",
+      "get observed: boolean",
+      "publish(input: UwtTelemetryPublishInput): number | undefined",
+      "subscribe(listener: (event: UwtTelemetryObservedEvent) => void): () => void"
+    ],
+    "UwtTelemetryMonitorOptions": [
+      "interface",
+      "report?: UwtReporter | undefined"
+    ],
+    "UwtTelemetryObservedEvent": [
+      "type = (UwtTelemetryObservedBase & { kind: 'bi'; eventType: string; payload: UwtBIEvent | UwtJsonObject; }) | (UwtTelemetryObservedBase & { kind: 'scenario'; eventType: string; payload: UwtJsonObject | UwtScenarioRecord; }) | (UwtTelemetryObservedBase & { kind: 'scenario-step'; eventType: string; payload: UwtJsonObject | UwtScenarioStepEvent; }) | (UwtTelemetryObservedBase & { kind: 'log'; payload: UwtLogRecord; }) | (UwtTelemetryObservedBase & { kind: 'error'; payload: UwtTelemetryError; relatedSequence?: number | undefined; }) | (UwtTelemetryObservedBase & { kind: 'unknown'; eventType: string; payload: UwtJsonObject; })"
+    ],
     "UwtTelemetryOptions": [
       "interface",
       "bi?: Partial<UwtBITelemetryConfig> | undefined",
@@ -531,10 +565,14 @@
       "identity: UwtTelemetryIdentity",
       "logApi: UwtLogApiProvider",
       "logging?: Partial<UwtLogConfig> | undefined",
+      "monitor?: UwtTelemetryMonitor | undefined",
       "redaction?: Partial<UwtRedactConfig> | undefined",
       "report?: UwtReporter | undefined",
       "runOutside?: (<T>(callback: () => T) => T) | undefined",
       "scenarios?: Partial<UwtScenarioTelemetryConfig> | undefined"
+    ],
+    "UwtTelemetryPublishInput": [
+      "type = Omit<UwtTelemetryObservedBase & { kind: 'bi'; eventType: string; payload: UwtBIEvent | UwtJsonObject; }, 'sequence' | 'capturedAt'> | Omit<UwtTelemetryObservedBase & { kind: 'scenario'; eventType: string; payload: UwtJsonObject | UwtScenarioRecord; }, 'sequence' | 'capturedAt'> | Omit<UwtTelemetryObservedBase & { kind: 'scenario-step'; eventType: string; payload: UwtJsonObject | UwtScenarioStepEvent; }, 'sequence' | 'capturedAt'> | Omit<UwtTelemetryObservedBase & { kind: 'log'; payload: UwtLogRecord; }, 'sequence' | 'capturedAt'> | Omit<UwtTelemetryObservedBase & { kind: 'error'; payload: UwtTelemetryError; relatedSequence?: number | undefined; }, 'sequence' | 'capturedAt'> | Omit<UwtTelemetryObservedBase & { kind: 'unknown'; eventType: string; payload: UwtJsonObject; }, 'sequence' | 'capturedAt'>"
     ],
     "UwtTelemetrySink": [
       "abstract class",

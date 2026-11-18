@@ -126,6 +126,12 @@
     "uwtIsDebugEnabled": [
       "function(flag: UwtDebugFlag, name?: string | undefined): boolean"
     ],
+    "UwtJsonObject": [
+      "type = { [key: string]: UwtJsonValue; }"
+    ],
+    "UwtJsonValue": [
+      "type = string | number | boolean | UwtJsonValue[] | { [key: string]: UwtJsonValue; } | null"
+    ],
     "UwtLogApiProvider": [
       "interface",
       "flush?(): void",
@@ -401,6 +407,9 @@
       "get received: number",
       "ngOnDestroy(): void"
     ],
+    "UwtTelemetryDestination": [
+      "type = 'sink' | 'log-provider'"
+    ],
     "UwtTelemetryDestinationOptions": [
       "interface<T extends UwtTelemetrySink>",
       "init?: ((sink: T) => void) | undefined"
@@ -410,6 +419,12 @@
       "message: string",
       "name: string",
       "stack?: string | undefined"
+    ],
+    "UwtTelemetryEventKind": [
+      "type = 'log' | 'error' | 'bi' | 'scenario' | 'scenario-step' | 'unknown'"
+    ],
+    "UwtTelemetryEventOrigin": [
+      "type = { forwarded: false; } | { forwarded: true; application?: string | undefined; }"
     ],
     "UwtTelemetryEventTypes": [
       "interface",
@@ -433,6 +448,22 @@
     ],
     "UwtTelemetryMetadata": [
       "type = { [x: string]: string | number | boolean | null; }"
+    ],
+    "UwtTelemetryMonitor": [
+      "class",
+      "new (): UwtTelemetryMonitor",
+      "dispose(): void",
+      "get observed: boolean",
+      "ngOnDestroy(): void",
+      "publish(input: UwtTelemetryPublishInput): number | undefined",
+      "readonly events$: Observable<UwtTelemetryObservedEvent>",
+      "subscribe(listener: (event: UwtTelemetryObservedEvent) => void): () => void"
+    ],
+    "UwtTelemetryObservedEvent": [
+      "type = (UwtTelemetryObservedBase & { kind: 'bi'; eventType: string; payload: UwtBIEvent | UwtJsonObject; }) | (UwtTelemetryObservedBase & { kind: 'scenario'; eventType: string; payload: UwtJsonObject | UwtScenarioRecord; }) | (UwtTelemetryObservedBase & { kind: 'scenario-step'; eventType: string; payload: UwtJsonObject | UwtScenarioStepEvent; }) | (UwtTelemetryObservedBase & { kind: 'log'; payload: UwtLogRecord; }) | (UwtTelemetryObservedBase & { kind: 'error'; payload: UwtTelemetryError; relatedSequence?: number | undefined; }) | (UwtTelemetryObservedBase & { kind: 'unknown'; eventType: string; payload: UwtJsonObject; })"
+    ],
+    "UwtTelemetryPublishInput": [
+      "type = Omit<UwtTelemetryObservedBase & { kind: 'bi'; eventType: string; payload: UwtBIEvent | UwtJsonObject; }, 'sequence' | 'capturedAt'> | Omit<UwtTelemetryObservedBase & { kind: 'scenario'; eventType: string; payload: UwtJsonObject | UwtScenarioRecord; }, 'sequence' | 'capturedAt'> | Omit<UwtTelemetryObservedBase & { kind: 'scenario-step'; eventType: string; payload: UwtJsonObject | UwtScenarioStepEvent; }, 'sequence' | 'capturedAt'> | Omit<UwtTelemetryObservedBase & { kind: 'log'; payload: UwtLogRecord; }, 'sequence' | 'capturedAt'> | Omit<UwtTelemetryObservedBase & { kind: 'error'; payload: UwtTelemetryError; relatedSequence?: number | undefined; }, 'sequence' | 'capturedAt'> | Omit<UwtTelemetryObservedBase & { kind: 'unknown'; eventType: string; payload: UwtJsonObject; }, 'sequence' | 'capturedAt'>"
     ],
     "UwtTelemetrySink": [
       "abstract class",
@@ -470,6 +501,86 @@
     ],
     "withTelemetryEnabled": [
       "function(enabled: boolean | (() => boolean)): UwtTelemetryFeature"
+    ]
+  },
+  "@absaoss-cps/ngx-ui-watchtower/event-inspector": {
+    "provideUwtEventInspector": [
+      "function(config?: Partial<UwtEventInspectorConfig> | undefined): EnvironmentProviders"
+    ],
+    "UWT_DEFAULT_INSPECTOR_CONFIG": [
+      "const: Omit<UwtEventInspectorConfig, 'shortcuts'>"
+    ],
+    "UWT_DEFAULT_INSPECTOR_SHORTCUTS": [
+      "const: readonly UwtInspectorShortcut[]"
+    ],
+    "UWT_EVENT_INSPECTOR_CONFIG": [
+      "const: InjectionToken<UwtEventInspectorConfig>"
+    ],
+    "UwtEventInspectorConfig": [
+      "interface",
+      "captureBeforeOpen: number",
+      "enabled: boolean | (() => boolean)",
+      "maxEventsPerSection: number",
+      "maxPayloadCharsInView: number",
+      "shortcuts: readonly UwtInspectorShortcut[]"
+    ],
+    "UwtEventInspectorService": [
+      "class",
+      "new (): UwtEventInspectorService",
+      "close(): void",
+      "install(): void",
+      "open(): void",
+      "readonly dock: Signal<UwtInspectorDock | undefined>",
+      "readonly isOpen: Signal<boolean>",
+      "setDock(dock: UwtInspectorDock): void",
+      "toggle(): void"
+    ],
+    "UwtInspectorDock": [
+      "type = 'dialog' | 'window' | 'left' | 'right' | 'bottom'"
+    ],
+    "UwtInspectorExport": [
+      "interface",
+      "activeFilters: UwtInspectorFilterState",
+      "app: { application: string; environment: string; version: string; eventNamespace: string; }",
+      "capture: { startedAt: string; endedAt: string; paused: boolean; }",
+      "count: { captured: number; droppedOldest: number; }",
+      "events: UwtTelemetryObservedEvent[]",
+      "exportedAt: string",
+      "format: 'ngx-ui-watchtower-event-inspector'",
+      "formatVersion: 2",
+      "section: UwtInspectorKindFilter",
+      "session: { sessionId?: string | undefined; userId?: string | undefined; }",
+      "userAgent: string"
+    ],
+    "UwtInspectorFieldFilter": [
+      "interface",
+      "id: string",
+      "operator: UwtInspectorFilterOperator",
+      "path: string",
+      "value: string"
+    ],
+    "UwtInspectorFilterOperator": [
+      "type = 'contains' | 'equals' | 'not-contains' | 'exists' | 'missing'"
+    ],
+    "UwtInspectorFilterState": [
+      "interface",
+      "fields: readonly UwtInspectorFieldFilter[]",
+      "text: string"
+    ],
+    "UwtInspectorKindFilter": [
+      "type = 'all' | UwtInspectorSectionId"
+    ],
+    "UwtInspectorSectionId": [
+      "type = 'bi' | 'scenario' | 'logging'"
+    ],
+    "UwtInspectorShortcut": [
+      "interface",
+      "after?: string | undefined",
+      "alt?: boolean | undefined",
+      "code: string",
+      "ctrl?: boolean | undefined",
+      "meta?: boolean | undefined",
+      "shift?: boolean | undefined"
     ]
   },
   "@absaoss-cps/ngx-ui-watchtower/rum": {

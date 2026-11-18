@@ -3,6 +3,7 @@ module.exports = {
   coverageDirectory: '<rootDir>/coverage',
   preset: 'jest-preset-angular',
   moduleNameMapper: {
+    '^lodash-es$': 'lodash',
     '^@absaoss-cps/ui-watchtower$':
       '<rootDir>/projects/ui-watchtower/src/public-api.ts',
     '^@absaoss-cps/ui-watchtower/rxjs$':
@@ -12,7 +13,9 @@ module.exports = {
     '^@absaoss-cps/ngx-ui-watchtower$':
       '<rootDir>/projects/ngx-ui-watchtower/src/public-api.ts',
     '^@absaoss-cps/ngx-ui-watchtower/rum$':
-      '<rootDir>/projects/ngx-ui-watchtower/rum/src/public-api.ts'
+      '<rootDir>/projects/ngx-ui-watchtower/rum/src/public-api.ts',
+    '^@absaoss-cps/ngx-ui-watchtower/event-inspector$':
+      '<rootDir>/projects/ngx-ui-watchtower/event-inspector/src/public-api.ts'
   },
   transformIgnorePatterns: [
     'node_modules/(?!(.*.mjs$|@angular/common/locales/.*.js$))'

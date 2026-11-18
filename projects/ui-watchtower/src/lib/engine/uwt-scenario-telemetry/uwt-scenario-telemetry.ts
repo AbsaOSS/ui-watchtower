@@ -7,6 +7,7 @@ import {
 } from '../../models/uwt-scenario.models/uwt-scenario.models';
 import { UwtScenario } from '../../scenario/uwt-scenario/uwt-scenario';
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor/uwt-telemetry-monitor';
 import {
   UwtRedactConfig,
   uwtRedactConfigFor
@@ -68,6 +69,8 @@ export interface UwtScenarioTelemetryOptions {
   runOutside?: <T>(callback: () => T) => T;
   /** Receives what is handled silently; see {@link UwtReporter}. */
   report?: UwtReporter;
+  /** Told about every scenario and step event once it is handed over. */
+  monitor?: UwtTelemetryMonitor;
 }
 
 /**
@@ -101,6 +104,7 @@ export class UwtScenarioTelemetry {
   private readonly enabled: boolean;
   private readonly runOutside?: <T>(callback: () => T) => T;
   private readonly report?: UwtReporter;
+  private readonly monitor?: UwtTelemetryMonitor;
 
   private readonly active = new Map<string, UwtScenario>();
   private readonly listeners = new Set<(record: UwtScenarioRecord) => void>();
@@ -115,6 +119,7 @@ export class UwtScenarioTelemetry {
     this.enabled = options.enabled !== false;
     this.runOutside = options.runOutside;
     this.report = options.report;
+    this.monitor = options.monitor;
     // Page listeners: only while telemetry is on.
     this.stopListening = this.enabled
       ? uwtListenToPage(
@@ -155,6 +160,7 @@ export class UwtScenarioTelemetry {
       sink: this.sink,
       runOutside: this.runOutside,
       report: this.report,
+      monitor: this.monitor,
       onSettled: (scenarioId, record) => {
         this.active.delete(scenarioId);
         this.notify(record);

@@ -4,6 +4,7 @@ import {
   UwtTelemetrySink
 } from '@absaoss-cps/ui-watchtower';
 import { UWT_LOG_API_PROVIDER } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
+import { UwtTelemetryMonitor } from '../../services/uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 import { uwtDevModeReporter } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
 import { uwtBroadcastChannelOptions } from './uwt-broadcast.messages';
 
@@ -54,7 +55,8 @@ export class UwtTelemetryBroadcastHost
       sink: inject(UwtTelemetrySink),
       logApi: inject(UWT_LOG_API_PROVIDER),
       ...uwtBroadcastChannelOptions(),
-      report: uwtDevModeReporter
+      report: uwtDevModeReporter,
+      monitor: inject(UwtTelemetryMonitor)
     });
   }
 

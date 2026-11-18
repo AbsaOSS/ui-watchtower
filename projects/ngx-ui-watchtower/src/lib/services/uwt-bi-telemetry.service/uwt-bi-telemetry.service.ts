@@ -13,6 +13,7 @@ import {
 } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { UWT_BI_TELEMETRY_CONFIG } from '../../config/uwt-bi-telemetry.config/uwt-bi-telemetry.config';
 import { uwtDevModeReporter } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 
 /**
  * Business and UX event tracking — feature adoption, interaction analysis,
@@ -56,7 +57,8 @@ export class UwtBITelemetryService {
     redact: inject(UWT_REDACT_CONFIG),
     sink: inject(UwtTelemetrySink),
     enabled: uwtTelemetryEnabled(),
-    report: uwtDevModeReporter
+    report: uwtDevModeReporter,
+    monitor: inject(UwtTelemetryMonitor)
   });
 
   /**

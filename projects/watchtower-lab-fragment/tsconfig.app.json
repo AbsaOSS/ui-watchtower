@@ -1,0 +1,10 @@
+/* The Watchtower Lab's fragment: a second app, built from the library's source. */
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../out-tsc/watchtower-lab-fragment",
+    "types": []
+  },
+  "files": ["src/main.ts"],
+  "include": ["src/**/*.ts"]
+}

@@ -3,6 +3,7 @@
  */
 import { UwtLogRecord } from '../../models/uwt-log.models/uwt-log.models';
 import { UwtScenarioRecord } from '../../models/uwt-scenario.models/uwt-scenario.models';
+import { UwtTelemetryObservedEvent } from '../../models/uwt-telemetry-monitor.models/uwt-telemetry-monitor.models';
 import {
   UwtTelemetryError,
   UwtTelemetryMetadata
@@ -14,6 +15,7 @@ import {
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
 import { UWT_REDACTED } from '../../utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
 import * as uwtTelemetrySafeUtil from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor/uwt-telemetry-monitor';
 import { UwtTelemetryOptions, uwtCreateTelemetry } from './uwt-telemetry';
 
 /** Keeps what the engine sends, so a test can assert on it. */
@@ -298,6 +300,38 @@ describe('uwtCreateTelemetry', () => {
       });
 
       expect(await telemetry.logging.query()).toEqual([]);
+    });
+  });
+
+  describe('a monitor', () => {
+    it('should see each hand-off right after it, as handed over, with the mirrored error linked to its record', () => {
+      const monitor = new UwtTelemetryMonitor();
+      const seen: UwtTelemetryObservedEvent[] = [];
+      monitor.subscribe((event) => seen.push(event));
+      const { telemetry, sink, logApi } = engine({
+        monitor,
+        logging: { mirrorErrorsToRum: true }
+      });
+
+      telemetry.bi.track('export_clicked');
+      telemetry.scenarios.start({ name: 'load' }).complete();
+      telemetry.logging.getLogger('checkout').error('Payment failed');
+
+      expect(seen.map((e) => [e.kind, e.destination])).toEqual([
+        ['bi', 'sink'],
+        ['scenario', 'sink'],
+        ['log', 'log-provider'],
+        ['error', 'sink']
+      ]);
+      expect(seen.every((e) => !e.origin.forwarded)).toBe(true);
+      const [bi, scenario, log, error] = seen;
+      expect(bi.payload).toEqual(sink.events[0].payload);
+      expect(scenario.payload).toEqual(sink.events[1].payload);
+      expect(log.payload).toEqual(logApi.records[0]);
+      expect(error).toMatchObject({
+        payload: sink.errors[0],
+        relatedSequence: log.sequence
+      });
     });
   });
 

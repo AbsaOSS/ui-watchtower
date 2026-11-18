@@ -18,6 +18,8 @@ export type { UwtBITelemetryOptions } from './lib/engine/uwt-bi-telemetry/uwt-bi
 export { UwtLogTelemetry } from './lib/engine/uwt-log-telemetry/uwt-log-telemetry';
 export type { UwtLogTelemetryOptions } from './lib/engine/uwt-log-telemetry/uwt-log-telemetry';
 export type { UwtTelemetryDocument } from './lib/engine/uwt-telemetry-page/uwt-telemetry-page';
+export { UwtTelemetryMonitor } from './lib/engine/uwt-telemetry-monitor/uwt-telemetry-monitor';
+export type { UwtTelemetryMonitorOptions } from './lib/engine/uwt-telemetry-monitor/uwt-telemetry-monitor';
 
 // Configuration
 export {
@@ -75,6 +77,15 @@ export type {
   UwtTelemetryEventTypes,
   UwtTelemetryMetadata
 } from './lib/models/uwt-telemetry-common.models/uwt-telemetry-common.models';
+export type {
+  UwtJsonObject,
+  UwtJsonValue,
+  UwtTelemetryDestination,
+  UwtTelemetryEventKind,
+  UwtTelemetryEventOrigin,
+  UwtTelemetryObservedEvent,
+  UwtTelemetryPublishInput
+} from './lib/models/uwt-telemetry-monitor.models/uwt-telemetry-monitor.models';
 
 // Scenarios
 export { UwtScenario } from './lib/scenario/uwt-scenario/uwt-scenario';

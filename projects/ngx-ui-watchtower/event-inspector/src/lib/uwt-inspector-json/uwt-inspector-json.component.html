@@ -1,0 +1,36 @@
+<div class="uwt-inspector-json">
+  <div class="uwt-inspector-json__actions">
+    <cps-button
+      type="borderless"
+      size="xsmall"
+      icon="copy"
+      [label]="
+        copied() === 'copied'
+          ? 'Copied'
+          : copied() === 'failed'
+            ? 'Copy failed'
+            : copyLabel()
+      "
+      (clicked)="copy()">
+    </cps-button>
+    <span role="status" class="cps-sr-only">{{
+      copied() === 'copied'
+        ? 'Payload copied'
+        : copied() === 'failed'
+          ? 'Copying failed'
+          : ''
+    }}</span>
+  </div>
+  @if (truncated()) {
+    <p class="uwt-inspector-json__notice">
+      Large payload: showing the first {{ shownChars() }} characters. The
+      download contains all of it.
+    </p>
+  }
+  <pre
+    class="uwt-inspector-json__code"
+    tabindex="0"
+    role="region"
+    [attr.aria-label]="label()"
+    >{{ shown() }}</pre>
+</div>

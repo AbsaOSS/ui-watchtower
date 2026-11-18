@@ -11,6 +11,7 @@ import {
   UwtTelemetryMetadata
 } from '../../models/uwt-telemetry-common.models/uwt-telemetry-common.models';
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor/uwt-telemetry-monitor';
 import { uwtDebugWrite } from '../../utils/uwt-debug-flag.util/uwt-debug-flag.util';
 import {
   UwtRedactConfig,
@@ -46,6 +47,8 @@ export interface UwtBITelemetryOptions {
   enabled?: boolean;
   /** Receives what is handled silently; see {@link UwtReporter}. */
   report?: UwtReporter;
+  /** Told about every event once it is handed to the sink. */
+  monitor?: UwtTelemetryMonitor;
 }
 
 /**
@@ -82,6 +85,7 @@ export class UwtBITelemetry {
   private readonly sink: UwtTelemetrySink;
   private readonly enabled: boolean;
   private readonly report?: UwtReporter;
+  private readonly monitor?: UwtTelemetryMonitor;
 
   private readonly eventTypes: UwtTelemetryEventTypes;
   private readonly lastEmittedAt = new Map<string, number>();
@@ -93,6 +97,7 @@ export class UwtBITelemetry {
     this.sink = options.sink;
     this.enabled = options.enabled !== false;
     this.report = options.report;
+    this.monitor = options.monitor;
     this.eventTypes = uwtEventTypes(options.identity.eventNamespace);
   }
 
@@ -167,6 +172,13 @@ export class UwtBITelemetry {
         );
 
         this.sink.record(this.eventTypes.bi, event);
+        this.monitor?.publish({
+          kind: 'bi',
+          eventType: this.eventTypes.bi,
+          payload: event,
+          destination: 'sink',
+          origin: { forwarded: false }
+        });
       },
       this.report
     );

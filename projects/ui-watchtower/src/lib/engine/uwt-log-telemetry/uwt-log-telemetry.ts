@@ -13,6 +13,7 @@ import {
   UwtLogQuery
 } from '../../providers/uwt-log-api.provider/uwt-log-api.provider';
 import { UwtTelemetrySink } from '../../sinks/uwt-telemetry/uwt-telemetry-abstract.sink/uwt-telemetry-abstract.sink';
+import { UwtTelemetryMonitor } from '../uwt-telemetry-monitor/uwt-telemetry-monitor';
 import { uwtDebugWrite } from '../../utils/uwt-debug-flag.util/uwt-debug-flag.util';
 import {
   uwtNormalizeError,
@@ -73,6 +74,8 @@ export interface UwtLogTelemetryOptions {
   document?: UwtTelemetryDocument | null;
   /** Receives what is handled silently; see {@link UwtReporter}. */
   report?: UwtReporter;
+  /** Told about every record and mirrored error once it is handed over. */
+  monitor?: UwtTelemetryMonitor;
 }
 
 /**
@@ -116,6 +119,7 @@ export class UwtLogTelemetry {
   private readonly sink: UwtTelemetrySink | null;
   private readonly enabled: boolean;
   private readonly report?: UwtReporter;
+  private readonly monitor?: UwtTelemetryMonitor;
   private readonly stopListening: () => void;
   private disposed = false;
 
@@ -136,6 +140,7 @@ export class UwtLogTelemetry {
     this.sink = options.sink ?? null;
     this.enabled = options.enabled !== false;
     this.report = options.report;
+    this.monitor = options.monitor;
     // Page listeners: only while telemetry is on.
     this.stopListening = this.enabled
       ? uwtListenToPage(
@@ -285,7 +290,7 @@ export class UwtLogTelemetry {
           this.report
         );
 
-        this.deliver(record);
+        const sequence = this.deliver(record);
 
         if (level === 'error' && this.config.mirrorErrorsToRum && this.sink) {
           const mirrored =
@@ -297,6 +302,13 @@ export class UwtLogTelemetry {
             );
           if (mirrored) {
             this.sink.recordError(mirrored);
+            this.monitor?.publish({
+              kind: 'error',
+              payload: mirrored,
+              relatedSequence: sequence,
+              destination: 'sink',
+              origin: { forwarded: false }
+            });
           }
         }
       },
@@ -304,13 +316,31 @@ export class UwtLogTelemetry {
     );
   }
 
-  /** Guards against a throwing or secretly-async, rejecting provider. */
-  private deliver(record: UwtLogRecord): void {
+  /**
+   * Guards against a throwing or secretly-async, rejecting provider, and
+   * tells the monitor once the record has been handed over.
+   *
+   * @returns the monitor's sequence number for the record, when observed
+   */
+  private deliver(record: UwtLogRecord): number | undefined {
+    let sequence: number | undefined;
     uwtSafeVoidMaybeAsync(
       'logger.deliver',
-      () => this.logApi.send(record),
+      () => {
+        const pending = this.logApi.send(record);
+        // After send, so a provider that throws synchronously is not reported
+        // as handed over. An asynchronous rejection can't be seen here.
+        sequence = this.monitor?.publish({
+          kind: 'log',
+          payload: record,
+          destination: 'log-provider',
+          origin: { forwarded: false }
+        });
+        return pending;
+      },
       this.report
     );
+    return sequence;
   }
 
   /** Gives the provider its chance to ship whatever it has queued itself. */

@@ -89,11 +89,21 @@ export type {
   UwtTelemetryEventTypes,
   UwtTelemetryMetadata
 } from '@absaoss-cps/ui-watchtower';
+export type {
+  UwtJsonObject,
+  UwtJsonValue,
+  UwtTelemetryDestination,
+  UwtTelemetryEventKind,
+  UwtTelemetryEventOrigin,
+  UwtTelemetryObservedEvent,
+  UwtTelemetryPublishInput
+} from '@absaoss-cps/ui-watchtower';
 
 // Services
 export { UwtBITelemetryService } from './lib/services/uwt-bi-telemetry.service/uwt-bi-telemetry.service';
 export { UwtLoggerService } from './lib/services/uwt-logger.service/uwt-logger.service';
 export { UwtScenario } from '@absaoss-cps/ui-watchtower';
+export { UwtTelemetryMonitor } from './lib/services/uwt-telemetry-monitor.service/uwt-telemetry-monitor.service';
 export { UwtScenarioTelemetryService } from './lib/services/uwt-scenario-telemetry.service/uwt-scenario-telemetry.service';
 
 // Sinks
