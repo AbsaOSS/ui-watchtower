@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PACKAGES } from './publish-packages.mjs';
 
-/** What googleapis/release-please-action@v5 (5.0.0) bundles: keep in step. */
+/** What the workflow's pinned googleapis/release-please-action (v5.0.0) bundles: keep in step. */
 const RELEASE_PLEASE = '17.6.0';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');

@@ -198,7 +198,9 @@ publishing stops at the core; publish it as above from the
 `v0.4.0`: it keeps what that release shipped out of the first changelogs,
 and is read only until both packages have a release. If another `v` release
 reaches `main` first, set it to that release's commit. `npm run release:check`
-compares the two.
+compares the two. That commit is also tagged `ngx-ui-watchtower-v0.4.0`, in
+the new format, so the Angular package's first changelog compares from a tag
+that exists.
 
 `npm run release:check` replays releases through the Release Please version
 the workflow runs, on this config:
