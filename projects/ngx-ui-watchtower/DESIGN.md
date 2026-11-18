@@ -239,6 +239,12 @@ providers: [
   `@absaoss-cps/ngx-ui-watchtower/rum` can't import the main entry's
   internals by relative path and carries small copies of what it needs: its
   Angular helpers and the reporter.
+- **What is published is tested as published.** `npm run smoke` installs
+  both tarballs into consumers outside the workspace: a framework-free one
+  with neither Angular nor `aws-rum-web` installed, and an Angular
+  application, prerendered as a fragment without `aws-rum-web` — which then
+  holds no RUM code — and as a shell with `/rum`, whose RUM client is a chunk
+  loaded on demand.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
