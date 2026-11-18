@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/logo-stacked-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/logo-stacked-light.svg">
-    <img src="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/logo-stacked-auto.svg" alt="Angular UI Watchtower" width="280">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/ngx-logo-stacked-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/ngx-logo-stacked-light.svg">
+    <img src="https://raw.githubusercontent.com/AbsaOSS/ui-watchtower/main/assets/logo/ngx-logo-stacked-auto.svg" alt="Angular UI Watchtower" width="280">
   </picture>
 </p>
 
@@ -16,6 +16,12 @@ Telemetry for Angular apps, in three parts:
 
 Events go to AWS CloudWatch RUM. Logs go to a backend you provide.
 
+It is a thin Angular adapter over
+[`@absaoss-cps/ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ui-watchtower),
+the framework-independent engine that does the work, and can be used in any
+frontend. This package adds what Angular expects: providers, injectable
+services, Observables.
+
 The library's names are prefixed `Uwt`, short for UI Watchtower —
 `UwtLoggerService`, `provideUwtTelemetry`, `UWT_LOG_API_PROVIDER`.
 
@@ -26,10 +32,15 @@ npm install @absaoss-cps/ngx-ui-watchtower
 npm install aws-rum-web   # only for the AWS RUM sink
 ```
 
-Requires Angular 21 or 22 and RxJS 7.8. It brings
-[`@absaoss-cps/ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ui-watchtower),
-the framework-independent engine it builds on, with it: there is nothing more
-to install or configure.
+Requires Angular 21 or 22 and RxJS 7.8. It installs
+`@absaoss-cps/ui-watchtower` with it: there is nothing more to install or
+configure. If your application also imports the core directly, don't install
+a version this package doesn't accept: npm would keep two copies, and name
+declarations and `instanceof` checks would no longer match between them. Let
+npm pick one version for both.
+
+Upgrading from 0.4 needs no code or configuration change: the imports,
+providers, services, name declarations and behavior stay the same.
 
 ## Setup
 
@@ -350,6 +361,14 @@ providers: [
   provideUwtTelemetrySink('broadcast')
 ];
 ```
+
+Who owns what:
+
+| Realm          | Destination                                         | RUM and its credentials provider       | Log backend                           |
+| -------------- | --------------------------------------------------- | -------------------------------------- | ------------------------------------- |
+| Standalone app | Its own: `provideUwtTelemetryRumSink()`, or another | The app's                              | The app's                             |
+| Shell          | Its own, plus `provideUwtTelemetryBroadcastHost()`  | The shell's: the only ones on the page | The shell's, also for fragments' logs |
+| Fragment       | `provideUwtTelemetrySink('broadcast')`              | None: the shell's records for it       | None: `'broadcast'` forwards them     |
 
 Fragment code doesn't change. Give each fragment its own `application` name.
 A shell or a fragment needn't be Angular: one built on
