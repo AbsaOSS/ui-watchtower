@@ -107,21 +107,12 @@ releases it, with its dependency on the core moved:
    a `component` and an `initial-version` (e.g. `0.1.0`), its first release.
    Release Please adds it to `.release-please-manifest.json` when it
    releases.
-3. **Publishing.** Add it to `PACKAGES` in
-   [scripts/publish-packages.mjs](../scripts/publish-packages.mjs), after the
-   core, with `dependsOn: '@absaoss-cps/ui-watchtower'`. Add its
-   `--release_created` output to `.github/workflows/release-please.yml`, and
-   to the publish job's condition.
+3. **Publishing.** In `.github/workflows/release-please.yml`, add its
+   `--release_created` output to the release job, and to the publish job's
+   condition; then a publish step after the core's, like the Angular
+   package's, guarded by that output.
 4. **Checks.** Add it to `PACKAGES` in
    [scripts/api-snapshot.mjs](../scripts/api-snapshot.mjs) and run
    `npm run api:update`; add a consumer to
-   [scripts/smoke/smoke.mjs](../scripts/smoke/smoke.mjs). The release
-   scenarios in [scripts/release-check.mjs](../scripts/release-check.mjs) and
-   the workflow test in
-   [scripts/publish-packages.test.mjs](../scripts/publish-packages.test.mjs)
-   name the core and the Angular package; extend them to the new one.
+   [scripts/smoke/smoke.mjs](../scripts/smoke/smoke.mjs).
 5. **Docs.** Add a row to the root README's package table.
-
-Start with `PACKAGES`: `npm run test:release` then fails, in CI too, until
-the config (or the manifest), the package's `package.json` and the release
-job's outputs all match it.

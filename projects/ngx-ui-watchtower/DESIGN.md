@@ -258,8 +258,8 @@ providers: [
   to `^` the new version in the same release PR, so it always depends on the
   core it was built against. The release workflow publishes the core first
   and this package only after it, so this package never depends on a core
-  version npm doesn't have. Publishing skips what npm already has, so running
-  the workflow again on the release tag completes a partial release.
+  version npm doesn't have. Publishing skips what npm already has, so
+  re-running the failed publish job completes a partial release.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.

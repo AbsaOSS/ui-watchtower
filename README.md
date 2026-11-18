@@ -70,15 +70,13 @@ application does. Tests and the typecheck read the core's source.
 | ----------------------- | ---------------------------------------------------------------- |
 | `npm run build`         | Builds both packages (production), the core first                |
 | `npm run watch`         | Builds the core, then rebuilds the Angular package on change     |
-| `npm run test`          | Runs the unit tests of both packages (Jest), then `test:release` |
+| `npm run test`          | Runs the unit tests of both packages (Jest)                      |
 | `npm run test:core`     | Runs the core's unit tests only: plain Jest, no Angular          |
-| `npm run test:release`  | Tests the publish script and the release workflow's wiring       |
 | `npm run test:coverage` | Runs the unit tests with coverage, as CI does; fails below 90%   |
 | `npm run typecheck`     | Builds the core, then type-checks every tsconfig and type test   |
 | `npm run api:check`     | Builds both packages, then compares their public APIs            |
 | `npm run api:update`    | Builds both packages, then rewrites their snapshots              |
 | `npm run smoke`         | Installs the built packages, packed, into throwaway consumers    |
-| `npm run release:check` | Replays releases through Release Please on the release config    |
 | `npm run lint`          | ESLint, no warnings allowed                                      |
 | `npm run format`        | Formats with Prettier                                            |
 | `npm run format:check`  | Checks formatting without writing                                |
@@ -118,7 +116,6 @@ npm run format:check
 npm run build
 npm run api:check
 npm run smoke
-npm run release:check
 ```
 
 CI runs the same checks on every pull request and every push to `main`.
@@ -161,56 +158,43 @@ is released when it changes:
    publishes what was released, the core before the Angular package, through
    trusted publishing — no npm token.
 
-**A failed publish** stops before the next package, so the Angular package
-never depends on a core that isn't on npm. To finish a partial release, run
-the workflow again on the release tag:
+**A failed publish** stops before the Angular package, so it never depends
+on a core that isn't on npm. To finish a partial release, use **Re-run failed
+jobs** on that workflow run: each package's step skips a version npm already
+has.
 
-```bash
-gh workflow run release-please.yml --ref ngx-ui-watchtower-v<version>
-```
-
-[`scripts/publish-packages.mjs`](scripts/publish-packages.mjs) publishes a
-package only if its release tag points at that commit and npm doesn't have
-the version yet; any other answer from npm stops it.
-
-**The core's first release is 0.1.0, and its first publish is by hand.** The
-core's `initial-version` in `release-please-config.json` sets that version.
-npm sets up trusted publishing only for a package that exists. Before the
-first release PR that releases the core is merged, an `@absaoss-cps` owner
-publishes the core from that PR's branch:
+**The core's first release is 0.1.0**, set by its `initial-version` in
+`release-please-config.json`, and published by the workflow like every
+release. npm adds a trusted publisher only to a package that exists, so
+before the first release PR that releases the core is merged, an
+`@absaoss-cps` owner publishes a placeholder, `0.0.0`, by hand:
 
 ```bash
 npm login
-git fetch origin
-git switch release-please--branches--main
-npm ci && npm run build
-npm publish dist/ui-watchtower
+mkdir ui-watchtower-placeholder && cd ui-watchtower-placeholder
+echo '{ "name": "@absaoss-cps/ui-watchtower", "version": "0.0.0", "description": "Placeholder: the first release is 0.1.0", "license": "Apache-2.0" }' > package.json
+npm publish --access public
 ```
 
 Then, on npmjs.com, in the package's settings, add the trusted publisher the
 Angular package has: GitHub Actions, `AbsaOSS/ui-watchtower`, workflow
-`release-please.yml`. After the merge, publishing finds 0.1.0 on npm, skips
-it, and publishes the Angular package. If the release PR is merged first,
-publishing stops at the core; publish it as above from the
-`ui-watchtower-v0.1.0` tag, then run the workflow on the release tag.
+`release-please.yml`. Once the workflow has published 0.1.0, deprecate the
+placeholder:
+
+```bash
+npm deprecate @absaoss-cps/ui-watchtower@0.0.0 "Placeholder, use 0.1.0 or later"
+```
+
+If the release PR is merged first, publishing the core fails, and the
+Angular package isn't published: add the trusted publisher, then re-run the
+failed job.
 
 `bootstrap-sha` in `release-please-config.json` is the commit tagged
 `v0.4.0`: it keeps what that release shipped out of the first changelogs,
 and is read only until both packages have a release. If another `v` release
-reaches `main` first, set it to that release's commit. `npm run release:check`
-compares the two. That commit is also tagged `ngx-ui-watchtower-v0.4.0`, in
-the new format, so the Angular package's first changelog compares from a tag
-that exists.
-
-`npm run release:check` replays releases through the Release Please version
-the workflow runs, on this config:
-
-- the first release, with the core at 0.1.0;
-- an Angular-only change releasing only the Angular package;
-- a core change also releasing the Angular package, with its dependency moved;
-- merging creating the tags publishing looks for.
-
-It installs Release Please, so it needs a network.
+reaches `main` first, set it to that release's commit. That commit is also
+tagged `ngx-ui-watchtower-v0.4.0`, in the new format, so the Angular
+package's first changelog compares from a tag that exists.
 
 ## License
 
