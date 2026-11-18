@@ -116,13 +116,21 @@ export type { UwtTelemetrySinkEvent } from './lib/utils/uwt-telemetry-event.util
 export { uwtIsDebugEnabled } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
 export type { UwtDebugFlag } from './lib/utils/uwt-debug-flag.util/uwt-debug-flag.util';
 export {
+  uwtConsoleReporter,
+  uwtReport,
   uwtSafe,
   uwtSafeVoid,
   uwtSafeVoidMaybeAsync,
   uwtUuid
 } from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
-export type { UwtReporter } from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
-export { uwtMarkSessionStart } from './lib/utils/uwt-session-start.util/uwt-session-start.util';
+export type {
+  UwtReporter,
+  UwtReportLevel
+} from './lib/utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
+export {
+  uwtMarkSessionStart,
+  uwtSessionElapsed
+} from './lib/utils/uwt-session-start.util/uwt-session-start.util';
 export {
   UWT_DEFAULT_REDACT_CONFIG,
   UWT_REDACTED,
@@ -135,7 +143,3 @@ export type {
   UwtPiiValuePattern,
   UwtRedactConfig
 } from './lib/utils/uwt-telemetry-redact.util/uwt-telemetry-redact.util';
-
-// Used by @absaoss-cps/ngx-ui-watchtower while the engine moves into this
-// package; removed from the public API once that code lives here too.
-export { uwtSessionElapsed } from './lib/utils/uwt-session-start.util/uwt-session-start.util';

@@ -9,9 +9,13 @@
   "homepage": "https://github.com/AbsaOSS/ui-watchtower",
   "license": "Apache-2.0",
   "peerDependencies": {
+    "aws-rum-web": "^3.2.1",
     "rxjs": "^7.8.2"
   },
   "peerDependenciesMeta": {
+    "aws-rum-web": {
+      "optional": true
+    },
     "rxjs": {
       "optional": true
     }

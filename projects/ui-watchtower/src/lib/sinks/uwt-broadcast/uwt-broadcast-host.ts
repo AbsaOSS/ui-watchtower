@@ -7,6 +7,7 @@ import {
 import { uwtSessionElapsed } from '../../utils/uwt-session-start.util/uwt-session-start.util';
 import { uwtClassifyTelemetryEvent } from '../../utils/uwt-telemetry-event.util/uwt-telemetry-event.util';
 import {
+  uwtConsoleReporter,
   uwtReport,
   UwtReporter,
   uwtSafe,
@@ -37,10 +38,6 @@ interface UwtIdentified {
  */
 const hostsInThisRealm = new Map<string, number>();
 
-/** Where warnings about a host that cannot work go when no reporter is given. */
-const consoleReporter: UwtReporter = (level, message, ...details) =>
-  console[level](`[ui-watchtower] ${message}`, ...details);
-
 /**
  * What {@link UwtTelemetryBroadcastHost} needs.
  *
@@ -65,9 +62,9 @@ export interface UwtTelemetryBroadcastHostOptions {
    */
   enabled?: boolean;
   /**
-   * Receives failures, and the warnings about a host that cannot work as
-   * configured. Those warnings go to the console when no reporter is given:
-   * a misconfigured host is never silent.
+   * Receives failures, and — as `'config'` — the warnings about a host that
+   * cannot work as configured. Those go to the console when no reporter is
+   * given: a misconfigured host is never silent.
    */
   report?: UwtReporter;
 }
@@ -370,7 +367,7 @@ export class UwtTelemetryBroadcastHost {
 
   /** A host that cannot work as configured is never silent. */
   private warn(message: string): void {
-    uwtReport(this.report ?? consoleReporter, 'warn', message);
+    uwtReport(this.report ?? uwtConsoleReporter, 'config', message);
   }
 
   private announceIdentity(): void {

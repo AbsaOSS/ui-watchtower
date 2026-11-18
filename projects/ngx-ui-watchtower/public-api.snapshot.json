@@ -541,6 +541,7 @@
     "UwtRumTelemetrySink": [
       "class",
       "new (): UwtRumTelemetrySink",
+      "dispose(): void",
       "flush(beacon?: boolean | undefined): void",
       "getSessionId(): string | undefined",
       "getUserId(): string | undefined",

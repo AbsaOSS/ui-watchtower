@@ -17,7 +17,8 @@
     // it first (npm run build does).
     "paths": {
       "@absaoss-cps/ui-watchtower": ["../../dist/ui-watchtower"],
-      "@absaoss-cps/ui-watchtower/rxjs": ["../../dist/ui-watchtower/rxjs"]
+      "@absaoss-cps/ui-watchtower/rxjs": ["../../dist/ui-watchtower/rxjs"],
+      "@absaoss-cps/ui-watchtower/rum": ["../../dist/ui-watchtower/rum"]
     }
   },
   "include": ["src/**/*.ts"],

@@ -1,6 +1,8 @@
 import { isDevMode } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
 import type {} from '@absaoss-cps/ui-watchtower';
 import {
+  uwtRunOutsideZone,
   uwtSafe,
   uwtSafeVoid,
   uwtSafeVoidMaybeAsync
@@ -189,5 +191,17 @@ describe('uwtSafeVoidMaybeAsync', () => {
 
     nodeProcess.off('unhandledRejection', unhandled);
     expect(unhandled).not.toHaveBeenCalled();
+  });
+});
+
+describe('uwtRunOutsideZone', () => {
+  it('should run a callback that returns nothing once, and hand back what it returns', () => {
+    const run = TestBed.runInInjectionContext(() => uwtRunOutsideZone());
+    const nothing = jest.fn();
+
+    run(nothing);
+
+    expect(nothing).toHaveBeenCalledTimes(1);
+    expect(run(() => 42)).toBe(42);
   });
 });

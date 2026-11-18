@@ -7,6 +7,15 @@
  */
 import { firstValueFrom, Observable, of } from 'rxjs';
 import {
+  UwtRumAppMonitorConfig,
+  UwtRumBootstrap,
+  UwtRumCredentials,
+  UwtRumCredentialsProvider,
+  UwtRumDocument,
+  UwtRumTelemetrySink,
+  UwtRumTelemetrySinkOptions
+} from '@absaoss-cps/ui-watchtower/rum';
+import {
   traceScenario,
   UwtTraceScenarioOptions
 } from '@absaoss-cps/ui-watchtower/rxjs';
@@ -53,6 +62,10 @@ import {
   uwtRedactConfigFor,
   uwtRedactMetadata,
   UwtReporter,
+  uwtConsoleReporter,
+  uwtReport,
+  UwtReportLevel,
+  uwtSessionElapsed,
   uwtResolveTelemetryConfig,
   uwtSafe,
   uwtSafeVoid,
@@ -121,7 +134,7 @@ export class AppLogBackend implements UwtLogApiProvider {
 
 /** Where the application wants to see what telemetry handles silently. */
 export const report: UwtReporter = (level, message, ...details) =>
-  console[level](`[app] ${message}`, ...details);
+  console[level === 'error' ? 'error' : 'warn'](`[app] ${message}`, ...details);
 
 export const identity: UwtTelemetryIdentity = {
   application: 'app',
@@ -293,4 +306,49 @@ export function composedPage(
     host.dispose();
     connection.close();
   };
+}
+
+/** RUM credentials from the application's broker. */
+export class AppRumCredentials implements UwtRumCredentialsProvider {
+  async load(): Promise<UwtRumBootstrap | null> {
+    const config: UwtRumAppMonitorConfig = {
+      applicationId: 'app-monitor',
+      region: 'eu-west-1',
+      applicationVersion: '1.0.0'
+    };
+    const credentials: UwtRumCredentials = {
+      accessKeyId: 'a',
+      secretAccessKey: 's',
+      sessionToken: 't',
+      expiration: '2026-01-01T00:00:00Z'
+    };
+    return { config, credentials };
+  }
+}
+
+/** Sending straight to AWS CloudWatch RUM, without a framework. */
+export async function rum(page: UwtRumDocument | null): Promise<void> {
+  const options: UwtRumTelemetrySinkOptions = {
+    identity,
+    credentialsProvider: new AppRumCredentials(),
+    document: page,
+    report: uwtConsoleReporter
+  };
+  const destination = new UwtRumTelemetrySink(options);
+  await destination.init();
+  destination.recordPageView('/customers/:id');
+  const telemetry = uwtCreateTelemetry({
+    identity,
+    destination,
+    logApi: new UwtNoopLogApiProvider()
+  });
+  const level: UwtReportLevel = 'config';
+  uwtReport(
+    report,
+    level,
+    'checked',
+    uwtSessionElapsed(destination.getSessionId())
+  );
+  telemetry.dispose();
+  destination.dispose();
 }

@@ -229,10 +229,16 @@ providers: [
   broadcast plumbing stay internal so they can change freely. Redaction is
   the exception: a custom sink needs `uwtRedactMetadata`,
   `uwtNormalizeError`, `uwtScrubString` and `uwtRedactConfigFor`.
+- **The RUM sink is the core's too.** Its logic — the lazy `aws-rum-web`
+  import, startup retries, credential refresh, the pre-init buffer, the
+  settings check — lives in `@absaoss-cps/ui-watchtower/rum`. This package's
+  `/rum` keeps `UWT_RUM_CREDENTIALS_PROVIDER`, `provideUwtTelemetryRumSink()`
+  and `UwtRumTelemetrySink`, an injectable subclass of the core's.
 - **The secondary entry keeps private copies of a few utilities.** ng-packagr
   fixes each entry point's `rootDir` to its own `src`, so
   `@absaoss-cps/ngx-ui-watchtower/rum` can't import the main entry's
-  internals by relative path and carries small copies of what it needs.
+  internals by relative path and carries small copies of what it needs: its
+  Angular helpers and the reporter.
 - **Test doubles live in the specs that use them**, declared inline, never in
   a shared file and never exported. The one browser gap needing a stub is
   `BroadcastChannel`, which jsdom doesn't implement.
@@ -1608,12 +1614,15 @@ convention, for an application that wants the pre-fallback behavior back.
 ## 11. Error handling and performance
 
 - **Telemetry never breaks the application.** Every public entry point is
-  wrapped and never rethrows. The core prints nothing by itself: it hands a
-  suppressed error, or data it had to drop, to the `UwtReporter` it is
-  given. This package gives it one that writes to the console, prefixed
+  wrapped and never rethrows. The core hands a suppressed error (`'error'`),
+  or data it had to drop (`'warn'`), to the `UwtReporter` it is given. This
+  package gives it one that writes to the console, prefixed
   `[ngx-ui-watchtower]`, in development mode only, so bugs surface in
-  development and production stays silent. Even a broken `console.error`
-  cannot turn a suppressed failure into a throw.
+  development and production stays silent. What cannot work as configured
+  (`'config'`) — a second broadcast host, a host in a forwarding realm, RUM
+  settings of the wrong type — is printed in production too, as it always
+  was; without a reporter, the core prints it itself. Even a broken
+  `console.error` cannot turn a suppressed failure into a throw.
 - **Fail-open.** A broker outage, expired credentials or an SDK throw all
   leave the application behaving exactly as with healthy telemetry. A failed
   broker request at startup is retried with backoff for five minutes. A

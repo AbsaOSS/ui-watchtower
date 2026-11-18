@@ -1,0 +1,335 @@
+/**
+ * Short-lived AWS credentials for the RUM data plane.
+ *
+ * @group Interfaces
+ */
+export interface UwtRumCredentials {
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken: string;
+
+  /** ISO-8601 expiry. Used to schedule a refresh before the credentials lapse. */
+  expiration: string;
+}
+
+/**
+ * Mirrors `aws-rum-web`'s own `AwsCredentialIdentity | AwsCredentialIdentityProvider`
+ * union — used only by {@link UwtRumAppMonitorConfig.clientBuilder}.
+ */
+type ClientBuilderCredentials =
+  | { accessKeyId: string; secretAccessKey: string; sessionToken?: string }
+  | (() => Promise<{
+      accessKeyId: string;
+      secretAccessKey: string;
+      sessionToken?: string;
+    }>);
+
+/**
+ * Settings for the RUM app monitor, mapped onto the underlying `aws-rum-web`
+ * SDK's own `Config`. Every optional field left unset falls back to a
+ * default: `allowCookies`, `enableXRay`, `endpoint` and `telemetries` fall
+ * back to this library's own override; every other field falls back to the
+ * SDK's own default (see `buildRumConfig()`).
+ *
+ * Matches the SDK's `Config` field for field, with three omissions:
+ *
+ * - `endpointUrl` — always recomputed by the SDK from `endpoint`; setting it
+ *   independently has no effect.
+ * - `identityPoolId`, `guestRoleArn` — the SDK's own Cognito guest-identity
+ *   credential flow. AWS credentials come from a backend-vended
+ *   `UwtRumCredentialsProvider` instead (see
+ *   `UwtRumTelemetrySink.applyCredentials`).
+ * - `sessionId`, `userId` — owned at runtime by `UwtRumTelemetrySink`'s
+ *   `setUserId`, `pinUserId` and `startSession`.
+ *
+ * None of the field types below are imported from `aws-rum-web`; every type
+ * here is hand-written. This keeps `aws-rum-web` an optional peer
+ * dependency for applications that only use the `broadcast` or `noop` sink.
+ *
+ * @group Interfaces
+ */
+export interface UwtRumAppMonitorConfig {
+  /** CloudWatch RUM app monitor id. */
+  applicationId: string;
+
+  /** AWS region hosting the app monitor, e.g. `eu-west-1`. */
+  region: string;
+
+  /** Version string reported with every event. */
+  applicationVersion: string;
+
+  // ---- Sampling & session ----
+
+  /** Fraction of sessions recorded, `0`–`1`. Default `1`. */
+  sessionSampleRate?: number;
+
+  /**
+   * Inactivity timeout of a session, in seconds. Default `1800` (30 minutes).
+   * Each recorded event pushes the expiry back; the next event after it
+   * starts a new session.
+   */
+  sessionLengthSeconds?: number;
+
+  /** Hard cap on events recorded per session, across all telemetry. Default `200`. */
+  sessionEventLimit?: number;
+
+  /**
+   * Suppresses the `session_start` event the SDK would otherwise emit at the
+   * start of a session. Default `false`. The library then doesn't record the
+   * session's start either, so scenario records carry no `sessionElapsed`.
+   */
+  suppressSessionStartEvent?: boolean;
+
+  /**
+   * Days the user id is kept in the `cwr_u` cookie. Default `30`. A signed-in
+   * user's id is kept there too, so on a shared device the next visitor starts
+   * with it until the app calls `setUserId(undefined)` or someone signs in.
+   * `0` keeps no user cookie at all: anonymous visitors get the nil id, or a
+   * random one for the rest of the page after a sign-out.
+   */
+  userIdRetentionDays?: number;
+
+  /**
+   * Attributes attached to every event in the session, seeded at
+   * construction. Default `{}`. `UwtRumTelemetrySink` merges `application`,
+   * `environment` and `appVersion` on top of this after construction; those
+   * three keys always win.
+   */
+  sessionAttributes?: Record<string, string | number | boolean>;
+
+  /**
+   * Attributes attached to every event for the lifetime of the app monitor
+   * client, independent of session. Default unset.
+   */
+  applicationAttributes?: Record<string, string | number | boolean>;
+
+  // ---- Telemetry collection & tracing ----
+
+  /**
+   * Built-in telemetry categories to enable. Defaults to errors, performance
+   * and same-origin HTTP. The SDK's own default also includes `'replay'`
+   * (session replay via `rrweb`); this library does not enable it by
+   * default.
+   *
+   * Options the SDK matches with `RegExp.test` or calls as a function —
+   * `urlsToInclude`, `urlsToExclude`, `addXRayTraceIdHeader` (also a
+   * boolean), `ignore`, `interactionId` — must hold exactly that. JSON can't
+   * carry them, and a string there would make the SDK throw each time it
+   * applies the option, so RUM doesn't start for the page instead (with a
+   * console warning naming the option). Set them in code, not in a broker's
+   * answer.
+   */
+  telemetries?: (string | (string | object)[])[];
+
+  /**
+   * Custom event plugins to load alongside the built-in telemetry, each
+   * implementing `aws-rum-web`'s own `Plugin` interface. Default `[]`.
+   */
+  eventPluginsToLoad?: unknown[];
+
+  /** Whether to emit X-Ray trace ids. Default `true`. */
+  enableXRay?: boolean;
+
+  /** Whether to emit W3C trace context ids alongside X-Ray's. Default `false`. */
+  enableW3CTraceId?: boolean;
+
+  /** Whether resource-timing events record the resource's URL. Default `true`. */
+  recordResourceUrl?: boolean;
+
+  // ---- Dispatch & buffering ----
+
+  /** Data plane endpoint. Defaults to the regional RUM endpoint. */
+  endpoint?: string;
+
+  /** Extra headers sent with every dispatch request. Default unset. */
+  headers?: Record<string, string>;
+
+  /** Free-form label reported alongside dispatched events. Default unset. */
+  alias?: string;
+
+  /** Maximum events sent per dispatch request. Default `100`. */
+  batchLimit?: number;
+
+  /** Interval between automatic dispatches, in milliseconds. Default `5000`. */
+  dispatchInterval?: number;
+
+  /** Maximum events held in the in-memory cache awaiting dispatch. Default `1000`. */
+  eventCacheSize?: number;
+
+  /** Maximum not-yet-recorded candidate events cached. Default `10`. */
+  candidatesCacheSize?: number;
+
+  /** Retries for a failed dispatch request. Default `2`. */
+  retries?: number;
+
+  /** Whether unload-time flushes use `navigator.sendBeacon`. Default `true`. */
+  useBeacon?: boolean;
+
+  /**
+   * Whether dispatch requests are SigV4-signed. Default `true`. Signing is
+   * active whenever credentials are present — which they are here, via
+   * `setAwsCredentials` from `UwtRumCredentialsProvider` — independent of
+   * `identityPoolId`; that field only matters for the SDK's own, separate
+   * Cognito guest-identity flow, which this library does not use. Leave
+   * this enabled for broker-supplied credentials: disabling it here still
+   * sends unsigned requests to the same signed-only endpoint and gets
+   * rejected. Only turn it off if something in front of dispatch (a proxy,
+   * a different transport) already signs the request itself.
+   */
+  signing?: boolean;
+
+  /** Whether the request body is gzip-compressed before dispatch. Default `{ enabled: true }`. */
+  compressionStrategy?: { enabled: boolean };
+
+  /**
+   * Overrides the SDK's own `fetch`-based transport. Default unset — the
+   * SDK uses the global `fetch`.
+   */
+  fetchFunction?: typeof fetch;
+
+  /**
+   * Overrides how the SDK builds its data-plane HTTP client. An advanced
+   * escape hatch — see `aws-rum-web`'s own `ClientBuilder` type for the exact
+   * signature (`(endpoint: URL, region: string, credentials?, compressionStrategy?) => DataPlaneClient`).
+   * Default unset.
+   */
+  clientBuilder?: (
+    endpoint: URL,
+    region: string,
+    credentials?: ClientBuilderCredentials,
+    compressionStrategy?: { enabled: boolean }
+  ) => unknown;
+
+  // ---- Cookies & privacy ----
+
+  /**
+   * Whether the client may keep the session and user ids in cookies
+   * (`cwr_s`, `cwr_u`), so they survive a reload. Default `true` — the SDK's
+   * own default is `false`. Without cookies, every page load starts a new
+   * session.
+   */
+  allowCookies?: boolean;
+
+  /**
+   * Overrides for the cookies the client sets. Unset fields fall back to the
+   * SDK's own defaults (`domain` = current hostname, `path` = `/`,
+   * `sameSite` = `'Strict'`, `secure` = `true`, `unique` = `false`).
+   *
+   * With `unique: false`, every app monitor on the same hostname shares one
+   * session cookie (`cwr_s`). Set `unique: true` when several apps with their
+   * own app monitors run on one hostname, so each keeps its own session. The
+   * user cookie (`cwr_u`) stays shared either way — `aws-rum-web` 3.2.1
+   * suffixes only the session cookie.
+   */
+  cookieAttributes?: {
+    unique?: boolean;
+    domain?: string;
+    path?: string;
+    sameSite?: string;
+    secure?: boolean;
+  };
+
+  // ---- Page tracking ----
+
+  /**
+   * Disables the client's own automatic page-view recording on navigation.
+   * Pair with `UwtRumTelemetrySink.recordPageView()` to record page ids
+   * yourself. Default `false`.
+   */
+  disableAutoPageView?: boolean;
+
+  /** How the page id is derived from the URL. Default `'PATH'`. */
+  pageIdFormat?: 'PATH' | 'HASH' | 'PATH_AND_HASH';
+
+  /**
+   * Pages recorded, matched against the page id. Default matches every page.
+   * `undefined` or `null` means unset; anything else that isn't an array of
+   * `RegExp`s (a string list from JSON) keeps RUM from starting for the page.
+   */
+  pagesToInclude?: RegExp[];
+
+  /**
+   * Pages excluded from recording, matched against the page id. Default `[]`.
+   * `undefined` or `null` means unset; anything else that isn't an array of
+   * `RegExp`s (a string list from JSON) keeps RUM from starting for the page,
+   * rather than record what it should exclude.
+   */
+  pagesToExclude?: RegExp[];
+
+  /** How long, in milliseconds, a route change waits before being considered complete. Default `100`. */
+  routeChangeComplete?: number;
+
+  /** Timeout, in milliseconds, before an incomplete route change is abandoned. Default `10000`. */
+  routeChangeTimeout?: number;
+
+  // ---- Advanced / escape hatches ----
+
+  /**
+   * Label reported as the SDK's own install method. Default is the SDK's
+   * internal module-install constant; overriding it is rarely useful outside
+   * of testing the SDK itself.
+   */
+  client?: string;
+
+  /** Release identifier reported with every event, e.g. a build SHA. Default unset. */
+  releaseId?: string;
+
+  /** Logs the SDK's own internal diagnostics to the console. Default `false`. */
+  debug?: boolean;
+
+  /** Master switch for the RUM client. Default `true`. */
+  enableRumClient?: boolean;
+}
+
+/**
+ * The payload returned by a {@link UwtRumCredentialsProvider}.
+ *
+ * @group Interfaces
+ */
+export interface UwtRumBootstrap {
+  /** App monitor settings. */
+  config: UwtRumAppMonitorConfig;
+
+  /**
+   * Credentials for the data plane. Omit when the app monitor is configured for
+   * unauthenticated access.
+   */
+  credentials?: UwtRumCredentials;
+}
+
+/**
+ * What the RUM sink needs from the host application to start.
+ *
+ * Keeps the telemetry layer free of AWS account details — how the app
+ * monitor id is discovered and how credentials are vended is entirely the
+ * application's business.
+ *
+ * @example
+ * ```typescript
+ * export class AppRumCredentialsProvider implements UwtRumCredentialsProvider {
+ *   async load(): Promise<UwtRumBootstrap | null> {
+ *     const res = await fetch('/rum/init');
+ *     if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`);
+ *     const { enabled, config, credentials } = await res.json();
+ *     return enabled ? { config, credentials } : null;
+ *   }
+ * }
+ * ```
+ *
+ * @group Interfaces
+ */
+export interface UwtRumCredentialsProvider {
+  /**
+   * Resolves the app monitor settings and a set of credentials.
+   *
+   * Called once at startup and again shortly before each credential expiry.
+   * Returning `null` disables RUM for the rest of the page — the telemetry
+   * layer stays fully functional, it simply stops shipping. Throw instead when
+   * the request fails: the sink retries — at startup with a growing, random
+   * wait for up to five minutes, buffering events until the client starts;
+   * on refresh every 30 s.
+   *
+   * @returns the bootstrap payload, or `null` to disable RUM
+   */
+  load(): Promise<UwtRumBootstrap | null>;
+}
