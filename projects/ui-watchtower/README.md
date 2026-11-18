@@ -120,8 +120,10 @@ const destination = new UwtRumTelemetrySink({
   identity,
   credentialsProvider: {
     async load() {
-      const response = await fetch('/rum/init');
-      return response.ok ? response.json() : null; // null: RUM off for the page
+      const res = await fetch('/rum/init');
+      if (!res.ok) throw new Error(`RUM bootstrap failed: ${res.status}`); // retried
+      const { enabled, config, credentials } = await res.json();
+      return enabled ? { config, credentials } : null; // null: RUM off for the page
     }
   }
 });
@@ -130,10 +132,10 @@ destination.init(); // not awaited: never delays the page
 const telemetry = uwtCreateTelemetry({ identity, destination, logApi });
 ```
 
-Startup is retried with backoff for five minutes, credentials are refreshed
-before they expire, and events recorded before the client starts are
-buffered. Without a page, as on a server, it never starts. `dispose()` stops
-the client.
+When `load()` throws, startup is retried with backoff for five minutes;
+`null` keeps RUM off for the page. Credentials are refreshed before they
+expire, and events recorded before the client starts are buffered. Without
+a page, as on a server, it never starts. `dispose()` stops the client.
 
 ## Shell and fragments
 
