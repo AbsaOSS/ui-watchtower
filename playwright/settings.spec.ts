@@ -163,7 +163,7 @@ test("the header's Settings button toggles it, and every way out asks before dro
   );
 });
 
-test("Settings' list of sections is beside its main content, as the lab's nav is, so Skip to content passes it", async ({
+test("Settings' list of sections is beside its main content, as the lab's nav is", async ({
   page
 }) => {
   await openLab(page, 'bi');
@@ -174,12 +174,6 @@ test("Settings' list of sections is beside its main content, as the lab's nav is
   await expect(main).toHaveCount(1);
   await expect(main.getByRole('navigation')).toHaveCount(0);
   await expect(main.getByRole('heading', { level: 1 })).toHaveText('Settings');
-
-  await page.getByRole('link', { name: 'Skip to content' }).focus();
-  await page.keyboard.press('Enter');
-  await expect(main).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(main.locator(':focus')).toHaveCount(1);
 });
 
 test('Settings lays out as a lab page does: its list where the nav is, the padding only around its main content', async ({

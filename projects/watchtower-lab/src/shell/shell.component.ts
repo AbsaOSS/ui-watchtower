@@ -64,9 +64,6 @@ function inEffect(now?: string, next?: string): string {
   // after opening the nav with the mouse wouldn't come from inside it.
   host: { '(document:keydown.escape)': 'closeNav()' },
   template: `
-    <a class="lab-skip-link" href="#lab-main" (click)="skipToContent($event)"
-      >Skip to content</a
-    >
     <header class="lab-header">
       <a class="lab-home" routerLink="/" queryParamsHandling="preserve">
         <img
@@ -208,9 +205,7 @@ function inEffect(now?: string, next?: string): string {
            twice. -->
         <div
           [class.lab-main]="!inSettings()"
-          [attr.role]="inSettings() ? null : 'main'"
-          [attr.id]="inSettings() ? null : 'lab-main'"
-          [attr.tabindex]="inSettings() ? null : -1">
+          [attr.role]="inSettings() ? null : 'main'">
           <router-outlet />
         </div>
       </div>
@@ -356,11 +351,6 @@ export class ShellComponent {
     await this.router.navigate(['/', path], {
       queryParamsHandling: 'preserve'
     });
-  }
-
-  protected skipToContent(event: Event): void {
-    event.preventDefault();
-    this.document.getElementById('lab-main')?.focus();
   }
 
   /** Escape folds the open nav, back to its button. */
