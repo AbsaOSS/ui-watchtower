@@ -1,4 +1,4 @@
-import { Injectable, OnDestroy } from '@angular/core';
+import { DestroyRef, inject, Injectable, OnDestroy } from '@angular/core';
 import { UwtBroadcastLogApiProvider as CoreBroadcastLogApiProvider } from '@absaoss-cps/ui-watchtower';
 import { uwtBroadcastConnectionOptions } from '../../sinks/uwt-broadcast/uwt-broadcast.messages';
 import {
@@ -32,6 +32,8 @@ export class UwtBroadcastLogApiProvider
   extends CoreBroadcastLogApiProvider
   implements OnDestroy
 {
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor() {
     super({
       ...uwtBroadcastConnectionOptions(),
@@ -39,10 +41,17 @@ export class UwtBroadcastLogApiProvider
       runInside: uwtRunInsideZone(),
       report: uwtDevModeReporter
     });
+    // Runs after every service's ngOnDestroy, so their last records still go
+    // out.
+    this.destroyRef.onDestroy(() => this.dispose());
   }
 
   /** Resolves every unanswered query to `[]`, then closes the channel. */
   ngOnDestroy(): void {
-    this.dispose();
+    // The injector's own call is finished by the callback above; a direct
+    // call (a test, a subclass) still disposes at once.
+    if (!this.destroyRef.destroyed) {
+      this.dispose();
+    }
   }
 }

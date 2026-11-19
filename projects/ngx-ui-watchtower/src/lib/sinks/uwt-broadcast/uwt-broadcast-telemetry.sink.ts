@@ -1,4 +1,4 @@
-import { inject, Injectable, OnDestroy } from '@angular/core';
+import { DestroyRef, inject, Injectable, OnDestroy } from '@angular/core';
 import { UwtBroadcastTelemetrySink as CoreBroadcastTelemetrySink } from '@absaoss-cps/ui-watchtower';
 import { UWT_TELEMETRY_IDENTITY } from '../../config/uwt-telemetry-common.config/uwt-telemetry-common.config';
 import { uwtDevModeReporter } from '../../utils/uwt-telemetry-safe.util/uwt-telemetry-safe.util';
@@ -29,16 +29,25 @@ export class UwtBroadcastTelemetrySink
   extends CoreBroadcastTelemetrySink
   implements OnDestroy
 {
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor() {
     super({
       identity: inject(UWT_TELEMETRY_IDENTITY),
       ...uwtBroadcastConnectionOptions(),
       report: uwtDevModeReporter
     });
+    // Runs after every service's ngOnDestroy, so their last records still go
+    // out.
+    this.destroyRef.onDestroy(() => this.dispose());
   }
 
   /** @inheritdoc */
   ngOnDestroy(): void {
-    this.dispose();
+    // The injector's own call is finished by the callback above; a direct
+    // call (a test, a subclass) still disposes at once.
+    if (!this.destroyRef.destroyed) {
+      this.dispose();
+    }
   }
 }

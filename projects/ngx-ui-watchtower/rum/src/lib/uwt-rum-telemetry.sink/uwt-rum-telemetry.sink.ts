@@ -1,4 +1,4 @@
-import { inject, Injectable, OnDestroy } from '@angular/core';
+import { DestroyRef, inject, Injectable, OnDestroy } from '@angular/core';
 import {
   UWT_REDACT_CONFIG,
   UWT_TELEMETRY_ENABLED,
@@ -29,6 +29,8 @@ export class UwtRumTelemetrySink
   extends CoreRumTelemetrySink
   implements OnDestroy
 {
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor() {
     super({
       identity: inject(UWT_TELEMETRY_IDENTITY),
@@ -39,10 +41,17 @@ export class UwtRumTelemetrySink
       runOutside: uwtRunOutsideZone(),
       report: uwtDevModeReporter
     });
+    // Runs after every service's ngOnDestroy, so their last records still go
+    // out.
+    this.destroyRef.onDestroy(() => this.dispose());
   }
 
   /** @inheritdoc */
   ngOnDestroy(): void {
-    this.dispose();
+    // The injector's own call is finished by the callback above; a direct
+    // call (a test, a subclass) still disposes at once.
+    if (!this.destroyRef.destroyed) {
+      this.dispose();
+    }
   }
 }

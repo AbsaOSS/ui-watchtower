@@ -1,4 +1,10 @@
-import { inject, Injectable, InjectionToken, OnDestroy } from '@angular/core';
+import {
+  DestroyRef,
+  inject,
+  Injectable,
+  InjectionToken,
+  OnDestroy
+} from '@angular/core';
 import {
   UWT_DEFAULT_BROADCAST_CHANNEL,
   UwtBroadcastConnection,
@@ -67,10 +73,21 @@ export function uwtConnectBroadcastChannel(
 @Injectable()
 export class UwtBroadcastConnectionRef implements OnDestroy {
   readonly connection = uwtConnectBroadcastChannel('broadcast');
+  private readonly destroyRef = inject(DestroyRef);
+
+  constructor() {
+    // Runs after every service's ngOnDestroy, so their last records still go
+    // out.
+    this.destroyRef.onDestroy(() => this.connection.close());
+  }
 
   /** @inheritdoc */
   ngOnDestroy(): void {
-    this.connection.close();
+    // The injector's own call is finished by the callback above; a direct
+    // call still closes at once.
+    if (!this.destroyRef.destroyed) {
+      this.connection.close();
+    }
   }
 }
 

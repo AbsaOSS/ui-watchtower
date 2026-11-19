@@ -70,7 +70,7 @@ private file.
 | Failures     | `uwtDevModeReporter`: failures and dropped data in development mode only, configuration problems always, prefixed `[ngx-ui-watchtower]` (same file)                                                                                                                                                                            |
 | Reactive     | `settled$` is a `Subject` fed by `onSettled` and completed on destroy: [uwt-scenario-telemetry.service.ts](../projects/ngx-ui-watchtower/src/lib/services/uwt-scenario-telemetry.service/uwt-scenario-telemetry.service.ts); `traceScenario` passes the reporter to the core's `/rxjs`                                         |
 | Destinations | `@Injectable()` subclasses of the core's sinks, host and log provider, built from `inject()`. In `'broadcast'` mode one `UwtBroadcastConnectionRef` per injector gives the sink and log provider one channel: [uwt-broadcast.messages.ts](../projects/ngx-ui-watchtower/src/lib/sinks/uwt-broadcast/uwt-broadcast.messages.ts) |
-| Teardown     | The scenario and logger services and every destination subclass call `dispose()` from `ngOnDestroy`; the BI service holds nothing to release                                                                                                                                                                                   |
+| Teardown     | The scenario and logger services and the broadcast host call `dispose()` from `ngOnDestroy`; the sinks, the log provider and the shared connection from a `DestroyRef.onDestroy` callback, which Angular runs after every `ngOnDestroy`; the BI service holds nothing to release                                               |
 | Names        | [public-api.ts](../projects/ngx-ui-watchtower/src/public-api.ts) re-exports the registries, so `declare module '@absaoss-cps/ngx-ui-watchtower'` keeps working                                                                                                                                                                 |
 | Dependency   | `"@absaoss-cps/ui-watchtower": "^<version>"` in its `package.json`, moved by Release Please                                                                                                                                                                                                                                    |
 
@@ -82,7 +82,9 @@ cover its wiring:
 - **One engine per scope.** Everything the framework hands out in one
   application shares one engine, destination and log store.
 - **Teardown.** Destroying the application disposes everything the adapter
-  created; destroying it twice does nothing more.
+  created, after what the engine sends while it is disposed (abandoned
+  scenarios, the last flushes) has reached the destination; destroying it
+  twice does nothing more.
 - **Off and on the server.** With telemetry off, or rendering on a server,
   nothing listens to the page, no channel opens and no RUM client starts.
 - **Names.** A type test that declares names on the adapter's module path:

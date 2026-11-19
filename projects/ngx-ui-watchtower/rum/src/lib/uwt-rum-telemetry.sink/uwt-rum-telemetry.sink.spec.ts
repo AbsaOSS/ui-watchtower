@@ -1,17 +1,20 @@
 import { NgZone, PLATFORM_ID } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
+  provideUwtTelemetry,
   UWT_DEFAULT_TELEMETRY_CONFIG,
   UWT_REDACT_CONFIG,
   UWT_TELEMETRY_ENABLED,
   UWT_TELEMETRY_EVENT_TYPE,
-  UWT_TELEMETRY_IDENTITY
+  UWT_TELEMETRY_IDENTITY,
+  UwtScenarioTelemetryService
 } from '@absaoss-cps/ngx-ui-watchtower';
 import { uwtSessionElapsed } from '@absaoss-cps/ui-watchtower';
 import {
   UWT_RUM_CREDENTIALS_PROVIDER,
   UwtRumBootstrap
 } from '../uwt-rum-credentials/uwt-rum-credentials';
+import { provideUwtTelemetryRumSink } from '../uwt-rum.providers/uwt-rum.providers';
 import { UwtRumTelemetrySink } from './uwt-rum-telemetry.sink';
 
 /** Stand-in for the real `AwsRum` client. */
@@ -1778,6 +1781,43 @@ describe('UwtRumTelemetrySink', () => {
 
       resolveLoad(bootstrap());
       await initPromise;
+    });
+  });
+
+  describe('when the application is destroyed', () => {
+    it('should record and beacon a running scenario before disabling the client', async () => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          provideUwtTelemetry({
+            application: 'test-app',
+            environment: 'prod',
+            version: '3.0.0'
+          }),
+          provideUwtTelemetryRumSink(),
+          {
+            provide: UWT_RUM_CREDENTIALS_PROVIDER,
+            useValue: { load: async () => bootstrap() }
+          }
+        ]
+      });
+      await TestBed.inject(UwtRumTelemetrySink).init();
+      TestBed.inject(UwtScenarioTelemetryService).start({ name: 'checkout' });
+
+      TestBed.resetTestingModule();
+
+      const abandoned = awsRumInstance.recordEvent.mock.calls.findIndex(
+        ([eventType, payload]) =>
+          eventType === UWT_TELEMETRY_EVENT_TYPE.scenario &&
+          payload.status === 'abandoned'
+      );
+      expect(abandoned).toBeGreaterThanOrEqual(0);
+      const recorded =
+        awsRumInstance.recordEvent.mock.invocationCallOrder[abandoned];
+      const [beaconed] = awsRumInstance.dispatchBeacon.mock.invocationCallOrder;
+      const [disabled] = awsRumInstance.disable.mock.invocationCallOrder;
+      expect(recorded).toBeLessThan(beaconed);
+      expect(beaconed).toBeLessThan(disabled);
     });
   });
 });
