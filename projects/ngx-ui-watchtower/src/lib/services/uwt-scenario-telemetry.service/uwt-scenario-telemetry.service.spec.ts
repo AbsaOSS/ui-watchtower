@@ -1086,6 +1086,16 @@ describe('UwtScenarioTelemetryService', () => {
       expect(record.reason).toBe('page-hidden');
     });
 
+    it('should record disposed as the cause on destroy', () => {
+      service.start({ name: 'in-flight' });
+
+      service.ngOnDestroy();
+
+      const record = onlyScenarioRecord();
+      expect(record.metadata).toMatchObject({ abandonedBy: 'disposed' });
+      expect(record.reason).toBe('disposed');
+    });
+
     it('should not fire the timeout once the scenario has settled', () => {
       const scenario = service.start({ name: 'quick', timeoutMs: 5000 });
       scenario.complete();

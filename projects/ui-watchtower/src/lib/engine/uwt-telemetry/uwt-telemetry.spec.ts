@@ -438,6 +438,12 @@ describe('uwtCreateTelemetry', () => {
       window.dispatchEvent(new Event('pagehide'));
 
       expect(scenario.status).toBe('abandoned');
+      expect(sink.ofType('com.cart.scenario')).toEqual([
+        expect.objectContaining({
+          reason: 'page-hidden',
+          metadata: { abandonedBy: 'page-hidden' }
+        })
+      ]);
       expect(sink.flushes).toEqual([true]);
       expect(logApi.flushCount).toBe(1);
     });
@@ -498,6 +504,21 @@ describe('uwtCreateTelemetry', () => {
       window.dispatchEvent(new Event('pagehide'));
       expect(sink.flushes).toEqual([true]);
       expect(logApi.flushCount).toBe(1);
+    });
+
+    it('should record disposal, not a page hide, as the cause', () => {
+      const { telemetry, sink } = engine();
+      telemetry.scenarios.start({ name: 'checkout' });
+
+      telemetry.dispose();
+
+      expect(sink.ofType('com.cart.scenario')).toEqual([
+        expect.objectContaining({
+          status: 'abandoned',
+          reason: 'disposed',
+          metadata: { abandonedBy: 'disposed' }
+        })
+      ]);
     });
 
     it('should change nothing else afterwards: BI events, the user and flushes still reach the destination', () => {
