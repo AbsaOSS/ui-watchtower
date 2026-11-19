@@ -375,6 +375,10 @@ A shell or a fragment needn't be Angular: one built on
 [`@absaoss-cps/ui-watchtower`](https://www.npmjs.com/package/@absaoss-cps/ui-watchtower)
 connects the same way.
 
+A fragment whose application is destroyed mid-journey, for example when the
+shell unmounts it, still sends its running scenarios, as `abandoned`, and
+its last log lines.
+
 ## Seeing what is sent
 
 Run in DevTools, no reload needed:

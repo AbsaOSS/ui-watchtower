@@ -10,8 +10,19 @@ import {
   UwtTelemetrySink
 } from '@absaoss-cps/ui-watchtower';
 import { DOCUMENT } from '@angular/common';
-import { Injectable, Injector, PLATFORM_ID } from '@angular/core';
+import {
+  inject,
+  Injectable,
+  Injector,
+  OnDestroy,
+  PLATFORM_ID,
+  ProviderToken
+} from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import {
+  provideUwtTelemetry,
+  provideUwtTelemetrySink
+} from '../../providers/uwt-telemetry-common.providers/uwt-telemetry-common.providers';
 import { UwtLoggerService } from '../../services/uwt-logger.service/uwt-logger.service';
 import {
   UWT_REDACT_CONFIG,
@@ -113,6 +124,11 @@ export class UwtBroadcastChannelStub {
       peers.forEach((peer) => (peer.closed = true));
     }
     UwtBroadcastChannelStub.channels.clear();
+  }
+
+  /** How many channels are open, across every name. */
+  static open(): number {
+    return [...UwtBroadcastChannelStub.channels.values()].flat().length;
   }
 
   /**
@@ -275,6 +291,16 @@ class RecordingLogApi implements UwtLogApiProvider {
       found = found.slice(0, filter.limit);
     }
     return Promise.resolve(found);
+  }
+}
+
+/** An application service that logs while the application shuts down. */
+@Injectable()
+class ClosingService implements OnDestroy {
+  private readonly logger = inject(UwtLoggerService).getLogger('closing');
+
+  ngOnDestroy(): void {
+    this.logger.warn('Closing');
   }
 }
 
@@ -813,6 +839,99 @@ describe('broadcast telemetry across realms', () => {
       expect(() => bareShell.get(UwtTelemetryBroadcastHost)).toThrow(
         /UWT_LOG_API_PROVIDER/
       );
+    });
+  });
+
+  describe('when a fragment application is destroyed', () => {
+    /**
+     * A fragment wired as an application wires one, in TestBed's injector:
+     * resetting TestBed destroys it in the injector's real order, as
+     * destroying the application does.
+     */
+    function configureFragment(): void {
+      TestBed.configureTestingModule({
+        providers: [
+          provideUwtTelemetry({
+            application: 'cart',
+            environment: 'test',
+            version: '1.0.0'
+          }),
+          provideUwtTelemetrySink('broadcast'),
+          ClosingService
+        ]
+      });
+    }
+
+    it.each<[string, ProviderToken<unknown>]>([
+      ['the scenario service', UwtScenarioTelemetryService],
+      ['the sink', UwtTelemetrySink]
+    ])(
+      'should forward its running scenario and its last flushes, with %s created first',
+      async (_, first) => {
+        configureFragment();
+        TestBed.inject(first);
+        TestBed.inject(UwtLoggerService);
+        TestBed.inject(UwtScenarioTelemetryService).start({ name: 'checkout' });
+        await UwtBroadcastChannelStub.settle();
+
+        TestBed.resetTestingModule();
+        await UwtBroadcastChannelStub.settle();
+
+        expect(
+          shellSink
+            .ofType(UWT_TELEMETRY_EVENT_TYPE.scenario)
+            .map((event) => event.payload)
+        ).toEqual([
+          expect.objectContaining({
+            scenarioName: 'checkout',
+            status: 'abandoned'
+          })
+        ]);
+        expect(shellSink.flushes).toEqual([true]);
+        expect(shell.get(RecordingLogApi).flushes).toBe(1);
+      }
+    );
+
+    it("should forward a line logged from another service's ngOnDestroy", async () => {
+      configureFragment();
+      TestBed.inject(ClosingService);
+      await UwtBroadcastChannelStub.settle();
+
+      TestBed.resetTestingModule();
+      await UwtBroadcastChannelStub.settle();
+
+      expect(shell.get(RecordingLogApi).records).toEqual([
+        expect.objectContaining({ logger: 'closing', message: 'Closing' })
+      ]);
+    });
+
+    it('should leave no channel or timer behind, and send nothing more', async () => {
+      jest.useFakeTimers();
+      try {
+        const shellChannels = UwtBroadcastChannelStub.open();
+        configureFragment();
+        const sink = TestBed.inject(UwtTelemetrySink);
+        const logApi = TestBed.inject(UWT_LOG_API_PROVIDER);
+        TestBed.inject(UwtScenarioTelemetryService).start({ name: 'checkout' });
+        const pending = logApi.query({});
+
+        TestBed.resetTestingModule();
+        await expect(pending).resolves.toEqual([]);
+        await jest.advanceTimersByTimeAsync(0);
+
+        expect(UwtBroadcastChannelStub.open()).toBe(shellChannels);
+        expect(jest.getTimerCount()).toBe(0);
+
+        const delivered = shellSink.events.length;
+        sink.record('com.uwt.bi', { eventName: 'after-destroy' });
+        await expect(logApi.query({})).resolves.toEqual([]);
+        await jest.advanceTimersByTimeAsync(0);
+
+        expect(shellSink.events).toHaveLength(delivered);
+        expect(jest.getTimerCount()).toBe(0);
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 

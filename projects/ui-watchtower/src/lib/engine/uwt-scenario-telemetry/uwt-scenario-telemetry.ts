@@ -77,7 +77,8 @@ export interface UwtScenarioTelemetryOptions {
  * Each {@link start} call returns an independent {@link UwtScenario}; there is
  * no "current" scenario, so overlapping journeys are tracked separately.
  * Scenarios still in flight when the page unloads are settled as
- * `abandoned`, and so are those still running when this is disposed.
+ * `abandoned` (`page-hidden`), and so are those still running when this is
+ * disposed (`disposed`).
  *
  * @example
  * ```typescript
@@ -119,7 +120,7 @@ export class UwtScenarioTelemetry {
     this.stopListening = this.enabled
       ? uwtListenToPage(
           uwtTelemetryDocument(options.document),
-          () => this.flushActive(),
+          () => this.flushActive('page-hidden'),
           () => this.flushSink()
         )
       : () => undefined;
@@ -265,7 +266,7 @@ export class UwtScenarioTelemetry {
     this.disposed = true;
     this.stopListening();
     if (this.enabled) {
-      this.flushActive();
+      this.flushActive('disposed');
     }
     this.listeners.clear();
   }
@@ -313,15 +314,19 @@ export class UwtScenarioTelemetry {
    *
    * Scenario emission is synchronous, so everything settled here reaches the
    * sink before the beacon goes out.
+   *
+   * @param cause why they stop: the page went away, or this was disposed while
+   *   the page stays (a fragment unmounted by its shell). Recorded as the
+   *   reason and as `metadata.abandonedBy`, so the two can be told apart.
    */
-  private flushActive(): void {
+  private flushActive(cause: 'page-hidden' | 'disposed'): void {
     uwtSafeVoid(
       'scenarioTelemetry.flush',
       () => {
         for (const scenario of this.getActive()) {
           scenario.settle('abandoned', {
-            reason: 'page-hidden',
-            metadata: { abandonedBy: 'page-hidden' }
+            reason: cause,
+            metadata: { abandonedBy: cause }
           });
         }
         this.sink.flush(true);

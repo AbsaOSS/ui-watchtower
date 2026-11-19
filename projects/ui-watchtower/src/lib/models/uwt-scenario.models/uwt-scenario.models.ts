@@ -79,8 +79,10 @@ export type UwtStepName = UwtRegistered<UwtScenarioSteps>;
  *
  * - `success` — the journey reached its goal.
  * - `failure` — a defect. Investigate.
- * - `abandoned` — the user navigated away or the page went away.
- *   `metadata.abandonedBy` (`'caller'` or `'page-hidden'`) says which.
+ * - `abandoned` — the user navigated away, the page went away, or telemetry
+ *   was disposed while the page stays (a fragment unmounted by its shell).
+ *   `metadata.abandonedBy` (`'caller'`, `'page-hidden'` or `'disposed'`) says
+ *   which.
  * - `incomplete` — an expected path that didn't reach the goal: no results,
  *   a declined guard, a feature flag routing elsewhere. Not an error.
  * - `timeout` — the scenario never settled within its deadline.

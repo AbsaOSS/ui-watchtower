@@ -196,6 +196,13 @@ application calls on the sink directly; a destination should not throw
 there. Log lines are not part of it: they go to the application's
 own log backend through `UWT_LOG_API_PROVIDER`, whatever the destination.
 
+A destination that releases something when the application is destroyed
+does it in a `DestroyRef.onDestroy` callback registered in its constructor,
+not in `ngOnDestroy`. Angular calls `ngOnDestroy` dependencies first, so a
+destination's own would run before the services using it settle their
+scenarios and flush; the callbacks run after every `ngOnDestroy`. The
+library's own destinations work this way.
+
 ```ts
 providers: [
   provideUwtTelemetry({ application: 'my-app', environment, version }),
@@ -620,7 +627,8 @@ rate useless for alerting:
 | `timeout`    | It never settled within its deadline                                                  | Engagement signal, distinct from an abandon  |
 
 `metadata.abandonedBy` records which kind of abandonment it was — `'caller'`
-for `cancel()`, `'page-hidden'` for an unload. `timeout` is its own status
+for `cancel()`, `'page-hidden'` for an unload, `'disposed'` for an
+application destroyed while the page stays. `timeout` is its own status
 rather than a third cause under `abandoned`, so it can be filtered and
 alerted on directly.
 
@@ -645,6 +653,11 @@ if (!rows.length) {
 - **Unload.** On `pagehide`, every running scenario settles as `abandoned`
   (`page-hidden`) and the sink is flushed with a beacon. Emission is
   synchronous, so everything settled here reaches the sink first.
+- **Destroy.** When the application is destroyed — a fragment unmounted by
+  its shell, say — every running scenario settles as `abandoned`
+  (`disposed`, so it is not mistaken for an unload), and the sink and the
+  log provider are flushed. The destinations and the broadcast channel close only after
+  that, so those last records still go out.
 - **Going hidden.** Mobile browsers often kill a backgrounded tab without a
   `pagehide`, so on `visibilitychange` to `hidden` the sink is flushed too —
   but scenarios keep running, since the user may come back.
